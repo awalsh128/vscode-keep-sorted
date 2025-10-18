@@ -16,6 +16,8 @@ runtimes:
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
+    - vale@3.12.0
+    - actionlint@1.7.8
     - checkov@3.2.484
     - eslint@9.37.0
     - git-diff-check
@@ -24,13 +26,10 @@ lint:
     - prettier@3.6.2
     - trufflehog@3.90.11
     - yamllint@1.37.1
-  # Disable actionlint because Trunk/IDE cannot resolve certain action versions in some environments
-  disabled:
-    - actionlint
 actions:
   disabled:
     - trunk-announce
     - trunk-check-pre-push
-    - trunk-fmt-pre-commit
   enabled:
     - trunk-upgrade-available
+    - trunk-fmt-pre-commit
