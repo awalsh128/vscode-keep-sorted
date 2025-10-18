@@ -50,7 +50,7 @@
           "type": "boolean",
           "default": true,
           "description": "Run keep-sorted linting on file save"
-        },
+        }
       }
     }
   },
