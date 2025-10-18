@@ -3,3 +3,9 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+
+# Ensure Trunk configuration is tracked
+!.trunk/
+!.trunk/**
+!.trunk/configs/
+!.trunk/valestyles/
