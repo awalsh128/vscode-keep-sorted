@@ -1,0 +1,70 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run mode (true/false)"
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Run tests
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: npm test
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Create Release
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create release with auto-generated notes
+          gh release create "${{ github.ref_name }}" \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/} ${{ github.ref_name }}" \
+              --generate-notes
+
+          # Get the generated release notes
+          NOTES=$(gh release view "${{ github.ref_name }}" --json body -q .body)
+          echo "notes=$NOTES" >> $GITHUB_OUTPUT
+          echo "Release notes generated:"
+          echo "${NOTES}"
+
+      - name: Package and Publish Extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          NODE_OPTIONS: --no-deprecation # Suppress vsce deprecation warnings
+        run: |
+          # Check if dry run
+          dry_run_flag=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run mode - running with dry run package and publish"
+            dry_run_flag="--dry-run"
+          fi          
+          vsce package --message "${{ steps.create_release.outputs.notes }}" $dry_run_flag
+          vsce publish --message "${{ steps.create_release.outputs.notes }}" $dry_run_flag
