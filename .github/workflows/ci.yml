@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   build:
@@ -15,13 +15,13 @@ jobs:
         node-version: [16.x, 18.x]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -33,12 +33,3 @@ jobs:
         uses: GabrielBB/xvfb-action@v1
         with:
           run: npm test
-
-      - name: Package Extension
-        run: npm run package
-
-      - name: Upload Extension Package
-        uses: actions/upload-artifact@v3
-        with:
-          name: extension-package-${{ matrix.os }}
-          path: "*.vsix"
