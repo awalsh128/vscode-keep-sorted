@@ -1,0 +1,54 @@
+{
+  "name": "code-actions-sample",
+  "private": true,
+  "displayName": "Code Actions Provider Sample",
+  "version": "0.0.2",
+  "publisher": "vscode-samples",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Microsoft/vscode-extension-samples"
+  },
+  "bugs": {
+    "url": "https://github.com/Microsoft/vscode-extension-samples/issues"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Keep Sorted",
+      "properties": {
+        "keepSorted.project": {
+          "type": "string",
+          "default": "default",
+          "description": "The project to run the keep-sorted extension in"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "lint": "eslint",
+    "watch": "tsc -watch -p ./",
+    "create-binaries": "tsx scripts/create-binaries.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/node": "^22",
+    "@types/vscode": "^1.100.0",
+    "eslint": "^9.13.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  }
+}

@@ -1,0 +1,30 @@
+name: Pull Request Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-binaries-not-in-pr:
+    name: Check binaries not included in PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for binary changes
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^bin/'; then
+            echo "❌ Error: Binaries should not be included in pull requests"
+            echo "Binaries are automatically built and committed by CI on merge to main"
+            echo ""
+            echo "Changed binary files:"
+            git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^bin/'
+            exit 1
+          else
+            echo "✓ No binary files in PR"
+          fi
