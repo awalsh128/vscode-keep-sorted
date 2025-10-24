@@ -23,12 +23,15 @@ import * as vscode from "vscode";
  * logger.error("Failed to process", error);
  * ```
  */
-export function createLogger(name: string): vscode.LogOutputChannel {
+function createLogger(name: string): vscode.LogOutputChannel {
   const channel = vscode.window.createOutputChannel(name, { log: true });
   channel.show();
   channel.info(`Log output channel created for: ${name}`);
   return channel;
 }
+
+/** Singleton logger instance for the keep-sorted extension */
+export const logger = createLogger("keep-sorted");
 
 /**
  * Manages diagnostic warnings for keep-sorted blocks across all open documents.
@@ -41,11 +44,9 @@ export class KeepSortedDiagnostics implements vscode.Disposable {
   public static readonly source = "keep-sorted";
 
   private readonly diagnostics: vscode.DiagnosticCollection;
-  private readonly logger: vscode.LogOutputChannel;
 
-  constructor(logger: vscode.LogOutputChannel) {
+  constructor() {
     this.diagnostics = vscode.languages.createDiagnosticCollection(KeepSortedDiagnostics.source);
-    this.logger = logger;
   }
 
   dispose() {
@@ -57,25 +58,25 @@ export class KeepSortedDiagnostics implements vscode.Disposable {
       (d) => d.source === KeepSortedDiagnostics.source
     );
     if (filteredDiagnostics.length > 0) {
-      this.logger.debug(
+      logger.debug(
         `Found ${filteredDiagnostics.length} diagnostics / findings for document: ${document.uri.fsPath}`
       );
       this.diagnostics.set(document.uri, filteredDiagnostics);
     } else {
-      this.logger.debug(`No diagnostics / findings found for document: ${document.uri.fsPath}`);
+      logger.debug(`No diagnostics / findings found for document: ${document.uri.fsPath}`);
     }
   }
 
   clear(document: vscode.TextDocument) {
     this.diagnostics.delete(document.uri);
-    this.logger.debug(`Cleared diagnostics for document: ${document.uri.fsPath}`);
+    logger.debug(`Cleared diagnostics for document: ${document.uri.fsPath}`);
   }
 
   get(document: vscode.TextDocument): vscode.Diagnostic[] | undefined {
     const filteredDiagnostics = this.diagnostics
       .get(document.uri)
       ?.filter((diagnostic) => diagnostic.source === KeepSortedDiagnostics.source);
-    this.logger.debug(
+    logger.debug(
       `Retrieved ${filteredDiagnostics?.length ?? 0} diagnostics for document: ${
         document.uri.fsPath
       }`
@@ -106,15 +107,12 @@ export class ErrorTracker implements vscode.Disposable {
   private consecutiveErrors = 0;
   private readonly maxErrors = 5;
   private isDisabled = false;
-  private readonly logger: vscode.LogOutputChannel;
   private readonly errorHistory: Error[] = [];
   private readonly onExtensionDisabledEmitter = new vscode.EventEmitter<ExtensionDisabledInfo>();
 
   readonly onExtensionDisabled = this.onExtensionDisabledEmitter.event;
 
-  constructor(logger: vscode.LogOutputChannel) {
-    this.logger = logger;
-  }
+  constructor() {}
 
   dispose(): void {
     this.onExtensionDisabledEmitter.dispose();
@@ -125,7 +123,7 @@ export class ErrorTracker implements vscode.Disposable {
    */
   recordSuccess(): void {
     if (this.consecutiveErrors > 0) {
-      this.logger.debug(
+      logger.debug(
         `Resetting error counter from ${this.consecutiveErrors} after successful operation`
       );
       this.consecutiveErrors = 0;
@@ -143,17 +141,14 @@ export class ErrorTracker implements vscode.Disposable {
 
     this.consecutiveErrors++;
     this.errorHistory.push(error);
-    this.logger.error(
-      `Error #${this.consecutiveErrors}/${this.maxErrors}: ${error.message}`,
-      error
-    );
+    logger.error(`Error #${this.consecutiveErrors}/${this.maxErrors}: ${error.message}`, error);
 
     if (this.consecutiveErrors < this.maxErrors) {
       return true;
     }
 
     this.isDisabled = true;
-    this.logger.error("Maximum consecutive errors reached. Disabling keep-sorted extension.");
+    logger.error("Maximum consecutive errors reached. Disabling keep-sorted extension.");
 
     // Build log summary for bug reports
     const logSummary = this.buildLogSummary();

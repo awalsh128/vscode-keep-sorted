@@ -1,0 +1,5 @@
+{
+  "keep-sorted.enabled": true,
+  "keep-sorted.lintOnSave": true,
+  "keep-sorted.logLevel": "debug"
+}

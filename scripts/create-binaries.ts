@@ -5,9 +5,8 @@ import { join, dirname } from "path";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const VERSION = "v0.7.1";
-const BIN_DIR = join(__dirname, "..", "bin");
+const KEEP_SORTED_VERSION = "v0.7.1";
+const BIN_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "bin");
 
 const PLATFORMS = [
   { goos: "windows", goarch: "amd64", filename: "keep-sorted.exe" },
@@ -24,7 +23,7 @@ function buildBinary(
 ): void {
   console.log(`Building ${platform.filename} (${platform.goos}/${platform.goarch})...`);
 
-  execSync(`go install github.com/google/keep-sorted@${VERSION}`, {
+  execSync(`go install github.com/google/keep-sorted@${KEEP_SORTED_VERSION}`, {
     stdio: "inherit",
     env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
   });

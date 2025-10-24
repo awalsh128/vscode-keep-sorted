@@ -25,10 +25,32 @@
     "configuration": {
       "title": "Keep Sorted",
       "properties": {
-        "keepSorted.project": {
+        "keep-sorted.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the keep-sorted extension"
+        },
+        "keep-sorted.lintOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically lint documents when they are saved"
+        },
+        "keep-sorted.lintOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically lint documents when they are changed (debounced)"
+        },
+        "keep-sorted.logLevel": {
           "type": "string",
-          "default": "default",
-          "description": "The project to run the keep-sorted extension in"
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Logging level for the extension output channel"
         }
       }
     }
@@ -43,9 +65,17 @@
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@stylistic/eslint-plugin": "^2.9.0",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22",
+    "@types/sinon": "^17.0.4",
+    "@types/sinon-chai": "^4.0.0",
     "@types/vscode": "^1.100.0",
+    "chai": "^6.2.0",
     "eslint": "^9.13.0",
+    "mocha": "^11.7.4",
+    "sinon": "^21.0.0",
+    "sinon-chai": "^4.0.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",

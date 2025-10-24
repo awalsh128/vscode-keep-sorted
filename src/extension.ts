@@ -1,23 +1,29 @@
 import * as vscode from "vscode";
 import {
   KeepSortedDiagnostics,
-  createLogger,
+  logger,
   ErrorTracker,
   ExtensionDisabledInfo,
   createGithubIssueAsUrl,
 } from "./instrumentation";
 import { KeepSorted } from "./keep_sorted";
-import { displayName } from "./shared";
 import { FixCommandHandler, KeepSortedActionProvider } from "./actions";
+import { getConfiguration } from "./configuration";
 
 const debounceDelayMs = 1000;
 
 export function activate(context: vscode.ExtensionContext) {
-  const logger = createLogger(displayName);
   logger.show();
 
-  const errorTracker = new ErrorTracker(logger);
-  const linter = new KeepSorted(context.extensionPath, logger, errorTracker);
+  // Read configuration
+  const config = getConfiguration();
+
+  logger.info(`Configuration enabled: ${config.enabled}`);
+  logger.info(`Configuration lintOnSave: ${config.lintOnSave}`);
+  logger.info(`Configuration lintOnChange: ${config.lintOnChange}`);
+
+  const errorTracker = new ErrorTracker();
+  const linter = new KeepSorted(context.extensionPath, errorTracker);
 
   let changeTimer: NodeJS.Timeout | undefined;
 
@@ -72,10 +78,10 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   logger.info(`Setting up KeepSortedDiagnostics...`);
-  const diagnostics = new KeepSortedDiagnostics(logger);
+  const diagnostics = new KeepSortedDiagnostics();
   context.subscriptions.push(diagnostics);
 
-  const fixCommandHandler = new FixCommandHandler(linter, logger, diagnostics);
+  const fixCommandHandler = new FixCommandHandler(linter, diagnostics);
   logger.info(`Registering fix command ${FixCommandHandler.command.title}...`);
   context.subscriptions.push(
     vscode.commands.registerCommand(FixCommandHandler.command.command, async () => {
@@ -84,13 +90,9 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(
-      "*",
-      new KeepSortedActionProvider(diagnostics, logger),
-      {
-        providedCodeActionKinds: KeepSortedActionProvider.actionKinds,
-      }
-    )
+    vscode.languages.registerCodeActionsProvider("*", new KeepSortedActionProvider(diagnostics), {
+      providedCodeActionKinds: KeepSortedActionProvider.actionKinds,
+    })
   );
 
   const saveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {

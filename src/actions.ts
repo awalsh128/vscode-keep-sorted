@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { KeepSortedDiagnostics } from "./instrumentation";
+import { KeepSortedDiagnostics, logger } from "./instrumentation";
 import { KeepSorted } from "./keep_sorted";
 
 export class FixCommandHandler {
@@ -10,20 +10,14 @@ export class FixCommandHandler {
   })();
 
   private readonly linter: KeepSorted;
-  private readonly logger: vscode.LogOutputChannel;
   private readonly diagnostics: KeepSortedDiagnostics;
 
   get commandName(): string {
     return FixCommandHandler.command.command;
   }
 
-  constructor(
-    linter: KeepSorted,
-    logger: vscode.LogOutputChannel,
-    diagnostics: KeepSortedDiagnostics
-  ) {
+  constructor(linter: KeepSorted, diagnostics: KeepSortedDiagnostics) {
     this.linter = linter;
-    this.logger = logger;
     this.diagnostics = diagnostics;
   }
 
@@ -32,16 +26,16 @@ export class FixCommandHandler {
    */
   async execute(editor: vscode.TextEditor | undefined): Promise<void> {
     if (!editor) {
-      this.logger.warn(`No active text editor found for fix command. Aborted.`);
+      logger.warn(`No active text editor found for fix command. Aborted.`);
       return;
     }
 
     const document = editor.document;
-    this.logger.info(`Executing fix command for document: ${document.uri.fsPath}`);
+    logger.info(`Executing fix command for document: ${document.uri.fsPath}`);
 
     const fixedContent = await this.linter.fixDocument(document);
     if (!fixedContent) {
-      this.logger.error(`Fix command returned no content for document: ${document.uri.fsPath}`);
+      logger.error(`Fix command returned no content for document: ${document.uri.fsPath}`);
       return;
     }
 
@@ -55,7 +49,7 @@ export class FixCommandHandler {
 
     const success = await vscode.workspace.applyEdit(edit);
     if (success) {
-      this.logger.info(`Successfully applied fix to document: ${document.uri.fsPath}`);
+      logger.info(`Successfully applied fix to document: ${document.uri.fsPath}`);
       this.diagnostics.clear(document);
       // Re-lint the document after applying fix
       const lintResults = await this.linter.lintDocument(document);
@@ -63,7 +57,7 @@ export class FixCommandHandler {
         this.diagnostics.set(document, lintResults);
       }
     } else {
-      this.logger.error(`Failed to apply edit to document: ${document.uri.fsPath}`);
+      logger.error(`Failed to apply edit to document: ${document.uri.fsPath}`);
     }
   }
 }
@@ -80,11 +74,9 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
   public static readonly actionKinds = [vscode.CodeActionKind.QuickFix];
 
   private readonly diagnostics: KeepSortedDiagnostics;
-  private readonly logger: vscode.LogOutputChannel;
 
-  constructor(diagnostics: KeepSortedDiagnostics, logger: vscode.LogOutputChannel) {
+  constructor(diagnostics: KeepSortedDiagnostics) {
     this.diagnostics = diagnostics;
-    this.logger = logger;
   }
 
   public provideCodeActions(
@@ -92,7 +84,7 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
     _: vscode.Range
   ): vscode.CodeAction[] | undefined {
     const documentDiagnostics = this.diagnostics.get(document) || [];
-    this.logger.debug(
+    logger.debug(
       `Code action provider for document: ${document.uri.fsPath}, found ${documentDiagnostics.length} diagnostics`
     );
     if (documentDiagnostics.length === 0) {
@@ -106,7 +98,7 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
     fixAction.command = FixCommandHandler.command;
     fixAction.diagnostics = documentDiagnostics;
 
-    this.logger.debug(
+    logger.debug(
       `Providing code action "${FixCommandHandler.command.title}" for document: ${document.uri.fsPath}`
     );
     return [fixAction];
