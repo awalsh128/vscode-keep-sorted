@@ -3,7 +3,7 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { FixFileCommandHandler, KeepSortedActionProvider } from "../actions";
+import { FixCommandHandler, FixFileCommandHandler, KeepSortedActionProvider } from "../actions";
 import { KeepSorted } from "../keep_sorted";
 import { KeepSortedDiagnostics } from "../instrumentation";
 
@@ -23,6 +23,21 @@ describe("actions", () => {
   });
 
   describe("FixCommandHandler", () => {
+    describe("createHandlers", () => {
+      it("should create an array of command handlers", () => {
+        const mockLinter = {} as KeepSorted;
+        const mockDiagnostics = {} as KeepSortedDiagnostics;
+
+        const handlers = FixCommandHandler.createHandlers(mockLinter, mockDiagnostics);
+
+        expect(handlers).to.be.an("array");
+        expect(handlers).to.have.length.greaterThan(0);
+        expect(handlers[0]).to.be.instanceOf(FixFileCommandHandler);
+      });
+    });
+  });
+
+  describe("FixFileCommandHandler", () => {
     let handler: FixFileCommandHandler;
     let mockLinter: sinon.SinonStubbedInstance<KeepSorted>;
     let mockDiagnostics: sinon.SinonStubbedInstance<KeepSortedDiagnostics>;
@@ -60,16 +75,17 @@ describe("actions", () => {
     });
 
     describe("command metadata", () => {
-      it("should have correct command name", () => {
-        expect(handler.commandName).to.equal("keep-sorted.fix");
+      it("should have correct command properties", () => {
+        const command = handler.command;
+        expect(command.title).to.equal("Sort all lines in file (keep-sorted)");
+        expect(command.command).to.equal("keep-sorted.fixfile");
+        expect(command.tooltip).to.equal("Fix all lines in the current document");
       });
 
-      it("should have static command with correct properties", () => {
-        expect(FixFileCommandHandler.command.title).to.equal("Sort lines (keep-sorted)");
-        expect(FixFileCommandHandler.command.command).to.equal("keep-sorted.fix");
-        expect(FixFileCommandHandler.command.tooltip).to.equal(
-          "Fix all lines in keep-sorted blocks of the current document"
-        );
+      it("should memoize command object", () => {
+        const command1 = handler.command;
+        const command2 = handler.command;
+        expect(command1).to.equal(command2); // Same reference due to memoization
       });
     });
 
@@ -80,14 +96,25 @@ describe("actions", () => {
         applyEditStub = sandbox.stub(vscode.workspace, "applyEdit");
       });
 
-      it("should return early when editor is undefined", async () => {
-        await handler.execute(undefined);
+      it("should return undefined when editor is undefined", async () => {
+        const result = await handler.execute(undefined);
 
+        expect(result).to.be.undefined;
         expect(mockLinter.fixDocument).not.to.have.been.called;
         expect(applyEditStub).not.to.have.been.called;
       });
 
-      it("should apply fix successfully", async () => {
+      it("should return undefined when fixDocument fails", async () => {
+        mockLinter.fixDocument.resolves(undefined);
+
+        const result = await handler.execute(mockEditor);
+
+        expect(result).to.be.undefined;
+        expect(mockLinter.fixDocument).to.have.been.calledOnceWith(mockDocument);
+        expect(applyEditStub).not.to.have.been.called;
+      });
+
+      it("should apply fix successfully and update diagnostics", async () => {
         const fixedContent = "fixed content";
         mockLinter.fixDocument.resolves(fixedContent);
         mockLinter.lintDocument.resolves([]);
@@ -99,25 +126,7 @@ describe("actions", () => {
         expect(applyEditStub).to.have.been.calledOnce;
         expect(mockDiagnostics.clear).to.have.been.calledOnceWith(mockDocument);
         expect(mockLinter.lintDocument).to.have.been.calledOnceWith(mockDocument);
-      });
-
-      it("should handle fix returning no content", async () => {
-        mockLinter.fixDocument.resolves(undefined);
-
-        await handler.execute(mockEditor);
-
-        expect(mockLinter.fixDocument).to.have.been.calledOnce;
-        expect(applyEditStub).not.to.have.been.called;
-        expect(mockDiagnostics.clear).not.to.have.been.called;
-      });
-
-      it("should handle fix returning null", async () => {
-        mockLinter.fixDocument.resolves(undefined);
-
-        await handler.execute(mockEditor);
-
-        expect(mockLinter.fixDocument).to.have.been.calledOnce;
-        expect(applyEditStub).not.to.have.been.called;
+        expect(mockDiagnostics.set).to.have.been.calledOnceWith(mockDocument, []);
       });
 
       it("should handle failed edit application", async () => {
@@ -128,9 +137,21 @@ describe("actions", () => {
 
         expect(applyEditStub).to.have.been.calledOnce;
         expect(mockDiagnostics.clear).not.to.have.been.called;
+        expect(mockLinter.lintDocument).not.to.have.been.called;
       });
 
-      it("should re-lint after successful fix", async () => {
+      it("should handle lint failure after fix", async () => {
+        mockLinter.fixDocument.resolves("fixed content");
+        mockLinter.lintDocument.resolves(undefined);
+        applyEditStub.resolves(true);
+
+        await handler.execute(mockEditor);
+
+        expect(mockLinter.lintDocument).to.have.been.calledOnce;
+        expect(mockDiagnostics.set).not.to.have.been.called;
+      });
+
+      it("should re-lint after successful fix with diagnostics", async () => {
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test diagnostic",
@@ -146,17 +167,6 @@ describe("actions", () => {
 
         expect(mockLinter.lintDocument).to.have.been.calledOnceWith(mockDocument);
         expect(mockDiagnostics.set).to.have.been.calledOnceWith(mockDocument, [diagnostic]);
-      });
-
-      it("should handle lint results being undefined after fix", async () => {
-        mockLinter.fixDocument.resolves("fixed content");
-        mockLinter.lintDocument.resolves(undefined);
-        applyEditStub.resolves(true);
-
-        await handler.execute(mockEditor);
-
-        expect(mockLinter.lintDocument).to.have.been.calledOnce;
-        expect(mockDiagnostics.set).not.to.have.been.called;
       });
 
       it("should create correct workspace edit", async () => {
@@ -175,11 +185,17 @@ describe("actions", () => {
 
   describe("KeepSortedActionProvider", () => {
     let provider: KeepSortedActionProvider;
+    let mockLinter: sinon.SinonStubbedInstance<KeepSorted>;
     let mockDiagnostics: sinon.SinonStubbedInstance<KeepSortedDiagnostics>;
     let mockDocument: vscode.TextDocument;
     let mockRange: vscode.Range;
 
     beforeEach(() => {
+      mockLinter = {
+        fixDocument: sandbox.stub(),
+        lintDocument: sandbox.stub(),
+      } as unknown as sinon.SinonStubbedInstance<KeepSorted>;
+
       mockDiagnostics = {
         get: sandbox.stub(),
         set: sandbox.stub(),
@@ -202,7 +218,10 @@ describe("actions", () => {
 
       mockRange = new vscode.Range(0, 0, 0, 10);
 
-      provider = new KeepSortedActionProvider(mockDiagnostics as unknown as KeepSortedDiagnostics);
+      provider = new KeepSortedActionProvider(
+        mockLinter as unknown as KeepSorted,
+        mockDiagnostics as unknown as KeepSortedDiagnostics
+      );
     });
 
     describe("actionKinds", () => {
@@ -231,7 +250,7 @@ describe("actions", () => {
         expect(result).to.be.undefined;
       });
 
-      it("should return fix action when diagnostics exist", () => {
+      it("should return fix actions when diagnostics exist", () => {
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test diagnostic",
@@ -243,9 +262,9 @@ describe("actions", () => {
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
         expect(result).to.have.length(1);
-        expect(result![0].title).to.equal("Sort lines (keep-sorted)");
+        expect(result![0].title).to.equal("Sort all lines in file (keep-sorted)");
         expect(result![0].kind).to.equal(vscode.CodeActionKind.QuickFix);
-        expect(result![0].command).to.deep.equal(FixFileCommandHandler.command);
+        expect(result![0].command!.command).to.equal("keep-sorted.fixfile");
         expect(result![0].diagnostics).to.deep.equal([diagnostic]);
       });
 
@@ -272,7 +291,7 @@ describe("actions", () => {
         expect(result![0].diagnostics).to.have.length(2);
       });
 
-      it("should use FixCommandHandler.command for action command", () => {
+      it("should create actions from command handlers", () => {
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test",
@@ -283,7 +302,8 @@ describe("actions", () => {
 
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
-        expect(result![0].command).to.equal(FixFileCommandHandler.command);
+        expect(result![0].command!.command).to.equal("keep-sorted.fixfile");
+        expect(result![0].title).to.equal("Sort all lines in file (keep-sorted)");
       });
     });
   });

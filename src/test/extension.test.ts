@@ -133,7 +133,7 @@ describe("extension", () => {
     it("should register fix command", () => {
       activate(mockContext);
 
-      expect(vscode.commands.registerCommand).to.have.been.calledWith("keep-sorted.fix");
+      expect(vscode.commands.registerCommand).to.have.been.calledWith("keep-sorted.fixfile");
     });
 
     it("should register code actions provider", () => {

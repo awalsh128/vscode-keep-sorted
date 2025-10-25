@@ -80,15 +80,15 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(diagnostics);
 
   const fixCommandHandler = new FixFileCommandHandler(linter, diagnostics);
-  logger.info(`Registering fix command ${FixFileCommandHandler.command.title}...`);
+  logger.info(`Registering fix command ${fixCommandHandler.command.title}...`);
   context.subscriptions.push(
-    vscode.commands.registerCommand(FixFileCommandHandler.command.command, async () => {
+    vscode.commands.registerCommand(fixCommandHandler.command.command, async () => {
       await fixCommandHandler.execute(vscode.window.activeTextEditor);
     })
   );
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider("*", new KeepSortedActionProvider(diagnostics), {
+    vscode.languages.registerCodeActionsProvider("*", new KeepSortedActionProvider(linter, diagnostics), {
       providedCodeActionKinds: KeepSortedActionProvider.actionKinds,
     })
   );

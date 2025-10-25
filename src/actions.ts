@@ -1,19 +1,12 @@
 import * as vscode from "vscode";
 import { KeepSortedDiagnostics, logger } from "./instrumentation";
 import { KeepSorted } from "./keep_sorted";
+import { memoize } from "./shared";
 
 /**
- * Base interface for command handlers that fix files.
+ * Abstract base class for fix command handlers.
  */
-export interface IFixFileCommandHandler {
-  readonly commandName: string;
-  execute(editor: vscode.TextEditor | undefined): Promise<void>;
-}
-
-/**
- * Abstract base class for fix file command handlers.
- */
-export abstract class BaseFixFileCommandHandler implements IFixFileCommandHandler {
+export abstract class FixCommandHandler {
   protected readonly linter: KeepSorted;
   protected readonly diagnostics: KeepSortedDiagnostics;
 
@@ -22,84 +15,114 @@ export abstract class BaseFixFileCommandHandler implements IFixFileCommandHandle
     this.diagnostics = diagnostics;
   }
 
-  abstract get commandName(): string;
-  abstract execute(editor: vscode.TextEditor | undefined): Promise<void>;
+  static createHandlers(
+    linter: KeepSorted,
+    diagnostics: KeepSortedDiagnostics
+  ): FixCommandHandler[] {
+    return [
+      new FixFileCommandHandler(linter, diagnostics),
+      // Future command handlers can be added here
+    ];
+  }
 
-  /**
-   * Common validation logic for command execution.
-   */
-  protected validateEditor(editor: vscode.TextEditor | undefined): vscode.TextEditor | null {
+  abstract onGetCommand(): vscode.Command;
+
+  public get command(): vscode.Command {
+    return memoize(() => this.onGetCommand())();
+  }
+
+  public get commandName(): string {
+    return this.command.command;
+  }
+
+  protected abstract onExecute(
+    editor: vscode.TextEditor
+  ): Promise<vscode.WorkspaceEdit | undefined | null>;
+
+  async execute(
+    editor: vscode.TextEditor | undefined
+  ): Promise<vscode.WorkspaceEdit | undefined | null> {
     if (!editor) {
       logger.warn(`No active text editor found for fix command. Aborted.`);
+      return undefined;
+    }
+
+    const document = editor.document;
+    logger.info(`Executing command ${this.commandName} for document: ${document.uri.fsPath}`);
+
+    const edit = await this.onExecute(editor);
+
+    if (edit === undefined) {
+      logger.error(
+        `${this.commandName} command encountered an error for document: ${document.uri.fsPath}`
+      );
+      return undefined;
+    }
+
+    if (!edit) {
+      logger.info(
+        `${this.commandName} command returned no edit for document: ${document.uri.fsPath}`
+      );
       return null;
     }
-    return editor;
+
+    await this.applyEditAndUpdateDiagnostics(document, edit);
   }
 
   /**
    * Common logic for applying edits and updating diagnostics.
    */
-  protected async applyFixAndUpdateDiagnostics(
+  private async applyEditAndUpdateDiagnostics(
     document: vscode.TextDocument,
-    fixedContent: string
-  ): Promise<boolean> {
-    const edit = new vscode.WorkspaceEdit();
+    edit: vscode.WorkspaceEdit
+  ): Promise<void> {
+    const editApplied = await vscode.workspace.applyEdit(edit);
+
+    if (!editApplied) {
+      logger.info(`No fix to applied to document: ${document.uri.fsPath}`);
+      return;
+    }
+
+    logger.info(`Applied fix to document: ${document.uri.fsPath}`);
+    this.diagnostics.clear(document);
+
+    // Re-lint the document after applying fix
+    const lintResults = await this.linter.lintDocument(document);
+    if (lintResults === undefined) {
+      logger.error(`Failed to re-lint document after fix: ${document.uri.fsPath}`);
+      return;
+    }
+
+    this.diagnostics.set(document, lintResults);
+  }
+}
+
+/**
+ * Command handler for fixing all keep-sorted blocks in a file.
+ */
+export class FixFileCommandHandler extends FixCommandHandler {
+  onGetCommand(): vscode.Command {
+    return {
+      title: "Sort all lines in file (keep-sorted)",
+      command: "keep-sorted.fixfile",
+      tooltip: "Fix all lines in the current document",
+    };
+  }
+
+  async onExecute(editor: vscode.TextEditor): Promise<vscode.WorkspaceEdit | undefined | null> {
+    const document = editor.document;
+    const fixedContent = await this.linter.fixDocument(document);
+    if (fixedContent === undefined) {
+      logger.error(`keep-sorted operation failed for document: ${document.uri.fsPath}`);
+      return undefined;
+    }
     const fullRange = new vscode.Range(
       document.positionAt(0),
       document.positionAt(document.getText().length)
     );
+    const edit = new vscode.WorkspaceEdit();
     edit.replace(document.uri, fullRange, fixedContent);
-
-    const success = await vscode.workspace.applyEdit(edit);
-    if (success) {
-      logger.info(`Successfully applied fix to document: ${document.uri.fsPath}`);
-      this.diagnostics.clear(document);
-      // Re-lint the document after applying fix
-      const lintResults = await this.linter.lintDocument(document);
-      if (lintResults) {
-        this.diagnostics.set(document, lintResults);
-      }
-    } else {
-      logger.error(`Failed to apply edit to document: ${document.uri.fsPath}`);
-    }
-    return success;
-  }
-}
-
-export class FixFileCommandHandler extends BaseFixFileCommandHandler {
-  public static readonly command = new (class implements vscode.Command {
-    title = "Sort lines (keep-sorted)";
-    command = "keep-sorted.fix";
-    tooltip = "Fix all lines in keep-sorted blocks of the current document";
-  })();
-
-  get commandName(): string {
-    return FixFileCommandHandler.command.command;
-  }
-
-  constructor(linter: KeepSorted, diagnostics: KeepSortedDiagnostics) {
-    super(linter, diagnostics);
-  }
-
-  /**
-   * Executes the fix command for the active document.
-   */
-  async execute(editor: vscode.TextEditor | undefined): Promise<void> {
-    const validatedEditor = this.validateEditor(editor);
-    if (!validatedEditor) {
-      return;
-    }
-
-    const document = validatedEditor.document;
-    logger.info(`Executing fix command for document: ${document.uri.fsPath}`);
-
-    const fixedContent = await this.linter.fixDocument(document);
-    if (!fixedContent) {
-      logger.error(`Fix command returned no content for document: ${document.uri.fsPath}`);
-      return;
-    }
-
-    await this.applyFixAndUpdateDiagnostics(document, fixedContent);
+    return edit;
   }
 }
 
@@ -115,8 +138,10 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
   public static readonly actionKinds = [vscode.CodeActionKind.QuickFix];
 
   private readonly diagnostics: KeepSortedDiagnostics;
+  private readonly linter: KeepSorted;
 
-  constructor(diagnostics: KeepSortedDiagnostics) {
+  constructor(linter: KeepSorted, diagnostics: KeepSortedDiagnostics) {
+    this.linter = linter;
     this.diagnostics = diagnostics;
   }
 
@@ -134,16 +159,23 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
       return;
     }
 
-    const fixAction = new vscode.CodeAction(
-      FixFileCommandHandler.command.title,
-      vscode.CodeActionKind.QuickFix
+    const fixActions = FixCommandHandler.createHandlers(this.linter, this.diagnostics).map(
+      (handler) => {
+        const fixAction = new vscode.CodeAction(
+          handler.command.title,
+          vscode.CodeActionKind.QuickFix
+        );
+        fixAction.command = handler.command;
+        fixAction.diagnostics = documentDiagnostics;
+        return fixAction;
+      }
     );
-    fixAction.command = FixFileCommandHandler.command;
-    fixAction.diagnostics = documentDiagnostics;
 
     logger.debug(
-      `Providing code action "${FixFileCommandHandler.command.title}" for document: ${document.uri.fsPath}`
+      `Providing code actions "${fixActions
+        .map((a) => a.command!.command)
+        .join(", ")}" for document: ${document.uri.fsPath}`
     );
-    return [fixAction];
+    return fixActions;
   }
 }
