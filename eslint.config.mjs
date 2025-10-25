@@ -8,11 +8,13 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import stylistic from '@stylistic/eslint-plugin';
 
-export default tseslint.config(
+	export default tseslint.config(
 	{
 		ignores: [
 			'.vscode-test',
 			'out',
+			'test-workspace/*.js',
+			'test-workspace/*.js.map',
 		]
 	},
 	js.configs.recommended,
