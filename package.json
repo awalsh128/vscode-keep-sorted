@@ -1,20 +1,35 @@
 {
-  "name": "code-actions-sample",
+  "name": "vscode-keep-sorted",
   "private": true,
-  "displayName": "Code Actions Provider Sample",
+  "displayName": "Keep Sorted",
+  "description": "VS Code extension to automatically keep code blocks sorted",
   "version": "0.0.2",
-  "publisher": "vscode-samples",
+  "publisher": "awalsh128",
+  "author": {
+    "name": "awalsh128"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/awalsh128/vscode-keep-sorted#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Microsoft/vscode-extension-samples"
+    "url": "https://github.com/awalsh128/vscode-keep-sorted"
   },
   "bugs": {
-    "url": "https://github.com/Microsoft/vscode-extension-samples/issues"
+    "url": "https://github.com/awalsh128/vscode-keep-sorted/issues"
   },
   "engines": {
     "vscode": "^1.100.0"
   },
+  "keywords": [
+    "sort",
+    "organize",
+    "format",
+    "code",
+    "auto-sort",
+    "keep-sorted"
+  ],
   "categories": [
+    "Formatters",
     "Other"
   ],
   "activationEvents": [
@@ -71,6 +86,7 @@
     "@types/sinon": "^17.0.4",
     "@types/sinon-chai": "^4.0.0",
     "@types/vscode": "^1.100.0",
+    "@vscode/test-electron": "^2.5.2",
     "chai": "^6.2.0",
     "eslint": "^9.13.0",
     "mocha": "^11.7.4",
