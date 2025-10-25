@@ -3,7 +3,7 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { FixCommandHandler, KeepSortedActionProvider } from "../actions";
+import { FixFileCommandHandler, KeepSortedActionProvider } from "../actions";
 import { KeepSorted } from "../keep_sorted";
 import { KeepSortedDiagnostics } from "../instrumentation";
 
@@ -23,7 +23,7 @@ describe("actions", () => {
   });
 
   describe("FixCommandHandler", () => {
-    let handler: FixCommandHandler;
+    let handler: FixFileCommandHandler;
     let mockLinter: sinon.SinonStubbedInstance<KeepSorted>;
     let mockDiagnostics: sinon.SinonStubbedInstance<KeepSortedDiagnostics>;
     let mockDocument: vscode.TextDocument;
@@ -53,7 +53,7 @@ describe("actions", () => {
         document: mockDocument,
       } as vscode.TextEditor;
 
-      handler = new FixCommandHandler(
+      handler = new FixFileCommandHandler(
         mockLinter as unknown as KeepSorted,
         mockDiagnostics as unknown as KeepSortedDiagnostics
       );
@@ -65,9 +65,9 @@ describe("actions", () => {
       });
 
       it("should have static command with correct properties", () => {
-        expect(FixCommandHandler.command.title).to.equal("Sort lines (keep-sorted)");
-        expect(FixCommandHandler.command.command).to.equal("keep-sorted.fix");
-        expect(FixCommandHandler.command.tooltip).to.equal(
+        expect(FixFileCommandHandler.command.title).to.equal("Sort lines (keep-sorted)");
+        expect(FixFileCommandHandler.command.command).to.equal("keep-sorted.fix");
+        expect(FixFileCommandHandler.command.tooltip).to.equal(
           "Fix all lines in keep-sorted blocks of the current document"
         );
       });
@@ -245,7 +245,7 @@ describe("actions", () => {
         expect(result).to.have.length(1);
         expect(result![0].title).to.equal("Sort lines (keep-sorted)");
         expect(result![0].kind).to.equal(vscode.CodeActionKind.QuickFix);
-        expect(result![0].command).to.deep.equal(FixCommandHandler.command);
+        expect(result![0].command).to.deep.equal(FixFileCommandHandler.command);
         expect(result![0].diagnostics).to.deep.equal([diagnostic]);
       });
 
@@ -283,7 +283,7 @@ describe("actions", () => {
 
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
-        expect(result![0].command).to.equal(FixCommandHandler.command);
+        expect(result![0].command).to.equal(FixFileCommandHandler.command);
       });
     });
   });

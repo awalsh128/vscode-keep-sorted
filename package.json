@@ -75,6 +75,8 @@
     "compile": "tsc -p ./",
     "lint": "eslint",
     "watch": "tsc -watch -p ./",
+    "test": "xvfb-run -a npm run test:vscode",
+    "test:vscode": "vscode-test",
     "create-binaries": "tsx scripts/create-binaries.ts"
   },
   "devDependencies": {
@@ -86,6 +88,7 @@
     "@types/sinon": "^17.0.4",
     "@types/sinon-chai": "^4.0.0",
     "@types/vscode": "^1.100.0",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "chai": "^6.2.0",
     "eslint": "^9.13.0",

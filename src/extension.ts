@@ -7,7 +7,7 @@ import {
   createGithubIssueAsUrl,
 } from "./instrumentation";
 import { KeepSorted } from "./keep_sorted";
-import { FixCommandHandler, KeepSortedActionProvider } from "./actions";
+import { FixFileCommandHandler, KeepSortedActionProvider } from "./actions";
 import { getConfiguration } from "./configuration";
 
 const debounceDelayMs = 1000;
@@ -18,9 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Read configuration
   const config = getConfiguration();
 
-  logger.info(`Configuration enabled: ${config.enabled}`);
-  logger.info(`Configuration lintOnSave: ${config.lintOnSave}`);
-  logger.info(`Configuration lintOnChange: ${config.lintOnChange}`);
+  logger.info(`Configuration:\n${JSON.stringify(config, null, 2)}`);
 
   const errorTracker = new ErrorTracker();
   const linter = new KeepSorted(context.extensionPath, errorTracker);
@@ -81,10 +79,10 @@ export function activate(context: vscode.ExtensionContext) {
   const diagnostics = new KeepSortedDiagnostics();
   context.subscriptions.push(diagnostics);
 
-  const fixCommandHandler = new FixCommandHandler(linter, diagnostics);
-  logger.info(`Registering fix command ${FixCommandHandler.command.title}...`);
+  const fixCommandHandler = new FixFileCommandHandler(linter, diagnostics);
+  logger.info(`Registering fix command ${FixFileCommandHandler.command.title}...`);
   context.subscriptions.push(
-    vscode.commands.registerCommand(FixCommandHandler.command.command, async () => {
+    vscode.commands.registerCommand(FixFileCommandHandler.command.command, async () => {
       await fixCommandHandler.execute(vscode.window.activeTextEditor);
     })
   );
@@ -102,7 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
   eventSubscriptions.push(saveListener);
 
   const changeListener = vscode.workspace.onDidChangeTextDocument(async (event) => {
-    logger.debug(`Document changed to: ${event.document.uri.fsPath}`);
+    logger.debug(`Document changed: ${event.document.uri.fsPath}`);
     logger.debug(`Scheduling linting execution in ${debounceDelayMs}ms`);
     clearTimeout(changeTimer);
     changeTimer = setTimeout(async () => {

@@ -31,7 +31,7 @@ function createLogger(name: string): vscode.LogOutputChannel {
 }
 
 /** Singleton logger instance for the keep-sorted extension */
-export const logger = createLogger("keep-sorted");
+export const logger = createLogger("Keep Sorted");
 
 /**
  * Manages diagnostic warnings for keep-sorted blocks across all open documents.
