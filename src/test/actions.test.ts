@@ -96,32 +96,60 @@ describe("actions", () => {
         applyEditStub = sandbox.stub(vscode.workspace, "applyEdit");
       });
 
-      it("should return undefined when editor is undefined", async () => {
-        const result = await handler.execute(undefined);
+      // Parameterized tests for different failure scenarios
+      [
+        {
+          description: "should return undefined when editor is undefined",
+          editor: undefined,
+          expectedResult: undefined,
+          expectedFixDocumentCalled: false,
+          expectedApplyEditCalled: false,
+        },
+        {
+          description: "should return undefined when fixDocument fails",
+          editor: "mockEditor",
+          fixDocumentResult: undefined,
+          expectedResult: undefined,
+          expectedFixDocumentCalled: true,
+          expectedApplyEditCalled: false,
+        },
+      ].forEach(({ description, editor, fixDocumentResult, expectedResult, expectedFixDocumentCalled, expectedApplyEditCalled }) => {
+        it(description, async () => {
+          // Arrange
+          if (fixDocumentResult !== undefined) {
+            mockLinter.fixDocument.resolves(fixDocumentResult);
+          }
+          const testEditor = editor === "mockEditor" ? mockEditor : editor;
 
-        expect(result).to.be.undefined;
-        expect(mockLinter.fixDocument).not.to.have.been.called;
-        expect(applyEditStub).not.to.have.been.called;
-      });
+          // Act
+          const result = await handler.execute(testEditor as vscode.TextEditor | undefined);
 
-      it("should return undefined when fixDocument fails", async () => {
-        mockLinter.fixDocument.resolves(undefined);
-
-        const result = await handler.execute(mockEditor);
-
-        expect(result).to.be.undefined;
-        expect(mockLinter.fixDocument).to.have.been.calledOnceWith(mockDocument);
-        expect(applyEditStub).not.to.have.been.called;
+          // Assert
+          expect(result).to.equal(expectedResult);
+          if (expectedFixDocumentCalled) {
+            expect(mockLinter.fixDocument).to.have.been.calledOnceWith(mockDocument);
+          } else {
+            expect(mockLinter.fixDocument).not.to.have.been.called;
+          }
+          if (expectedApplyEditCalled) {
+            expect(applyEditStub).to.have.been.calledOnce;
+          } else {
+            expect(applyEditStub).not.to.have.been.called;
+          }
+        });
       });
 
       it("should apply fix successfully and update diagnostics", async () => {
+        // Arrange
         const fixedContent = "fixed content";
         mockLinter.fixDocument.resolves(fixedContent);
         mockLinter.lintDocument.resolves([]);
         applyEditStub.resolves(true);
 
+        // Act
         await handler.execute(mockEditor);
 
+        // Assert
         expect(mockLinter.fixDocument).to.have.been.calledOnceWith(mockDocument);
         expect(applyEditStub).to.have.been.calledOnce;
         expect(mockDiagnostics.clear).to.have.been.calledOnceWith(mockDocument);
@@ -129,29 +157,54 @@ describe("actions", () => {
         expect(mockDiagnostics.set).to.have.been.calledOnceWith(mockDocument, []);
       });
 
-      it("should handle failed edit application", async () => {
-        mockLinter.fixDocument.resolves("fixed content");
-        applyEditStub.resolves(false);
+      // Parameterized tests for different post-fix scenarios
+      [
+        {
+          description: "should handle failed edit application",
+          editApplied: false,
+          expectedClearCalled: false,
+          expectedLintCalled: false,
+        },
+        {
+          description: "should handle lint failure after fix",
+          editApplied: true,
+          lintResult: undefined,
+          expectedClearCalled: true,
+          expectedLintCalled: true,
+          expectedSetCalled: false,
+        },
+      ].forEach(({ description, editApplied, lintResult, expectedClearCalled, expectedLintCalled, expectedSetCalled = undefined }) => {
+        it(description, async () => {
+          // Arrange
+          mockLinter.fixDocument.resolves("fixed content");
+          if (lintResult !== undefined) {
+            mockLinter.lintDocument.resolves(lintResult);
+          }
+          applyEditStub.resolves(editApplied);
 
-        await handler.execute(mockEditor);
+          // Act
+          await handler.execute(mockEditor);
 
-        expect(applyEditStub).to.have.been.calledOnce;
-        expect(mockDiagnostics.clear).not.to.have.been.called;
-        expect(mockLinter.lintDocument).not.to.have.been.called;
-      });
-
-      it("should handle lint failure after fix", async () => {
-        mockLinter.fixDocument.resolves("fixed content");
-        mockLinter.lintDocument.resolves(undefined);
-        applyEditStub.resolves(true);
-
-        await handler.execute(mockEditor);
-
-        expect(mockLinter.lintDocument).to.have.been.calledOnce;
-        expect(mockDiagnostics.set).not.to.have.been.called;
+          // Assert
+          expect(applyEditStub).to.have.been.calledOnce;
+          if (expectedClearCalled) {
+            expect(mockDiagnostics.clear).to.have.been.calledOnceWith(mockDocument);
+          } else {
+            expect(mockDiagnostics.clear).not.to.have.been.called;
+          }
+          if (expectedLintCalled) {
+            expect(mockLinter.lintDocument).to.have.been.calledOnce;
+          } else {
+            expect(mockLinter.lintDocument).not.to.have.been.called;
+          }
+          if (expectedSetCalled !== undefined && !expectedSetCalled) {
+            expect(mockDiagnostics.set).not.to.have.been.called;
+          }
+        });
       });
 
       it("should re-lint after successful fix with diagnostics", async () => {
+        // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test diagnostic",
@@ -163,20 +216,25 @@ describe("actions", () => {
         mockLinter.lintDocument.resolves([diagnostic]);
         applyEditStub.resolves(true);
 
+        // Act
         await handler.execute(mockEditor);
 
+        // Assert
         expect(mockLinter.lintDocument).to.have.been.calledOnceWith(mockDocument);
         expect(mockDiagnostics.set).to.have.been.calledOnceWith(mockDocument, [diagnostic]);
       });
 
       it("should create correct workspace edit", async () => {
+        // Arrange
         const fixedContent = "fixed content";
         mockLinter.fixDocument.resolves(fixedContent);
         mockLinter.lintDocument.resolves([]);
         applyEditStub.resolves(true);
 
+        // Act
         await handler.execute(mockEditor);
 
+        // Assert
         const editArg = applyEditStub.getCall(0).args[0] as vscode.WorkspaceEdit;
         expect(editArg).to.be.instanceOf(vscode.WorkspaceEdit);
       });
@@ -233,24 +291,32 @@ describe("actions", () => {
     });
 
     describe("provideCodeActions", () => {
-      it("should return undefined when no diagnostics exist", () => {
-        mockDiagnostics.get.returns([]);
+      // Parameterized tests for cases that return undefined
+      [
+        {
+          description: "should return undefined when no diagnostics exist",
+          diagnosticsValue: [],
+        },
+        {
+          description: "should return undefined when diagnostics.get returns undefined", 
+          diagnosticsValue: undefined,
+        },
+      ].forEach(({ description, diagnosticsValue }) => {
+        it(description, () => {
+          // Arrange
+          mockDiagnostics.get.returns(diagnosticsValue);
 
-        const result = provider.provideCodeActions(mockDocument, mockRange);
+          // Act
+          const result = provider.provideCodeActions(mockDocument, mockRange);
 
-        expect(result).to.be.undefined;
-        expect(mockDiagnostics.get).to.have.been.calledOnceWith(mockDocument);
-      });
-
-      it("should return undefined when diagnostics.get returns undefined", () => {
-        mockDiagnostics.get.returns(undefined);
-
-        const result = provider.provideCodeActions(mockDocument, mockRange);
-
-        expect(result).to.be.undefined;
+          // Assert
+          expect(result).to.be.undefined;
+          expect(mockDiagnostics.get).to.have.been.calledOnceWith(mockDocument);
+        });
       });
 
       it("should return fix actions when diagnostics exist", () => {
+        // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test diagnostic",
@@ -259,8 +325,10 @@ describe("actions", () => {
         diagnostic.source = "keep-sorted";
         mockDiagnostics.get.returns([diagnostic]);
 
+        // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
+        // Assert
         expect(result).to.have.length(1);
         expect(result![0].title).to.equal("Sort all lines in file (keep-sorted)");
         expect(result![0].kind).to.equal(vscode.CodeActionKind.QuickFix);
@@ -269,6 +337,7 @@ describe("actions", () => {
       });
 
       it("should return action with multiple diagnostics", () => {
+        // Arrange
         const diagnostic1 = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "First diagnostic",
@@ -285,13 +354,16 @@ describe("actions", () => {
 
         mockDiagnostics.get.returns([diagnostic1, diagnostic2]);
 
+        // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
+        // Assert
         expect(result).to.have.length(1);
         expect(result![0].diagnostics).to.have.length(2);
       });
 
       it("should create actions from command handlers", () => {
+        // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
           "Test",
@@ -300,8 +372,10 @@ describe("actions", () => {
         diagnostic.source = "keep-sorted";
         mockDiagnostics.get.returns([diagnostic]);
 
+        // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
+        // Assert
         expect(result![0].command!.command).to.equal("keep-sorted.fixfile");
         expect(result![0].title).to.equal("Sort all lines in file (keep-sorted)");
       });
