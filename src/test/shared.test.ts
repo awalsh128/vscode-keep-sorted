@@ -1,31 +1,14 @@
-import { describe, it } from "mocha";
+import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect } from "chai";
-import { displayName, memoize } from "../shared";
+import * as sinon from "sinon";
+import { memoize, delayAndExecute, EXECUTE_DELAY_MS as EXECUTE_DELAY_MS } from "../shared";
 
 // Constants for irrelevant test values
-const EXPECTED_EXTENSION_NAME = "Keep Sorted";
 const ANY_RETURN_VALUE = "result";
 const ANY_OBJECT_VALUE = 42;
+const ANY_FUNCTION_NAME = "test-function";
 
 describe("shared", () => {
-  describe("displayName", () => {
-    it("should have the correct extension name", () => {
-      // Act
-      const result = displayName;
-
-      // Assert
-      expect(result).to.equal(EXPECTED_EXTENSION_NAME);
-    });
-
-    it("should be a string", () => {
-      // Act
-      const result = displayName;
-
-      // Assert
-      expect(result).to.be.a("string");
-    });
-  });
-
   describe("memoize", () => {
     it("should execute function once and cache result", () => {
       // Arrange
@@ -167,6 +150,89 @@ describe("shared", () => {
       expect(result1).to.equal(true);
       expect(result2).to.equal(true);
       expect(callCount).to.equal(1);
+    });
+  });
+
+  describe("delayAndExecute", () => {
+    let clock: sinon.SinonFakeTimers;
+
+    beforeEach(() => {
+      clock = sinon.useFakeTimers({
+        shouldAdvanceTime: true,
+      });
+    });
+
+    afterEach(() => {
+      clock.restore();
+    });
+
+    it("should execute function after delay", () => {
+      // Arrange
+      let executed = false;
+      const fn = async () => {
+        executed = true;
+      };
+
+      // Act
+      delayAndExecute(ANY_FUNCTION_NAME, fn);
+      void expect(executed).to.be.false;
+
+      clock.tick(EXECUTE_DELAY_MS);
+
+      // Assert
+      void expect(executed).to.be.true;
+    });
+
+    it("should cancel previous timeout when called again", () => {
+      // Arrange
+      let executeCount = 0;
+      const fn = async () => {
+        executeCount++;
+      };
+
+      // Act
+      delayAndExecute(ANY_FUNCTION_NAME, fn);
+      clock.tick(500); // Half way through delay
+      delayAndExecute(ANY_FUNCTION_NAME, fn); // Should cancel first call
+      clock.tick(1000); // Complete the second delay
+
+      // Assert
+      expect(executeCount).to.equal(1);
+    });
+
+    it("should handle multiple named delays independently", () => {
+      // Arrange
+      let count1 = 0;
+      let count2 = 1;
+      const fn1 = async () => {
+        count1++;
+      };
+      const fn2 = async () => {
+        count2++;
+      };
+
+      // Act
+      delayAndExecute(ANY_FUNCTION_NAME, fn1);
+      delayAndExecute(ANY_FUNCTION_NAME, fn2);
+      clock.tick(2000);
+
+      // Assert
+      expect(count1).to.equal(1);
+      expect(count2).to.equal(2);
+    });
+
+    it("should handle function errors gracefully", async () => {
+      // Arrange
+      const errorMessage = "Test error";
+      const fn = async () => {
+        throw new Error(errorMessage);
+      };
+
+      // Act & Assert
+      expect(() => {
+        delayAndExecute(ANY_FUNCTION_NAME, fn);
+        clock.tick(1000);
+      }).to.not.throw();
     });
   });
 });

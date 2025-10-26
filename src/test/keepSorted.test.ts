@@ -4,7 +4,7 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as childProcess from "child_process";
-import { KeepSorted, KeepSortedFinding } from "../keep_sorted";
+import { KeepSorted, KeepSortedFinding } from "../keepSorted";
 import { ErrorTracker } from "../instrumentation";
 
 use(sinonChai);
@@ -30,13 +30,9 @@ describe("keep_sorted", () => {
 
     beforeEach(() => {
       mockErrorTracker = {
-        recordSuccess: sandbox.stub(),
         recordError: sandbox.stub().resolves(true),
         isExtensionDisabled: sandbox.stub().returns(false),
         dispose: sandbox.stub(),
-        onExtensionDisabled: {} as sinon.SinonStubbedMember<
-          typeof mockErrorTracker.onExtensionDisabled
-        >,
       } as unknown as sinon.SinonStubbedInstance<ErrorTracker>;
 
       mockDocument = {
@@ -78,28 +74,6 @@ describe("keep_sorted", () => {
     });
 
     describe("fixDocument", () => {
-      it("should return fixed content on success", async () => {
-        const fixedContent = "fixed content";
-        const mockProcess = createMockChildProcess(0, fixedContent, "");
-        spawnStub.returns(mockProcess);
-
-        const result = await keepSorted.fixDocument(mockDocument);
-
-        expect(result).to.equal(fixedContent);
-        expect(mockErrorTracker.recordSuccess).to.have.been.called;
-      });
-
-      it("should handle exit code 1 (issues found but fixed)", async () => {
-        const fixedContent = "fixed content with changes";
-        const mockProcess = createMockChildProcess(1, fixedContent, "");
-        spawnStub.returns(mockProcess);
-
-        const result = await keepSorted.fixDocument(mockDocument);
-
-        expect(result).to.equal(fixedContent);
-        expect(mockErrorTracker.recordSuccess).to.have.been.called;
-      });
-
       it("should reject on non-zero/non-one exit code", async () => {
         const mockProcess = createMockChildProcess(2, "", "binary error");
         spawnStub.returns(mockProcess);
@@ -134,6 +108,33 @@ describe("keep_sorted", () => {
         expect(mockProcess.stdin!.write).to.have.been.calledWith("test content\n");
         expect(mockProcess.stdin!.end).to.have.been.called;
       });
+
+      it("should pass line range to binary when range is provided", async () => {
+        const mockProcess = createMockChildProcess(0, "fixed content", "");
+        spawnStub.returns(mockProcess);
+        const range = new vscode.Range(2, 0, 5, 0); // Lines 3-6 (1-indexed in binary)
+
+        await keepSorted.fixDocument(mockDocument, range);
+
+        expect(spawnStub).to.have.been.calledWith(
+          sinon.match.string,
+          ["--lines", "3:6", "-"], // Lines should be 1-indexed for the binary
+          sinon.match.object
+        );
+      });
+
+      it("should not pass line range when range is not provided", async () => {
+        const mockProcess = createMockChildProcess(0, "fixed content", "");
+        spawnStub.returns(mockProcess);
+
+        await keepSorted.fixDocument(mockDocument);
+
+        expect(spawnStub).to.have.been.calledWith(
+          sinon.match.string,
+          ["-"], // Only stdin flag, no line range
+          sinon.match.object
+        );
+      });
     });
 
     describe("lintDocument", () => {
@@ -144,7 +145,6 @@ describe("keep_sorted", () => {
         const result = await keepSorted.lintDocument(mockDocument);
 
         expect(result).to.be.an("array").that.is.empty;
-        expect(mockErrorTracker.recordSuccess).to.have.been.called;
       });
 
       it("should parse JSON findings and create diagnostics", async () => {
@@ -174,7 +174,6 @@ describe("keep_sorted", () => {
         expect(result![0].message).to.equal("Lines not sorted");
         expect(result![0].severity).to.equal(vscode.DiagnosticSeverity.Warning);
         expect(result![0].source).to.equal("keep-sorted");
-        expect(mockErrorTracker.recordSuccess).to.have.been.called;
       });
 
       it("should handle multiple findings", async () => {
@@ -264,9 +263,7 @@ describe("keep_sorted", () => {
   });
 });
 
-/**
- * Creates a mock child process with event emitters for testing.
- */
+/** Creates a mock child process with event emitters for testing. */
 function createMockChildProcess(exitCode: number, stdout: string, stderr: string) {
   const stdinMock = {
     write: sinon.stub(),

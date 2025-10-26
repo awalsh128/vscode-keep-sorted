@@ -20,8 +20,15 @@
   "engines": {
     "vscode": "^1.100.0"
   },
+  "mocha": {
+    "spec": "out/test/**/*.test.js",
+    "require": [
+      "source-map-support/register"
+    ]
+  },
   "keywords": [
     "sort",
+    "lines",
     "organize",
     "format",
     "code",
@@ -45,27 +52,23 @@
           "default": true,
           "description": "Enable or disable the keep-sorted extension"
         },
-        "keep-sorted.lintOnSave": {
+        "keep-sorted.fixOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically lint documents when they are saved"
+          "description": "Automatically fix documents when they are saved"
         },
-        "keep-sorted.lintOnChange": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically lint documents when they are changed (debounced)"
-        },
-        "keep-sorted.logLevel": {
-          "type": "string",
-          "enum": [
-            "trace",
-            "debug",
-            "info",
-            "warn",
-            "error"
-          ],
-          "default": "info",
-          "description": "Logging level for the extension output channel"
+        "keep-sorted.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Array of glob or regex patterns to exclude files from being processed by the extension (relative to the workspace root).",
+          "examples": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "^tests/[^1-9]\\w+.*\\.js"
+          ]
         }
       }
     }
@@ -75,8 +78,6 @@
     "compile": "tsc -p ./",
     "lint": "eslint",
     "watch": "tsc -watch -p ./",
-    "test": "xvfb-run -a npm run test:vscode",
-    "test:vscode": "vscode-test",
     "create-binaries": "tsx scripts/create-binaries.ts"
   },
   "devDependencies": {
@@ -87,17 +88,26 @@
     "@types/node": "^22",
     "@types/sinon": "^17.0.4",
     "@types/sinon-chai": "^4.0.0",
+    "@types/source-map-support": "^0.5.10",
     "@types/vscode": "^1.100.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "chai": "^6.2.0",
     "eslint": "^9.13.0",
     "mocha": "^11.7.4",
+    "prettier-plugin-jsdoc": "^1.3.3",
     "sinon": "^21.0.0",
     "sinon-chai": "^4.0.1",
+    "source-map-support": "^0.5.21",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0"
+  },
+  "dependencies": {
+    "async-mutex": "^0.5.0",
+    "glob-regex": "^0.3.2",
+    "limiter": "^3.0.0",
+    "lru-cache": "^11.2.2"
   }
 }

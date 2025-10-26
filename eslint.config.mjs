@@ -22,6 +22,16 @@ export default tseslint.config(
     rules: {
       curly: "warn",
       "@stylistic/semi": ["warn", "always"],
+      "@stylistic/max-len": [
+        "warn",
+        {
+          code: 100,
+          comments: 100,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+        },
+      ],
       "@typescript-eslint/no-empty-function": "off",
       "@typescript-eslint/naming-convention": [
         "warn",

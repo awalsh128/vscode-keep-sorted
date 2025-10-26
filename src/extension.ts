@@ -1,183 +1,87 @@
 import * as vscode from "vscode";
-import {
-  KeepSortedDiagnostics,
-  logger,
-  ErrorTracker,
-  ExtensionDisabledInfo,
-  createGithubIssueAsUrl,
-} from "./instrumentation";
-import { KeepSorted } from "./keep_sorted";
-import { FixFileCommandHandler, KeepSortedActionProvider } from "./actions";
-import { getConfiguration } from "./configuration";
+import { KeepSortedDiagnostics, logger, ErrorTracker } from "./instrumentation";
+import { KeepSorted } from "./keepSorted";
+import { executeFixAction, FIX_COMMAND, KeepSortedActionProvider } from "./actions";
+import { excluded, getConfig, onConfigurationChange } from "./configuration";
+import { delayAndExecute } from "./shared";
 
-const debounceDelayMs = 1000;
+const eventSubscriptions: vscode.Disposable[] = [];
 
 export function activate(context: vscode.ExtensionContext) {
+  // Create output channel
   logger.show();
 
-  // Read configuration
-  const config = getConfiguration();
-
-  logger.info(`Configuration:\n${JSON.stringify(config, null, 2)}`);
+  eventSubscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
 
   const errorTracker = new ErrorTracker();
   const linter = new KeepSorted(context.extensionPath, errorTracker);
-
-  let changeTimer: NodeJS.Timeout | undefined;
-
-  // Store disposables that need to be cleaned up when extension is disabled
-  const eventSubscriptions: vscode.Disposable[] = [];
-
-  // Listen for the extension being disabled due to errors
-  const extensionDisabledListener = errorTracker.onExtensionDisabled(
-    async (info: ExtensionDisabledInfo) => {
-      await handleExtensionDisabled(logger, info, eventSubscriptions, changeTimer);
-    }
-  );
-
-  context.subscriptions.push(errorTracker, extensionDisabledListener);
-
-  /**
-   * Checks if a document should be linted.
-   * Filters out git files, output channels, and other non-file documents.
-   */
-  function shouldLintDocument(document: vscode.TextDocument): boolean {
-    // Skip untitled documents
-    if (document.uri.scheme !== "file") {
-      return false;
-    }
-
-    // Skip git-related files
-    if (document.uri.fsPath.includes("/.git/")) {
-      return false;
-    }
-
-    // Skip files with .git extension
-    if (document.uri.fsPath.endsWith(".git")) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Lints a document and updates diagnostics if results are found.
-   */
-  async function maybeLintAndUpdateDiagnostics(document: vscode.TextDocument): Promise<void> {
-    if (!shouldLintDocument(document)) {
-      logger.debug(`Skipping lint for document: ${document.uri.fsPath}`);
-      return;
-    }
-
-    const lintResults = await linter.lintDocument(document);
-    if (lintResults) {
-      diagnostics.set(document, lintResults);
-    }
-  }
-
-  logger.info(`Setting up KeepSortedDiagnostics...`);
   const diagnostics = new KeepSortedDiagnostics();
   context.subscriptions.push(diagnostics);
 
-  const fixCommandHandler = new FixFileCommandHandler(linter, diagnostics);
-  logger.info(`Registering fix command ${fixCommandHandler.command.title}...`);
+  // Register fix command
   context.subscriptions.push(
-    vscode.commands.registerCommand(fixCommandHandler.command.command, async () => {
-      await fixCommandHandler.execute(vscode.window.activeTextEditor);
-    })
+    vscode.commands.registerCommand(
+      FIX_COMMAND.command,
+      async (document: vscode.TextDocument, range: vscode.Range) => {
+        await executeFixAction({
+          linter,
+          diagnostics,
+          document,
+          range,
+        });
+      }
+    )
   );
 
+  // Register code action provider
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider("*", new KeepSortedActionProvider(linter, diagnostics), {
-      providedCodeActionKinds: KeepSortedActionProvider.actionKinds,
-    })
+    vscode.languages.registerCodeActionsProvider(
+      "*",
+      new KeepSortedActionProvider(linter, diagnostics),
+      {
+        providedCodeActionKinds: KeepSortedActionProvider.actionKinds,
+      }
+    )
   );
 
-  const saveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {
-    logger.debug(`Document saved: ${document.uri.fsPath}`);
-    await maybeLintAndUpdateDiagnostics(document);
-  });
-  eventSubscriptions.push(saveListener);
+  // Conditionally lint and update diagnostics for a document if not excluded by the configuration
+  async function maybeLintAndUpdateDiagnostics(document: vscode.TextDocument) {
+    if (excluded(document.uri)) {
+      logger.info(`Document is excluded from processing: ${document.uri.fsPath}`);
+      return;
+    }
+    const results = await linter.lintDocument(document);
+    if (results) {
+      diagnostics.set(document, results);
+    }
+  }
 
-  const changeListener = vscode.workspace.onDidChangeTextDocument(async (event) => {
-    logger.debug(`Document changed: ${event.document.uri.fsPath}`);
-    logger.debug(`Scheduling linting execution in ${debounceDelayMs}ms`);
-    clearTimeout(changeTimer);
-    changeTimer = setTimeout(async () => {
-      await maybeLintAndUpdateDiagnostics(event.document);
-    }, debounceDelayMs);
-  });
-  eventSubscriptions.push(changeListener);
-
-  const closeListener = vscode.workspace.onDidCloseTextDocument((document) => {
-    logger.debug(`Document closed: ${document.uri.fsPath}`);
-    diagnostics.clear(document);
-  });
-  eventSubscriptions.push(closeListener);
-
-  // Lint open documents on activation
+  // Document event listeners
+  eventSubscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async (document) => {
+      if (getConfig().enabled) {
+        logger.debug(`Document saved: ${document.uri.fsPath}`);
+        delayAndExecute(
+          "linting on save",
+          async () => await maybeLintAndUpdateDiagnostics(document)
+        );
+      }
+    })
+  );
+  eventSubscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(async (event) => {
+      if (getConfig().enabled) {
+        logger.debug(`Document changed: ${event.document.uri.fsPath}`);
+        delayAndExecute("linting", async () => await maybeLintAndUpdateDiagnostics(event.document));
+      }
+    })
+  );
   logger.info(
     `Found ${vscode.workspace.textDocuments.length} open documents for possible linting on activation`
   );
   vscode.workspace.textDocuments.forEach(async (document) => {
-    await maybeLintAndUpdateDiagnostics(document);
+    if (getConfig().enabled) {
+      await maybeLintAndUpdateDiagnostics(document);
+    }
   });
-}
-
-async function handleExtensionDisabled(
-  logger: vscode.LogOutputChannel,
-  info: ExtensionDisabledInfo,
-  eventSubscriptions: vscode.Disposable[],
-  changeTimer: NodeJS.Timeout | undefined
-) {
-  logger.warn(
-    "Extension disabled event received due to maximum errors reached. Disposing all event subscriptions."
-  );
-  logger.error(`Encountered ${info.errors.length} errors before disabling.`);
-
-  // Show user notification with options
-  const reportIssueLabel = "Report Issue";
-  const copyLogsLabel = "Copy Logs";
-  const viewLogsLabel = "View Logs";
-  const result = await vscode.window.showErrorMessage(
-    `Keep-sorted extension has encountered ${info.errors.length} consecutive errors and has been disabled. Please report this issue.`,
-    reportIssueLabel,
-    copyLogsLabel,
-    viewLogsLabel
-  );
-
-  switch (result) {
-    case reportIssueLabel: {
-      const issueUrl = await createGithubIssueAsUrl(info);
-
-      // Copy full logs to clipboard as backup
-      await vscode.env.clipboard.writeText(info.logSummary);
-      vscode.window.showInformationMessage(
-        "Error logs copied to clipboard. Opening issue template..."
-      );
-      vscode.env.openExternal(vscode.Uri.parse(issueUrl));
-      break;
-    }
-    case copyLogsLabel: {
-      await vscode.env.clipboard.writeText(info.logSummary);
-      vscode.window.showInformationMessage("Error logs copied to clipboard.");
-      break;
-    }
-    case viewLogsLabel: {
-      logger.show();
-      break;
-    }
-  }
-
-  const subscriptionCount = eventSubscriptions.length;
-  logger.info(`Disposing ${subscriptionCount} event subscriptions...`);
-
-  // Dispose all event listeners
-  eventSubscriptions.forEach((subscription) => subscription.dispose());
-  eventSubscriptions.length = 0;
-
-  // Clear timer if running
-  clearTimeout(changeTimer);
-
-  logger.info(`All ${subscriptionCount} event subscriptions have been disposed.`);
 }

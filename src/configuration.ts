@@ -1,23 +1,40 @@
 import * as vscode from "vscode";
+import globRegex from "glob-regex";
 import { logger } from "./instrumentation";
 
-/**
- * Configuration namespace for the keep-sorted extension.
- */
-const configurationSection = "keep-sorted";
+/** Configuration namespace for the keep-sorted extension. */
+const CONFIGURATION_SECTION = "keep-sorted";
 
-/**
- * Configuration settings for the keep-sorted extension.
- */
+/** Configuration settings for the keep-sorted extension. */
 export interface KeepSortedConfiguration {
   /** Whether the extension is enabled */
   readonly enabled: boolean;
-  /** Whether to lint documents on save */
-  readonly lintOnSave: boolean;
-  /** Whether to lint documents on change (debounced) */
-  readonly lintOnChange: boolean;
-  /** Logging level for the extension output channel */
-  readonly logLevel: string;
+  /** Whether to fix documents on save */
+  readonly fixOnSave: boolean;
+  /**
+   * Regular expressions for files to ignore such as auto generated files, temporary files, and
+   * other files that should not be processed by the extension
+   */
+  readonly exclude: string[];
+}
+
+interface Context {
+  config: KeepSortedConfiguration;
+  regexs: RegExp[];
+}
+
+/** The internal current keep-sorted configuration with runtime objects as a mutable object. */
+let context = loadContext();
+
+/**
+ * Gets the keep-sorted configuration matching the latest serialized representation.
+ *
+ * NOTE: The type is immutable and is thread safe for consecutive gets.
+ *
+ * @returns The current configuration object
+ */
+export function getConfig() {
+  return context.config;
 }
 
 /**
@@ -25,40 +42,44 @@ export interface KeepSortedConfiguration {
  *
  * @returns Configuration object with all keep-sorted settings
  */
-export function getConfiguration(): KeepSortedConfiguration {
-  const config = vscode.workspace.getConfiguration(configurationSection);
+function loadContext(): Context {
+  const config = vscode.workspace.getConfiguration(CONFIGURATION_SECTION);
   const configuration = {
     enabled: config.get<boolean>("enabled", true),
-    lintOnSave: config.get<boolean>("lintOnSave", true),
-    lintOnChange: config.get<boolean>("lintOnChange", true),
-    logLevel: config.get<string>("logLevel", "info"),
+    fixOnSave: config.get<boolean>("fixOnSave", true),
+    exclude: config.get<string[]>("exclude", []),
   };
-  logger.info(`Fetched configuration\n ${JSON.stringify(configuration, null, 2)}`);
-  return configuration;
+
+  // Use console during module loading to avoid circular dependency
+  logger.info(`Fetched configuration: ${JSON.stringify(configuration, null, 2)}`);
+  return { config: configuration, regexs: configuration.exclude.map((p) => globRegex(p)) };
 }
 
-/**
- * Checks if a configuration change event affects keep-sorted settings.
- *
- * @param event The configuration change event
- * @returns True if the event affects keep-sorted configuration
- */
-export function affectsConfiguration(event: vscode.ConfigurationChangeEvent): boolean {
-  return event.affectsConfiguration(configurationSection);
-}
+/** Determines if the file is excluded from processing. */
+export function excluded(uri: vscode.Uri): boolean {
+  const filePath = vscode.workspace.asRelativePath(uri);
 
-/**
- * Registers a listener for configuration changes.
- *
- * @param listener Callback invoked when keep-sorted configuration changes
- * @returns Disposable to unregister the listener
- */
-export function onDidChangeConfiguration(
-  listener: (config: KeepSortedConfiguration) => void
-): vscode.Disposable {
-  return vscode.workspace.onDidChangeConfiguration((event) => {
-    if (affectsConfiguration(event)) {
-      listener(getConfiguration());
+  for (const regex of context.regexs) {
+    if (regex.test(filePath)) {
+      logger.info(`Document ${filePath} is excluded by pattern: ${regex.source}`);
+      return true;
     }
-  });
+  }
+  return false;
+}
+
+/**
+ * Event handler for configuration changes and reloads this specific configuration if changed from
+ * the serialized form.
+ *
+ * @param event The configuration change event.
+ *
+ * @returns True if the configuration was reloaded, otherwise false.
+ */
+export function onConfigurationChange(event: vscode.ConfigurationChangeEvent): boolean {
+  if (event.affectsConfiguration(CONFIGURATION_SECTION)) {
+    context = loadContext();
+    return true;
+  }
+  return false;
 }

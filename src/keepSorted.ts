@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import { spawn } from "child_process";
 import * as path from "path";
+import { EXT_NAME, ErrorTracker, logger } from "./instrumentation";
 import { memoize } from "./shared";
-import { ErrorTracker, KeepSortedDiagnostics, logger } from "./instrumentation";
 
 export interface KeepSortedFinding {
   path: string;
@@ -25,10 +25,9 @@ export interface KeepSortedFinding {
 /**
  * Interfaces with the keep-sorted binary to lint and fix documents.
  *
- * Spawns the platform-specific keep-sorted binary as a child process, communicating
- * via stdin/stdout. Handles both lint mode (returns JSON findings) and fix mode
- * (returns corrected content). The binary path is memoized to avoid repeated
- * platform detection on every invocation.
+ * Spawns the platform-specific keep-sorted binary as a child process, communicating via
+ * stdin/stdout. Handles both lint mode (returns JSON findings) and fix mode (returns corrected
+ * content). The binary path is memoized to avoid repeated platform detection on every invocation.
  */
 export class KeepSorted {
   private readonly extensionPath: string;
@@ -63,14 +62,20 @@ export class KeepSorted {
     return binaryPath;
   });
 
-  async fixDocument(document: vscode.TextDocument): Promise<string | undefined> {
+  async fixDocument(
+    document: vscode.TextDocument,
+    range?: vscode.Range
+  ): Promise<string | undefined> {
     return new Promise((resolve, reject) => {
-      this.spawnCommand(["-"], document, async (code, stdout, stderr) => {
+      const args = range
+        ? ["--lines", `${range.start.line + 1}:${range.end.line + 1}`, "-"]
+        : ["-"];
+
+      this.spawnCommand(args, document, async (code, stdout, stderr) => {
         if (code === 0 || code === 1) {
-          this.errorTracker.recordSuccess();
           resolve(stdout);
         } else {
-          const error = new Error(`Keep-sorted fix failed: ${stderr}`);
+          const error = new Error(`${EXT_NAME} fix failed: ${stderr}`);
           logger.error(`Failed to fix document with error code ${code}: ${stderr}`);
           const canContinue = await this.errorTracker.recordError(error);
           if (canContinue) {
@@ -95,8 +100,6 @@ export class KeepSorted {
         return undefined;
       }
 
-      this.errorTracker.recordSuccess();
-
       const diagnostics: vscode.Diagnostic[] = findings.flatMap((finding) => {
         return finding.fixes.flatMap((fix) => {
           return fix.replacements.map((replacement) => {
@@ -108,7 +111,7 @@ export class KeepSorted {
               finding.message,
               vscode.DiagnosticSeverity.Warning
             );
-            diagnostic.source = KeepSortedDiagnostics.source;
+            diagnostic.source = EXT_NAME;
             return diagnostic;
           });
         });
@@ -141,10 +144,10 @@ export class KeepSorted {
             const findings: KeepSortedFinding[] = JSON.parse(stdout);
             resolve(findings);
           } catch (parseError) {
-            reject(new Error(`Failed to parse keep-sorted output: ${parseError}`));
+            reject(new Error(`Failed to parse ${EXT_NAME} output: ${parseError}`));
           }
         } else {
-          reject(new Error(`keep-sorted failed with code ${code}: ${stderr}`));
+          reject(new Error(`${EXT_NAME} failed with code ${code}: ${stderr}`));
         }
       });
     });
@@ -156,7 +159,7 @@ export class KeepSorted {
     onClose: (code: number, stdout: string, stderr: string) => void
   ): void {
     logger.debug(
-      `Spawning keep-sorted for document: ${document.uri.fsPath} with args: ${args.join(" ")}`
+      `Spawning ${EXT_NAME} for document: ${document.uri.fsPath} with args: ${args.join(" ")}`
     );
     const child = spawn(this.getBundledBinaryPath(), args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -174,15 +177,15 @@ export class KeepSorted {
     });
 
     child.on("close", (code) => {
-      logger.debug(`keep-sorted process exited with code ${code}`);
+      logger.debug(`${EXT_NAME} process exited with code ${code}`);
       if (code !== 0 && code !== 1) {
-        logger.error(`keep-sorted error output: ${stderr}`);
+        logger.error(`${EXT_NAME} error output: ${stderr}`);
       }
       onClose(code ?? 1, stdout, stderr);
     });
 
     child.on("error", (error) => {
-      const errorMessage = `Failed to spawn keep-sorted: ${error.message}`;
+      const errorMessage = `Failed to spawn ${EXT_NAME}: ${error.message}`;
       logger.error(errorMessage);
       throw new Error(errorMessage);
     });
@@ -190,6 +193,6 @@ export class KeepSorted {
     // Write document content to stdin
     child.stdin.write(document.getText());
     child.stdin.end();
-    logger.debug(`keep-sorted execution complete for document: ${document.uri.fsPath}`);
+    logger.debug(`${EXT_NAME} execution complete for document: ${document.uri.fsPath}`);
   }
 }

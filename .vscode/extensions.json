@@ -8,8 +8,6 @@
     "esbenp.prettier-vscode",
     "eamodio.gitlens",
     "EditorConfig.EditorConfig",
-    "eg2.vscode-npm-script",
-    "hbenl.vscode-mocha-test-runner",
-    "ms-vscode.vscode-typescript-next"
+    "eg2.vscode-npm-script"
   ]
 }

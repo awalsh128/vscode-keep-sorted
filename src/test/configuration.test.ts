@@ -4,9 +4,9 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import {
-  getConfiguration,
-  affectsConfiguration,
-  onDidChangeConfiguration,
+  getConfig,
+  onConfigurationChange,
+  excluded as pathExcluded,
   KeepSortedConfiguration,
 } from "../configuration";
 
@@ -17,231 +17,213 @@ use(sinonChai);
 // Constants for test values
 const KEEP_SORTED_CONFIG_NAMESPACE = "keep-sorted";
 const DEFAULT_ENABLED = true;
-const DEFAULT_LINT_ON_SAVE = true;
-const DEFAULT_LINT_ON_CHANGE = true;
-const DEFAULT_LOG_LEVEL = "info";
-const CUSTOM_LOG_LEVEL = "debug";
+const DEFAULT_FIX_ON_SAVE = true;
+const DEFAULT_EXCLUDE: string[] = [];
+const ANY_FILE_PATH = "/test/file.ts";
 
 describe("configuration", () => {
   let sandbox: sinon.SinonSandbox;
-  let getConfigurationStub: sinon.SinonStub;
-  let configStub: {
-    get: sinon.SinonStub;
-  };
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-
-    // Create config stub
-    configStub = {
-      get: sandbox.stub(),
-    };
-
-    // Stub vscode.workspace.getConfiguration
-    getConfigurationStub = sandbox.stub(vscode.workspace, "getConfiguration");
-    getConfigurationStub.returns(configStub);
   });
 
   afterEach(() => {
     sandbox.restore();
   });
 
-  describe("getConfiguration", () => {
-    it("should return configuration with default values", () => {
-      // Arrange
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-      configStub.get.withArgs("lintOnSave", DEFAULT_LINT_ON_SAVE).returns(DEFAULT_LINT_ON_SAVE);
-      configStub.get
-        .withArgs("lintOnChange", DEFAULT_LINT_ON_CHANGE)
-        .returns(DEFAULT_LINT_ON_CHANGE);
-      configStub.get.withArgs("logLevel", DEFAULT_LOG_LEVEL).returns(DEFAULT_LOG_LEVEL);
-
+  describe("getConfig", () => {
+    it("should return configuration object with expected properties", () => {
       // Act
-      const config = getConfiguration();
+      const config = getConfig();
 
       // Assert
-      expect(config).to.deep.equal({
-        enabled: DEFAULT_ENABLED,
-        lintOnSave: DEFAULT_LINT_ON_SAVE,
-        lintOnChange: DEFAULT_LINT_ON_CHANGE,
-        logLevel: DEFAULT_LOG_LEVEL,
-      });
-      expect(getConfigurationStub).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
+      expect(config).to.be.an("object");
+      expect(config).to.have.property("enabled").that.is.a("boolean");
+      expect(config).to.have.property("lintOnSave").that.is.a("boolean");
+      expect(config).to.have.property("lintOnChange").that.is.a("boolean");
+      expect(config).to.have.property("logLevel").that.is.a("string");
+      expect(config).to.have.property("exclude").that.is.an("array");
     });
 
-    it("should return configuration with custom values", () => {
-      // Arrange
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(false);
-      configStub.get.withArgs("lintOnSave", DEFAULT_LINT_ON_SAVE).returns(false);
-      configStub.get.withArgs("lintOnChange", DEFAULT_LINT_ON_CHANGE).returns(false);
-      configStub.get.withArgs("logLevel", DEFAULT_LOG_LEVEL).returns(CUSTOM_LOG_LEVEL);
-
+    it("should return the same configuration object on multiple calls", () => {
       // Act
-      const config = getConfiguration();
+      const config1 = getConfig();
+      const config2 = getConfig();
 
       // Assert
-      expect(config).to.deep.equal({
-        enabled: false,
-        lintOnSave: false,
-        lintOnChange: false,
-        logLevel: CUSTOM_LOG_LEVEL,
-      });
+      expect(config1).to.equal(config2); // Same reference
     });
 
     it("should return readonly configuration object", () => {
-      // Arrange
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-      configStub.get.withArgs("lintOnSave", DEFAULT_LINT_ON_SAVE).returns(DEFAULT_LINT_ON_SAVE);
-      configStub.get
-        .withArgs("lintOnChange", DEFAULT_LINT_ON_CHANGE)
-        .returns(DEFAULT_LINT_ON_CHANGE);
-      configStub.get.withArgs("logLevel", DEFAULT_LOG_LEVEL).returns(DEFAULT_LOG_LEVEL);
-
       // Act
-      // Act
-      const config = getConfiguration();
+      const config = getConfig();
 
-      // Assert
-      // TypeScript should enforce readonly at compile time
-      // At runtime, we verify the object structure
+      // Assert - TypeScript ensures readonly at compile time
+      // At runtime, verify the object has all expected properties
       expect(config).to.have.property("enabled");
-      expect(config).to.have.property("lintOnSave");
-      expect(config).to.have.property("lintOnChange");
-      expect(config).to.have.property("logLevel");
+      expect(config).to.have.property("fixOnSave");
+      expect(config).to.have.property("exclude");
     });
   });
 
-  describe("affectsConfiguration", () => {
-    it("should return true when event affects keep-sorted configuration", () => {
-      // Arrange
-      const event: vscode.ConfigurationChangeEvent = {
-        affectsConfiguration: sandbox.stub().returns(true),
-      };
-
-      // Act
-      const result = affectsConfiguration(event);
-
-      // Assert
-      expect(result).to.equal(true);
-      expect(event.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
-    });
-
-    it("should return false when event does not affect keep-sorted configuration", () => {
-      // Arrange
-      const event: vscode.ConfigurationChangeEvent = {
-        affectsConfiguration: sandbox.stub().returns(false),
-      };
-
-      // Act
-      const result = affectsConfiguration(event);
-
-      // Assert
-      expect(result).to.equal(false);
-      expect(event.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
-    });
-  });
-
-  describe("onDidChangeConfiguration", () => {
-    let onDidChangeConfigurationStub: sinon.SinonStub;
-    let disposableStub: vscode.Disposable;
+  describe("excluded", () => {
+    let getConfigurationStub: sinon.SinonStub;
+    let configStub: { get: sinon.SinonStub };
 
     beforeEach(() => {
-      disposableStub = { dispose: sandbox.stub() };
-      onDidChangeConfigurationStub = sandbox.stub(vscode.workspace, "onDidChangeConfiguration");
-      onDidChangeConfigurationStub.returns(disposableStub);
-    });
-
-    it("should register configuration change listener", () => {
-      // Arrange
-      const listener = sandbox.stub();
-
-      // Act
-      const disposable = onDidChangeConfiguration(listener);
-
-      // Assert
-      expect(onDidChangeConfigurationStub).to.have.been.calledOnce;
-      expect(disposable).to.equal(disposableStub);
-    });
-
-    it("should invoke listener when keep-sorted configuration changes", () => {
-      // Arrange
-      const listener = sandbox.stub();
-      const customConfig = {
-        enabled: false,
-        lintOnSave: true,
-        lintOnChange: false,
-        logLevel: "warn",
-      };
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(customConfig.enabled);
-      configStub.get.withArgs("lintOnSave", DEFAULT_LINT_ON_SAVE).returns(customConfig.lintOnSave);
-      configStub.get
-        .withArgs("lintOnChange", DEFAULT_LINT_ON_CHANGE)
-        .returns(customConfig.lintOnChange);
-      configStub.get.withArgs("logLevel", DEFAULT_LOG_LEVEL).returns(customConfig.logLevel);
-
-      onDidChangeConfiguration(listener);
-
-      // Get the registered callback
-      const callback = onDidChangeConfigurationStub.firstCall.args[0];
-
-      const event: vscode.ConfigurationChangeEvent = {
-        affectsConfiguration: sandbox.stub().returns(true),
+      // Create config stub for testing exclusion patterns
+      configStub = {
+        get: sandbox.stub(),
       };
 
-      // Act
-      callback(event);
-
-      // Assert
-      expect(listener).to.have.been.calledOnce;
-      expect(listener).to.have.been.calledWith(customConfig);
+      getConfigurationStub = sandbox.stub(vscode.workspace, "getConfiguration");
+      getConfigurationStub.returns(configStub);
     });
 
-    it("should not invoke listener when non-keep-sorted configuration changes", () => {
+    it("should return false when no exclude patterns are configured", () => {
       // Arrange
-      const listener = sandbox.stub();
+      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns([]);
+      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
+      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
 
-      onDidChangeConfiguration(listener);
+      // Trigger config reload
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+      } as vscode.ConfigurationChangeEvent;
+      onConfigurationChange(mockEvent);
 
-      // Get the registered callback
-      const callback = onDidChangeConfigurationStub.firstCall.args[0];
-
-      const event: vscode.ConfigurationChangeEvent = {
-        affectsConfiguration: sandbox.stub().returns(false),
-      };
+      const testUri = vscode.Uri.file(ANY_FILE_PATH);
 
       // Act
-      callback(event);
+      const result = pathExcluded(testUri);
 
       // Assert
-      expect(listener).to.not.have.been.called;
+      expect(result).to.be.false;
     });
 
-    it("should return disposable that can be disposed", () => {
+    it("should return true when file matches exclude pattern", () => {
       // Arrange
-      const listener = sandbox.stub();
+      const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
+      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
+      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
+      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
+
+      // Trigger config reload
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+      } as vscode.ConfigurationChangeEvent;
+      onConfigurationChange(mockEvent);
+
+      const testUri = vscode.Uri.file("/path/to/file.test.ts");
 
       // Act
-      const disposable = onDidChangeConfiguration(listener);
-      disposable.dispose();
+      const result = pathExcluded(testUri);
 
       // Assert
-      expect(disposableStub.dispose).to.have.been.calledOnce;
+      expect(result).to.be.true;
+    });
+
+    it("should return false when file does not match exclude patterns", () => {
+      // Arrange
+      const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
+      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
+      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
+      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
+
+      // Trigger config reload
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+      } as vscode.ConfigurationChangeEvent;
+      onConfigurationChange(mockEvent);
+
+      const testUri = vscode.Uri.file("/path/to/regular-file.ts");
+
+      // Act
+      const result = pathExcluded(testUri);
+
+      // Assert
+      expect(result).to.be.false;
+    });
+  });
+
+  describe("onConfigurationChange", () => {
+    it("should return true when keep-sorted configuration changes", () => {
+      // Arrange
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+      } as vscode.ConfigurationChangeEvent;
+
+      // Act
+      const result = onConfigurationChange(mockEvent);
+
+      // Assert
+      expect(result).to.be.true;
+      expect(mockEvent.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
+    });
+
+    it("should return false when non-keep-sorted configuration changes", () => {
+      // Arrange
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(false),
+      } as vscode.ConfigurationChangeEvent;
+
+      // Act
+      const result = onConfigurationChange(mockEvent);
+
+      // Assert
+      expect(result).to.be.false;
+      expect(mockEvent.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
+    });
+
+    it("should reload configuration when keep-sorted configuration changes", () => {
+      // Arrange
+      const mockEvent = {
+        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+      } as vscode.ConfigurationChangeEvent;
+
+      // Act
+      onConfigurationChange(mockEvent);
+      const configAfter = getConfig();
+
+      // Assert - Configuration should be reloaded (new object reference)
+      // Note: In a real VS Code environment, this would load fresh config values
+      expect(typeof configAfter).to.equal("object");
+      expect(configAfter).to.have.property("enabled");
+      expect(configAfter).to.have.property("fixOnSave");
+      expect(configAfter).to.have.property("exclude");
     });
   });
 
   describe("KeepSortedConfiguration interface", () => {
     it("should define all required configuration properties", () => {
+      // Arrange & Act
       const config: KeepSortedConfiguration = {
         enabled: true,
-        lintOnSave: false,
-        lintOnChange: true,
-        logLevel: "debug",
+        fixOnSave: false,
+        
+        exclude: ["pattern1", "pattern2"],
       };
 
+      // Assert
       expect(config.enabled).to.equal(true);
-      expect(config.lintOnSave).to.equal(false);
-      expect(config.lintOnChange).to.equal(true);
-      expect(config.logLevel).to.equal("debug");
+      expect(config.fixOnSave).to.equal(false);
+      expect(config.exclude).to.deep.equal(["pattern1", "pattern2"]);
+    });
+
+    it("should have readonly properties", () => {
+      // Arrange & Act
+      const config: KeepSortedConfiguration = {
+        enabled: true,
+        fixOnSave: true,
+        exclude: [],
+      };
+
+      // Assert - TypeScript enforces readonly at compile time
+      // At runtime, verify the properties exist and have correct types
+      expect(config).to.have.property("enabled").that.is.a("boolean");
+      expect(config).to.have.property("fixOnSave").that.is.a("boolean");
+      expect(config).to.have.property("exclude").that.is.an("array");
     });
   });
 });

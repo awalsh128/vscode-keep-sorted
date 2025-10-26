@@ -3,7 +3,7 @@
 // Hover to view descriptions of existing attributes.
 // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "configurations": [
     {
       "name": "Run Extension",
@@ -33,6 +33,18 @@
       "sourceMaps": true,
       "smartStep": true,
       "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionTestsPath=${workspaceFolder}/out/test/index"
+      ],
+      "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
+      "preLaunchTask": "npm: compile"
     }
   ]
 }

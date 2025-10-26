@@ -5,9 +5,11 @@ export default defineConfig({
   version: "stable",
   workspaceFolder: "./test-workspace",
   launchArgs: ["--disable-extensions", "--disable-workspace-trust"],
+  extensionDevelopmentPath: ".",
+  extensionTestsPath: "./out/test/index",
   mocha: {
     ui: "bdd",
-    timeout: 20000,
+    timeout: 5000,
     color: true,
   },
 });

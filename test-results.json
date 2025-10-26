@@ -1,0 +1,1175 @@
+[90m[main 2025-10-26T21:11:48.049Z][0m update#setState disabled
+[90m[main 2025-10-26T21:11:48.054Z][0m update#ctor - updates are disabled by the environment
+ChatSessionStore: Migrating 0 chat sessions from storage service to file system
+Started local extension host with pid 30279.
+Loading development extension at /home/awalsh128/vscode-keep-sorted
+MCP Registry configured: https://api.mcp.github.com/2025-09-15
+Settings Sync: Account status changed from uninitialized to unavailable
+{
+  "stats": {
+    "suites": 22,
+    "tests": 60,
+    "passes": 53,
+    "pending": 0,
+    "failures": 7,
+    "start": "2025-10-26T21:11:53.682Z",
+    "end": "2025-10-26T21:11:54.109Z",
+    "duration": 427
+  },
+  "tests": [
+    {
+      "title": "should execute function once and cache result",
+      "fullTitle": "shared memoize should execute function once and cache result",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should cache different return values",
+      "fullTitle": "shared memoize should cache different return values",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions that return objects",
+      "fullTitle": "shared memoize should work with functions that return objects",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions that take arguments (but ignores them)",
+      "fullTitle": "shared memoize should work with functions that take arguments (but ignores them)",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should preserve function signature",
+      "fullTitle": "shared memoize should preserve function signature",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning undefined",
+      "fullTitle": "shared memoize should work with functions returning undefined",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning null",
+      "fullTitle": "shared memoize should work with functions returning null",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning boolean",
+      "fullTitle": "shared memoize should work with functions returning boolean",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should execute function after delay",
+      "fullTitle": "shared delayAndExecute should execute function after delay",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should cancel previous timeout when called again",
+      "fullTitle": "shared delayAndExecute should cancel previous timeout when called again",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle multiple named delays independently",
+      "fullTitle": "shared delayAndExecute should handle multiple named delays independently",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected +0 to equal 1\n\tat Context.<anonymous> (out/test/shared.test.js:184:43)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected +0 to equal 1",
+        "actual": "0",
+        "expected": "1",
+        "showDiff": true,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should handle function errors gracefully",
+      "fullTitle": "shared delayAndExecute should handle function errors gracefully",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should memoize binary path",
+      "fullTitle": "keep_sorted KeepSorted getBundledBinaryPath should memoize binary path",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 44,
+      "currentRetry": 0,
+      "speed": "medium",
+      "err": {}
+    },
+    {
+      "title": "should reject on non-zero/non-one exit code",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should reject on non-zero/non-one exit code",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected 'keep-sorted fix failed: binary error' to include 'Keep-sorted fix failed'\n\tat Context.<anonymous> (out/test/keepSorted.test.js:70:58)",
+        "message": "expected 'keep-sorted fix failed: binary error' to include 'Keep-sorted fix failed'",
+        "actual": "keep-sorted fix failed: binary error",
+        "showDiff": false,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should return undefined when error tracker disables extension",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should return undefined when error tracker disables extension",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should write document content to stdin",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should write document content to stdin",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should pass line range to binary when range is provided",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should pass line range to binary when range is provided",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should not pass line range when range is not provided",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should not pass line range when range is not provided",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return empty array when no issues found",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should return empty array when no issues found",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should parse JSON findings and create diagnostics",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should parse JSON findings and create diagnostics",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle multiple findings",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle multiple findings",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle JSON parse errors",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle JSON parse errors",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle non-array findings",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle non-array findings",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle binary errors",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle binary errors",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create correct diagnostic ranges",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should create correct diagnostic ranges",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register all expected subscriptions",
+      "fullTitle": "extension activate should register all expected subscriptions",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should complete activation successfully",
+      "fullTitle": "extension activate should complete activation successfully",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should read configuration on activation",
+      "fullTitle": "extension activate should read configuration on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register fix command",
+      "fullTitle": "extension activate should register fix command",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register code actions provider",
+      "fullTitle": "extension activate should register code actions provider",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create diagnostic collection",
+      "fullTitle": "extension activate should create diagnostic collection",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register document save listener",
+      "fullTitle": "extension activate should register document save listener",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register document change listener",
+      "fullTitle": "extension activate should register document change listener",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle no open documents on activation",
+      "fullTitle": "extension activate should handle no open documents on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle multiple open documents on activation",
+      "fullTitle": "extension activate should handle multiple open documents on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 14,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should skip untitled documents",
+      "fullTitle": "extension shouldLintDocument logic should skip untitled documents",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should skip .git files",
+      "fullTitle": "extension shouldLintDocument logic should skip .git files",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should process normal files",
+      "fullTitle": "extension shouldLintDocument logic should process normal files",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return configuration object with expected properties",
+      "fullTitle": "configuration getConfig should return configuration object with expected properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected { Object (enabled, fixOnSave, ...) } to have property 'lintOnSave'\n\tat Context.<anonymous> (out/test/configuration.test.js:32:48)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected { Object (enabled, fixOnSave, ...) } to have property 'lintOnSave'",
+        "actual": {
+          "enabled": true,
+          "fixOnSave": true,
+          "exclude": []
+        },
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should return the same configuration object on multiple calls",
+      "fullTitle": "configuration getConfig should return the same configuration object on multiple calls",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return readonly configuration object",
+      "fullTitle": "configuration getConfig should return readonly configuration object",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return false when no exclude patterns are configured",
+      "fullTitle": "configuration excluded should return false when no exclude patterns are configured",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return true when file matches exclude pattern",
+      "fullTitle": "configuration excluded should return true when file matches exclude pattern",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected false to be true\n\tat Context.<anonymous> (out/test/configuration.test.js:96:45)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected false to be true",
+        "actual": "false",
+        "expected": "true",
+        "showDiff": true,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should return false when file does not match exclude patterns",
+      "fullTitle": "configuration excluded should return false when file does not match exclude patterns",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return true when keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should return true when keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return false when non-keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should return false when non-keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should reload configuration when keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should reload configuration when keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should define all required configuration properties",
+      "fullTitle": "configuration KeepSortedConfiguration interface should define all required configuration properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should have readonly properties",
+      "fullTitle": "configuration KeepSortedConfiguration interface should have readonly properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should process document with unsorted content",
+      "fullTitle": "actions executeFixAction execute should process document with unsorted content",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected applyEdit to have been called exactly once, but it was called 0 times\n\tat Context.<anonymous> (out/test/actions.test.js:70:63)",
+        "message": "expected applyEdit to have been called exactly once, but it was called 0 times",
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should create workspace edit when content needs fixing",
+      "fullTitle": "actions executeFixAction execute should create workspace edit when content needs fixing",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected applyEdit to have been called exactly once, but it was called 0 times\n\tat Context.<anonymous> (out/test/actions.test.js:83:63)",
+        "message": "expected applyEdit to have been called exactly once, but it was called 0 times",
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should clear and update diagnostics after successful fix",
+      "fullTitle": "actions executeFixAction execute should clear and update diagnostics after successful fix",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected clear to have been called exactly once with arguments {\n  uri: Pa {\n    scheme: 'file',\n    authority: '',\n    path: '/test/file.ts',\n    query: '',\n    fragment: '',\n    _formatted: null,\n    _fsPath: null\n  },\n  fsPath: '/test/file.ts',\n  getText: [Function: functionStub],\n  positionAt: [Function: functionStub]\n}\n\tat Context.<anonymous> (out/test/actions.test.js:99:59)",
+        "message": "expected clear to have been called exactly once with arguments {\n  uri: Pa {\n    scheme: 'file',\n    authority: '',\n    path: '/test/file.ts',\n    query: '',\n    fragment: '',\n    _formatted: null,\n    _fsPath: null\n  },\n  fsPath: '/test/file.ts',\n  getText: [Function: functionStub],\n  positionAt: [Function: functionStub]\n}",
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should have QuickFix action kind",
+      "fullTitle": "actions KeepSortedActionProvider actionKinds should have QuickFix action kind",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when no diagnostics exist",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when no diagnostics exist",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when diagnostics.get returns empty array",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when diagnostics.get returns empty array",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return fix actions when diagnostics exist",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return fix actions when diagnostics exist",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return action with multiple diagnostics",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return action with multiple diagnostics",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when diagnostics exist but don't intersect with range",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when diagnostics exist but don't intersect with range",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should filter diagnostics to only those intersecting with range",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should filter diagnostics to only those intersecting with range",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create actions with command arguments",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should create actions with command arguments",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    }
+  ],
+  "pending": [],
+  "failures": [
+    {
+      "title": "should handle multiple named delays independently",
+      "fullTitle": "shared delayAndExecute should handle multiple named delays independently",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected +0 to equal 1\n\tat Context.<anonymous> (out/test/shared.test.js:184:43)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected +0 to equal 1",
+        "actual": "0",
+        "expected": "1",
+        "showDiff": true,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should reject on non-zero/non-one exit code",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should reject on non-zero/non-one exit code",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected 'keep-sorted fix failed: binary error' to include 'Keep-sorted fix failed'\n\tat Context.<anonymous> (out/test/keepSorted.test.js:70:58)",
+        "message": "expected 'keep-sorted fix failed: binary error' to include 'Keep-sorted fix failed'",
+        "actual": "keep-sorted fix failed: binary error",
+        "showDiff": false,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should return configuration object with expected properties",
+      "fullTitle": "configuration getConfig should return configuration object with expected properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected { Object (enabled, fixOnSave, ...) } to have property 'lintOnSave'\n\tat Context.<anonymous> (out/test/configuration.test.js:32:48)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected { Object (enabled, fixOnSave, ...) } to have property 'lintOnSave'",
+        "actual": {
+          "enabled": true,
+          "fixOnSave": true,
+          "exclude": []
+        },
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should return true when file matches exclude pattern",
+      "fullTitle": "configuration excluded should return true when file matches exclude pattern",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected false to be true\n\tat Context.<anonymous> (out/test/configuration.test.js:96:45)\n\tat process.processImmediate (node:internal/timers:485:21)",
+        "message": "expected false to be true",
+        "actual": "false",
+        "expected": "true",
+        "showDiff": true,
+        "operator": "strictEqual"
+      }
+    },
+    {
+      "title": "should process document with unsorted content",
+      "fullTitle": "actions executeFixAction execute should process document with unsorted content",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected applyEdit to have been called exactly once, but it was called 0 times\n\tat Context.<anonymous> (out/test/actions.test.js:70:63)",
+        "message": "expected applyEdit to have been called exactly once, but it was called 0 times",
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should create workspace edit when content needs fixing",
+      "fullTitle": "actions executeFixAction execute should create workspace edit when content needs fixing",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected applyEdit to have been called exactly once, but it was called 0 times\n\tat Context.<anonymous> (out/test/actions.test.js:83:63)",
+        "message": "expected applyEdit to have been called exactly once, but it was called 0 times",
+        "showDiff": false
+      }
+    },
+    {
+      "title": "should clear and update diagnostics after successful fix",
+      "fullTitle": "actions executeFixAction execute should clear and update diagnostics after successful fix",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "err": {
+        "stack": "AssertionError: expected clear to have been called exactly once with arguments {\n  uri: Pa {\n    scheme: 'file',\n    authority: '',\n    path: '/test/file.ts',\n    query: '',\n    fragment: '',\n    _formatted: null,\n    _fsPath: null\n  },\n  fsPath: '/test/file.ts',\n  getText: [Function: functionStub],\n  positionAt: [Function: functionStub]\n}\n\tat Context.<anonymous> (out/test/actions.test.js:99:59)",
+        "message": "expected clear to have been called exactly once with arguments {\n  uri: Pa {\n    scheme: 'file',\n    authority: '',\n    path: '/test/file.ts',\n    query: '',\n    fragment: '',\n    _formatted: null,\n    _fsPath: null\n  },\n  fsPath: '/test/file.ts',\n  getText: [Function: functionStub],\n  positionAt: [Function: functionStub]\n}",
+        "showDiff": false
+      }
+    }
+  ],
+  "passes": [
+    {
+      "title": "should execute function once and cache result",
+      "fullTitle": "shared memoize should execute function once and cache result",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should cache different return values",
+      "fullTitle": "shared memoize should cache different return values",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions that return objects",
+      "fullTitle": "shared memoize should work with functions that return objects",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions that take arguments (but ignores them)",
+      "fullTitle": "shared memoize should work with functions that take arguments (but ignores them)",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should preserve function signature",
+      "fullTitle": "shared memoize should preserve function signature",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning undefined",
+      "fullTitle": "shared memoize should work with functions returning undefined",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning null",
+      "fullTitle": "shared memoize should work with functions returning null",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should work with functions returning boolean",
+      "fullTitle": "shared memoize should work with functions returning boolean",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should execute function after delay",
+      "fullTitle": "shared delayAndExecute should execute function after delay",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should cancel previous timeout when called again",
+      "fullTitle": "shared delayAndExecute should cancel previous timeout when called again",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle function errors gracefully",
+      "fullTitle": "shared delayAndExecute should handle function errors gracefully",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/shared.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should memoize binary path",
+      "fullTitle": "keep_sorted KeepSorted getBundledBinaryPath should memoize binary path",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 44,
+      "currentRetry": 0,
+      "speed": "medium",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when error tracker disables extension",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should return undefined when error tracker disables extension",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should write document content to stdin",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should write document content to stdin",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should pass line range to binary when range is provided",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should pass line range to binary when range is provided",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should not pass line range when range is not provided",
+      "fullTitle": "keep_sorted KeepSorted fixDocument should not pass line range when range is not provided",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return empty array when no issues found",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should return empty array when no issues found",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should parse JSON findings and create diagnostics",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should parse JSON findings and create diagnostics",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle multiple findings",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle multiple findings",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle JSON parse errors",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle JSON parse errors",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle non-array findings",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle non-array findings",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle binary errors",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should handle binary errors",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 3,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create correct diagnostic ranges",
+      "fullTitle": "keep_sorted KeepSorted lintDocument should create correct diagnostic ranges",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/keepSorted.test.js",
+      "duration": 5,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register all expected subscriptions",
+      "fullTitle": "extension activate should register all expected subscriptions",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 4,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should complete activation successfully",
+      "fullTitle": "extension activate should complete activation successfully",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should read configuration on activation",
+      "fullTitle": "extension activate should read configuration on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register fix command",
+      "fullTitle": "extension activate should register fix command",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register code actions provider",
+      "fullTitle": "extension activate should register code actions provider",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create diagnostic collection",
+      "fullTitle": "extension activate should create diagnostic collection",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register document save listener",
+      "fullTitle": "extension activate should register document save listener",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should register document change listener",
+      "fullTitle": "extension activate should register document change listener",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle no open documents on activation",
+      "fullTitle": "extension activate should handle no open documents on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should handle multiple open documents on activation",
+      "fullTitle": "extension activate should handle multiple open documents on activation",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 14,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should skip untitled documents",
+      "fullTitle": "extension shouldLintDocument logic should skip untitled documents",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should skip .git files",
+      "fullTitle": "extension shouldLintDocument logic should skip .git files",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should process normal files",
+      "fullTitle": "extension shouldLintDocument logic should process normal files",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/extension.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return the same configuration object on multiple calls",
+      "fullTitle": "configuration getConfig should return the same configuration object on multiple calls",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return readonly configuration object",
+      "fullTitle": "configuration getConfig should return readonly configuration object",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return false when no exclude patterns are configured",
+      "fullTitle": "configuration excluded should return false when no exclude patterns are configured",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return false when file does not match exclude patterns",
+      "fullTitle": "configuration excluded should return false when file does not match exclude patterns",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 7,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return true when keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should return true when keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return false when non-keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should return false when non-keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 2,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should reload configuration when keep-sorted configuration changes",
+      "fullTitle": "configuration onConfigurationChange should reload configuration when keep-sorted configuration changes",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should define all required configuration properties",
+      "fullTitle": "configuration KeepSortedConfiguration interface should define all required configuration properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should have readonly properties",
+      "fullTitle": "configuration KeepSortedConfiguration interface should have readonly properties",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/configuration.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should have QuickFix action kind",
+      "fullTitle": "actions KeepSortedActionProvider actionKinds should have QuickFix action kind",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when no diagnostics exist",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when no diagnostics exist",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when diagnostics.get returns empty array",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when diagnostics.get returns empty array",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return fix actions when diagnostics exist",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return fix actions when diagnostics exist",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return action with multiple diagnostics",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return action with multiple diagnostics",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should return undefined when diagnostics exist but don't intersect with range",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should return undefined when diagnostics exist but don't intersect with range",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should filter diagnostics to only those intersecting with range",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should filter diagnostics to only those intersecting with range",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 1,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    },
+    {
+      "title": "should create actions with command arguments",
+      "fullTitle": "actions KeepSortedActionProvider provideCodeActions should create actions with command arguments",
+      "file": "/home/awalsh128/vscode-keep-sorted/out/test/actions.test.js",
+      "duration": 0,
+      "currentRetry": 0,
+      "speed": "fast",
+      "err": {}
+    }
+  ]
+[90m[main 2025-10-26T21:11:54.412Z][0m Extension host with pid 30279 exited with code: 0, signal: unknown.
+Exit code:   1

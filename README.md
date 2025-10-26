@@ -9,6 +9,30 @@ A VS Code extension that automatically keeps sorted blocks in your code organize
 - Quick fix actions to sort blocks
 - Supports multiple file types
 
+## Configuration
+
+The extension provides several configuration options that can be set in VS Code settings:
+
+### Available Settings
+
+- **`keep-sorted.enabled`** (boolean, default: `true`) Enable or disable the extension.
+
+- **`keep-sorted.fixOnSave`** (boolean, default: `true`) Automatically fixes documents when they are
+  saved.
+
+- **`keep-sorted.exclude`** (array of strings, default: `[]`) Array of glob or regex patterns to
+  exclude files from being processed by the extension (relative to the workspace root).
+
+  Examples:
+
+  ```json
+  "keep-sorted.exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/*.test.ts"
+  ]
+  ```
+
 ## Usage
 
 The extension will automatically detect keep-sorted blocks in your files and provide warnings when
@@ -20,7 +44,7 @@ When the extension detects unsorted content:
 
 1. A warning squiggle will appear under the unsorted block
 2. Click the lightbulb icon or press `Ctrl+.` / `Cmd+.`
-3. Select "Sort keep-sorted blocks" from the quick fix menu
+3. Select "Sort lines (keep-sorted)" from the quick fix menu
 
 ## Troubleshooting
 
