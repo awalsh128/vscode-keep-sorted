@@ -1,0 +1,26 @@
+name: Environment Setup
+description: A composite action that sets up the environment for the project
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+        cache: "npm"
+
+    - name: Install dependencies
+      run: npm ci
+
+    - uses: oke-py/npm-audit-action@v3
+      with:
+        audit_level: moderate
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        create_pr_comments: true
+        create_issues: true
+        issue_labels: vulnerability,test
+        dedupe_issues: true

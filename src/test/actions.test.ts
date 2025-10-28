@@ -5,11 +5,9 @@ import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import { executeFixAction, FIX_COMMAND, KeepSortedActionProvider } from "../actions";
 import { KeepSorted } from "../keepSorted";
-import { KeepSortedDiagnostics, ErrorTracker } from "../instrumentation";
+import { ErrorTracker, EXT_NAME } from "../instrumentation";
 
 use(sinonChai);
-
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 
 // Constants for test values that are irrelevant to test behavior
 const ANY_FILE_PATH = "/test/file.ts";
@@ -37,7 +35,7 @@ describe("actions", () => {
 
   describe("executeFixAction", () => {
     let realLinter: KeepSorted;
-    let realDiagnostics: KeepSortedDiagnostics;
+    let realDiagnostics: vscode.DiagnosticCollection;
     let mockDocument: vscode.TextDocument;
     let mockRange: vscode.Range;
 
@@ -45,7 +43,7 @@ describe("actions", () => {
       // Arrange - Use real objects
       const errorTracker = new ErrorTracker();
       realLinter = new KeepSorted(process.cwd(), errorTracker);
-      realDiagnostics = new KeepSortedDiagnostics();
+      realDiagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
 
       mockDocument = {
         uri: vscode.Uri.file(ANY_FILE_PATH),
@@ -68,12 +66,12 @@ describe("actions", () => {
         applyEditStub = sandbox.stub(vscode.workspace, "applyEdit");
       });
 
-      it("should process document with unsorted content", async () => {
+      it("should process document with unsorted content", () => {
         // Arrange
         applyEditStub.resolves(true);
 
         // Act
-        await executeFixAction({
+        executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,
@@ -81,15 +79,15 @@ describe("actions", () => {
         });
 
         // Assert - Should attempt to apply edits for unsorted content
-        expect(applyEditStub).to.have.been.calledOnce;
+        void expect(applyEditStub).to.have.been.calledOnce;
       });
 
-      it("should create workspace edit when content needs fixing", async () => {
+      it("should create workspace edit when content needs fixing", () => {
         // Arrange
         applyEditStub.resolves(true);
 
         // Act
-        await executeFixAction({
+        executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,
@@ -97,18 +95,17 @@ describe("actions", () => {
         });
 
         // Assert
-        expect(applyEditStub).to.have.been.calledOnce;
+        void expect(applyEditStub).to.have.been.calledOnce;
         const edit = applyEditStub.firstCall.args[0] as vscode.WorkspaceEdit;
         expect(edit).to.be.instanceOf(vscode.WorkspaceEdit);
       });
 
-      it("should clear and update diagnostics after successful fix", async () => {
+      it("should update diagnostics after successful fix", () => {
         // Arrange
         applyEditStub.resolves(true);
-        const clearSpy = sandbox.spy(realDiagnostics, "clear");
 
         // Act
-        await executeFixAction({
+        executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,
@@ -116,7 +113,7 @@ describe("actions", () => {
         });
 
         // Assert
-        expect(clearSpy).to.have.been.calledOnceWith(mockDocument);
+        void expect(realDiagnostics.get(mockDocument.uri)).to.be.empty;
       });
     });
   });
@@ -124,7 +121,7 @@ describe("actions", () => {
   describe("KeepSortedActionProvider", () => {
     let provider: KeepSortedActionProvider;
     let realLinter: KeepSorted;
-    let realDiagnostics: KeepSortedDiagnostics;
+    let realDiagnostics: vscode.DiagnosticCollection;
     let mockDocument: vscode.TextDocument;
     let mockRange: vscode.Range;
 
@@ -132,7 +129,7 @@ describe("actions", () => {
       // Arrange - Use real objects
       const errorTracker = new ErrorTracker();
       realLinter = new KeepSorted(process.cwd(), errorTracker);
-      realDiagnostics = new KeepSortedDiagnostics();
+      realDiagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
 
       mockDocument = {
         uri: vscode.Uri.file(ANY_FILE_PATH),
@@ -169,25 +166,25 @@ describe("actions", () => {
     });
 
     describe("provideCodeActions", () => {
-      it("should return undefined when no diagnostics exist", () => {
+      it("should return empty array when no diagnostics exist", () => {
         // Arrange - Real diagnostics collection is empty by default
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
         // Assert
-        expect(result).to.be.undefined;
+        void expect(result).to.be.an("array").that.is.empty;
       });
 
-      it("should return undefined when diagnostics.get returns empty array", () => {
+      it("should return empty array when diagnostics.get returns empty array", () => {
         // Arrange
-        realDiagnostics.set(mockDocument, []);
+        realDiagnostics.set(mockDocument.uri, []);
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
         // Assert
-        expect(result).to.be.undefined;
+        void expect(result).to.be.an("array").that.is.empty;
       });
 
       it("should return fix actions when diagnostics exist", () => {
@@ -198,7 +195,7 @@ describe("actions", () => {
           vscode.DiagnosticSeverity.Warning
         );
         diagnostic.source = KEEP_SORTED_SOURCE;
-        realDiagnostics.set(mockDocument, [diagnostic]);
+        realDiagnostics.set(mockDocument.uri, [diagnostic]);
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
@@ -212,7 +209,7 @@ describe("actions", () => {
         expect(result![0].command!.tooltip).to.equal(FIX_COMMAND.tooltip);
         expect(result![0].command!.arguments).to.deep.equal([mockDocument, mockRange]);
         expect(result![0].diagnostics).to.deep.equal([diagnostic]);
-        expect(result![0].isPreferred).to.be.true;
+        void expect(result![0].isPreferred).to.be.true;
       });
 
       it("should return action with multiple diagnostics", () => {
@@ -231,7 +228,7 @@ describe("actions", () => {
         );
         diagnostic2.source = KEEP_SORTED_SOURCE;
 
-        realDiagnostics.set(mockDocument, [diagnostic1, diagnostic2]);
+        realDiagnostics.set(mockDocument.uri, [diagnostic1, diagnostic2]);
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
@@ -243,7 +240,7 @@ describe("actions", () => {
         expect(result![0].diagnostics![0]).to.equal(diagnostic1);
       });
 
-      it("should return undefined when diagnostics exist but don't intersect with range", () => {
+      it("should return empty array when diagnostics exist but don't intersect with range", () => {
         // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(2, 0, 2, 10), // Different line from mockRange (0,0 to
@@ -252,13 +249,13 @@ describe("actions", () => {
           vscode.DiagnosticSeverity.Warning
         );
         diagnostic.source = KEEP_SORTED_SOURCE;
-        realDiagnostics.set(mockDocument, [diagnostic]);
+        realDiagnostics.set(mockDocument.uri, [diagnostic]);
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
 
         // Assert
-        expect(result).to.be.undefined;
+        void expect(result).to.be.an("array").that.is.empty;
       });
 
       it("should filter diagnostics to only those intersecting with range", () => {
@@ -277,7 +274,7 @@ describe("actions", () => {
         );
         nonIntersectingDiagnostic.source = KEEP_SORTED_SOURCE;
 
-        realDiagnostics.set(mockDocument, [intersectingDiagnostic, nonIntersectingDiagnostic]);
+        realDiagnostics.set(mockDocument.uri, [intersectingDiagnostic, nonIntersectingDiagnostic]);
 
         // Act
         const result = provider.provideCodeActions(mockDocument, mockRange);
@@ -296,7 +293,7 @@ describe("actions", () => {
           vscode.DiagnosticSeverity.Warning
         );
         diagnostic.source = KEEP_SORTED_SOURCE;
-        realDiagnostics.set(mockDocument, [diagnostic]);
+        realDiagnostics.set(mockDocument.uri, [diagnostic]);
 
         // Act
         const results = provider.provideCodeActions(mockDocument, mockRange);

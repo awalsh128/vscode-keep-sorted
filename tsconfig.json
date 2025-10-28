@@ -6,7 +6,9 @@
     "outDir": "out",
     "sourceMap": true,
     "strict": true,
-    "rootDir": "src"
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "tsBuildInfoFile": "tsconfig.tsbuildinfo"
   },
   "exclude": ["node_modules", ".vscode-test", "scripts", "test-workspace"]
 }

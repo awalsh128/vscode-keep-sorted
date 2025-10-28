@@ -17,9 +17,7 @@ use(sinonChai);
 // Constants for test values
 const KEEP_SORTED_CONFIG_NAMESPACE = "keep-sorted";
 const DEFAULT_ENABLED = true;
-const DEFAULT_FIX_ON_SAVE = true;
 const DEFAULT_EXCLUDE: string[] = [];
-const ANY_FILE_PATH = "/test/file.ts";
 
 describe("configuration", () => {
   let sandbox: sinon.SinonSandbox;
@@ -40,9 +38,6 @@ describe("configuration", () => {
       // Assert
       expect(config).to.be.an("object");
       expect(config).to.have.property("enabled").that.is.a("boolean");
-      expect(config).to.have.property("lintOnSave").that.is.a("boolean");
-      expect(config).to.have.property("lintOnChange").that.is.a("boolean");
-      expect(config).to.have.property("logLevel").that.is.a("string");
       expect(config).to.have.property("exclude").that.is.an("array");
     });
 
@@ -62,7 +57,6 @@ describe("configuration", () => {
       // Assert - TypeScript ensures readonly at compile time
       // At runtime, verify the object has all expected properties
       expect(config).to.have.property("enabled");
-      expect(config).to.have.property("fixOnSave");
       expect(config).to.have.property("exclude");
     });
   });
@@ -72,42 +66,72 @@ describe("configuration", () => {
     let configStub: { get: sinon.SinonStub };
 
     beforeEach(() => {
-      // Create config stub for testing exclusion patterns
       configStub = {
         get: sandbox.stub(),
       };
-
       getConfigurationStub = sandbox.stub(vscode.workspace, "getConfiguration");
       getConfigurationStub.returns(configStub);
     });
 
-    it("should return false when no exclude patterns are configured", () => {
-      // Arrange
-      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns([]);
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
+    const MATCHING_CASES = [
+      {
+        name: "matching regex pattern",
+        excludePattern: ".*\\.test\\.ts$",
+        filePath: "/path/to/file.test.ts",
+      },
+      {
+        name: "matching glob pattern",
+        excludePattern: "**/*/*test.ts",
+        filePath: "/path/to/file.test.ts",
+        expected: true,
+      },
+      {
+        name: "no matching regex pattern",
+        excludePattern: ".*notfile\\.temp\\..*",
+        filePath: "/path/to/file.temp.ts",
+        expected: false,
+      },
+      {
+        name: "no matching glob pattern",
+        excludePattern: "**/*/*temp.*",
+        filePath: "/path/to/file.test.ts",
+        expected: false,
+      },
+      {
+        name: "empty exclude patterns",
+        excludePattern: "",
+        filePath: "/path/to/file.test.ts",
+        expected: false,
+      },
+    ].forEach(({ name, excludePattern, filePath, expected }) => {
+      it(`should return ${expected} when ${name} is configured`, () => {
+        // Arrange
+        configStub.get
+          .withArgs("exclude", DEFAULT_EXCLUDE)
+          .returns(excludePattern ? [excludePattern] : []);
+        configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
 
-      // Trigger config reload
-      const mockEvent = {
-        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
-      } as vscode.ConfigurationChangeEvent;
-      onConfigurationChange(mockEvent);
+        // Trigger config reload
+        const mockEvent = {
+          affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+        } as vscode.ConfigurationChangeEvent;
+        onConfigurationChange(mockEvent);
 
-      const testUri = vscode.Uri.file(ANY_FILE_PATH);
+        const testUri = vscode.Uri.file(filePath);
 
-      // Act
-      const result = pathExcluded(testUri);
+        // Act
+        const result = pathExcluded(testUri);
 
-      // Assert
-      expect(result).to.be.false;
+        // Assert
+        expect(result).to.be.equal(expected);
+      });
     });
 
-    it("should return true when file matches exclude pattern", () => {
+    it("should return true when file matches exclude regex pattern", () => {
       // Arrange
       const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
       configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
       configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
 
       // Trigger config reload
       const mockEvent = {
@@ -129,7 +153,6 @@ describe("configuration", () => {
       const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
       configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
       configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-      configStub.get.withArgs("fixOnSave", DEFAULT_FIX_ON_SAVE).returns(DEFAULT_FIX_ON_SAVE);
 
       // Trigger config reload
       const mockEvent = {
@@ -190,7 +213,6 @@ describe("configuration", () => {
       // Note: In a real VS Code environment, this would load fresh config values
       expect(typeof configAfter).to.equal("object");
       expect(configAfter).to.have.property("enabled");
-      expect(configAfter).to.have.property("fixOnSave");
       expect(configAfter).to.have.property("exclude");
     });
   });
@@ -200,14 +222,11 @@ describe("configuration", () => {
       // Arrange & Act
       const config: KeepSortedConfiguration = {
         enabled: true,
-        fixOnSave: false,
-        
         exclude: ["pattern1", "pattern2"],
       };
 
       // Assert
       expect(config.enabled).to.equal(true);
-      expect(config.fixOnSave).to.equal(false);
       expect(config.exclude).to.deep.equal(["pattern1", "pattern2"]);
     });
 
@@ -215,14 +234,12 @@ describe("configuration", () => {
       // Arrange & Act
       const config: KeepSortedConfiguration = {
         enabled: true,
-        fixOnSave: true,
         exclude: [],
       };
 
       // Assert - TypeScript enforces readonly at compile time
       // At runtime, verify the properties exist and have correct types
       expect(config).to.have.property("enabled").that.is.a("boolean");
-      expect(config).to.have.property("fixOnSave").that.is.a("boolean");
       expect(config).to.have.property("exclude").that.is.an("array");
     });
   });

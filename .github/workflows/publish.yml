@@ -1,0 +1,48 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Release version to publish
+        required: true
+      pre_release:
+        description: Publish as a pre-release
+        required: true
+        default: 'false'
+      dry_run:
+        description: Perform a dry run without actual publishing
+        required: true
+        default: 'false'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: ./.github/workflows/ci.yml
+
+    - name: Publish to Open VSX Registry
+      id: openvsx-publish
+      uses: HaaLeo/publish-vscode-extension@v2
+      with:
+        # TODO: Set secret in repository
+        pat: ${{ secrets.OPEN_VSX_TOKEN }}
+        dryRun: ${{ github.event.inputs.dry_run }}
+        preRelease: ${{ github.event.inputs.pre_release }}
+
+    - name: Publish to Visual Studio Marketplace
+      id: vsmarketplace-publish
+      uses: HaaLeo/publish-vscode-extension@v2
+      with:
+        # TODO: Set secret in repository
+        pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        registryUrl: https://marketplace.visualstudio.com
+        extensionFile: ${{ steps.openvsx-publish.outputs.vsixPath }}
+        dryRun: ${{ github.event.inputs.dry_run }}
+        preRelease: ${{ github.event.inputs.pre_release }}
+    - name: Output Published Extension Info
+      run: |
+        echo "Open VSX Extension ID: ${{ steps.openvsx-publish.outputs.extensionId }}"
+        echo "Visual Studio Marketplace Extension ID: ${{ steps.vsmarketplace-publish.outputs.extensionId }}"

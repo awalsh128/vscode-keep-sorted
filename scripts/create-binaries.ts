@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { mkdirSync, chmodSync } from "fs";
+import { mkdirSync, chmodSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { execSync } from "child_process";
+import { createHash } from "crypto";
 import { fileURLToPath } from "url";
 
 const KEEP_SORTED_VERSION = "v0.7.1";
@@ -41,7 +42,14 @@ function buildBinary(
   if (platform.goos !== "windows") {
     chmodSync(outputPath, 0o755);
   }
-  console.log(`✓ Built ${platform.filename}`);
+
+  // Generate SHA256 hash
+  const fileBuffer = readFileSync(outputPath);
+  const hash = createHash("sha256").update(fileBuffer).digest("hex");
+  const hashFilePath = `${outputPath}.sha256`;
+  writeFileSync(hashFilePath, hash);
+
+  console.log(`✅ Built ${platform.filename} (SHA256: ${hash})`);
 }
 
 mkdirSync(BIN_DIR, { recursive: true });

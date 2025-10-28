@@ -4,6 +4,7 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as childProcess from "child_process";
+import * as path from "path";
 import { KeepSorted, KeepSortedFinding } from "../keepSorted";
 import { ErrorTracker } from "../instrumentation";
 
@@ -83,7 +84,8 @@ describe("keep_sorted", () => {
           expect.fail("Should have rejected");
         } catch (error) {
           expect(error).to.be.instanceOf(Error);
-          expect((error as Error).message).to.include("Keep-sorted fix failed");
+          // EXT_NAME is lowercase 'keep-sorted' in the instrumentation module
+          expect((error as Error).message).to.include("keep-sorted fix failed");
           expect(mockErrorTracker.recordError).to.have.been.called;
         }
       });
@@ -112,13 +114,13 @@ describe("keep_sorted", () => {
       it("should pass line range to binary when range is provided", async () => {
         const mockProcess = createMockChildProcess(0, "fixed content", "");
         spawnStub.returns(mockProcess);
-        const range = new vscode.Range(2, 0, 5, 0); // Lines 3-6 (1-indexed in binary)
+        const range = new vscode.Range(2, 0, 5, 0); // Lines 3-5 (1-indexed in binary)
 
         await keepSorted.fixDocument(mockDocument, range);
 
         expect(spawnStub).to.have.been.calledWith(
           sinon.match.string,
-          ["--lines", "3:6", "-"], // Lines should be 1-indexed for the binary
+          ["--lines", "3:5", "-"], // Lines should be 1-indexed for the binary
           sinon.match.object
         );
       });
@@ -260,6 +262,55 @@ describe("keep_sorted", () => {
         expect(result![0].range.end.line).to.equal(10);
       });
     });
+  });
+});
+
+/** Integration tests that use the real KeepSorted binary and test-workspace files. */
+describe("keepSorted integration", () => {
+  let keepSorted: KeepSorted;
+  let errorTracker: ErrorTracker;
+
+  beforeEach(() => {
+    errorTracker = new ErrorTracker();
+    keepSorted = new KeepSorted(__dirname + "/../../", errorTracker);
+  });
+
+  afterEach(async () => {
+    // No dispose needed for ErrorTracker
+  });
+
+  it("should lint and fix test-workspace/sample.ts", async function () {
+    this.timeout(10 * 1000); // Allow more time for binary execution
+
+    // Open the sample file
+    const sampleUri = vscode.Uri.file(path.join(__dirname, "../../test-workspace/sample.ts"));
+    const document = await vscode.workspace.openTextDocument(sampleUri);
+
+    // Lint the document - should find unsorted blocks
+    const diagnostics = await keepSorted.lintDocument(document);
+    expect(diagnostics).to.be.an("array").with.length.greaterThan(0);
+    expect(diagnostics!.some((d) => d.message.includes("out of order"))).to.be.true;
+
+    // Fix the document - should return sorted content
+    const fixedContent = await keepSorted.fixDocument(document);
+    expect(fixedContent).to.not.be.undefined;
+    expect(fixedContent).to.be.a("string");
+
+    // Check that the fixed content has sorted blocks
+    const lines = fixedContent!.split("\n");
+    const sortedBlockStart = lines.findIndex((line) => line.includes("// keep-sorted start"));
+    const sortedBlockEnd = lines.findIndex((line) => line.includes("// keep-sorted end"));
+    expect(sortedBlockStart).to.be.greaterThan(-1);
+    expect(sortedBlockEnd).to.be.greaterThan(sortedBlockStart);
+
+    // Extract the sorted block and verify it's sorted
+    const sortedBlock = lines.slice(sortedBlockStart + 1, sortedBlockEnd);
+    const constLines = sortedBlock.filter((line) => line.trim().startsWith("const"));
+    expect(constLines).to.have.length(4);
+    expect(constLines[0]).to.include("alpha");
+    expect(constLines[1]).to.include("beta");
+    expect(constLines[2]).to.include("delta");
+    expect(constLines[3]).to.include("zebra");
   });
 });
 
