@@ -13,7 +13,8 @@
       "args": [
         // This can be changed to any folder on your computer that you want to use as a test workspace
         "${workspaceFolder}/test-workspace",
-        "--extensionDevelopmentPath=${workspaceFolder}"
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--log=vscode:keep-sorted.debug"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "npm: compile"
@@ -26,7 +27,8 @@
       "args": [
         "${workspaceFolder}/test-workspace",
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "--disable-extensions"
+        "--disable-extensions",
+        "--log=vscode:keep-sorted.debug"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "npm: compile",
@@ -41,7 +43,8 @@
       "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "--extensionTestsPath=${workspaceFolder}/out/test/index"
+        "--extensionTestsPath=${workspaceFolder}/out/test/suite/index",
+        "--log=vscode:keep-sorted.debug"
       ],
       "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
       "preLaunchTask": "npm: compile"

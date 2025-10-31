@@ -11,11 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+      - uses: ./.github/actions/setupenv
       - name: Check for binary changes
         run: |
           if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^bin/'; then
@@ -26,5 +22,5 @@ jobs:
             git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^bin/'
             exit 1
           else
-            echo "✓ No binary files in PR"
+            echo "✅ No binary files in PR"
           fi

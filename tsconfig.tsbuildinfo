@@ -1,0 +1,1 @@
+{"root":["./src/actions.ts","./src/configuration.ts","./src/extension.ts","./src/instrumentation.ts","./src/keepSorted.ts","./src/test/actions.test.ts","./src/test/configuration.test.ts","./src/test/extension.test.ts","./src/test/instrumentation.test.ts","./src/test/keepSorted.test.ts","./src/test/runTest.ts","./src/test/suite/index.ts"],"version":"5.9.3"}

@@ -3,6 +3,7 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
+import * as path from "path";
 import { activate } from "../extension";
 
 use(sinonChai);
@@ -230,6 +231,101 @@ describe("extension", () => {
 
       expect(normalDoc.uri.scheme).to.equal("file");
       expect(normalDoc.uri.fsPath).not.to.include("/.git/");
+    });
+  });
+
+  /** Integration tests that activate the real extension and test end-to-end behavior. */
+  describe("extension integration", () => {
+    let context: vscode.ExtensionContext;
+
+    beforeEach(() => {
+      // Create a minimal real context for integration testing
+      const extensionPath = path.join(__dirname, "../../");
+      context = {
+        subscriptions: [],
+        extensionPath,
+        extensionUri: vscode.Uri.file(extensionPath),
+        globalState: {
+          get: () => undefined,
+          update: () => Promise.resolve(),
+          keys: () => [],
+        } as unknown as vscode.Memento,
+        workspaceState: {
+          get: () => undefined,
+          update: () => Promise.resolve(),
+          keys: () => [],
+        } as unknown as vscode.Memento,
+        secrets: {} as vscode.SecretStorage,
+        storageUri: vscode.Uri.file(path.join(extensionPath, "storage")),
+        globalStorageUri: vscode.Uri.file(path.join(extensionPath, "global-storage")),
+        logUri: vscode.Uri.file(path.join(extensionPath, "logs")),
+        extensionMode: vscode.ExtensionMode.Test,
+        extension: {} as vscode.Extension<unknown>,
+        environmentVariableCollection: {} as vscode.GlobalEnvironmentVariableCollection,
+        languageModelAccessInformation: {} as vscode.LanguageModelAccessInformation,
+        asAbsolutePath: (relativePath: string) => path.join(extensionPath, relativePath),
+        storagePath: path.join(extensionPath, "storage"),
+        globalStoragePath: path.join(extensionPath, "global-storage"),
+        logPath: path.join(extensionPath, "logs"),
+      } as unknown as vscode.ExtensionContext;
+    });
+
+    afterEach(() => {
+      // Dispose all subscriptions to clean up
+      context.subscriptions.forEach((sub) => sub.dispose());
+    });
+
+    it("should lint and fix test-workspace/sample.ts", async function () {
+      this.timeout(15000); // Allow time for binary execution
+
+      // The extension is already activated in the test host
+      // Open the sample file
+      const sampleUri = vscode.Uri.file(path.join(__dirname, "../../test-workspace/sample.ts"));
+      const document = await vscode.workspace.openTextDocument(sampleUri);
+
+      // Trigger linting by making a change and saving
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(
+        document.uri,
+        new vscode.Position(document.lineCount - 1, 0),
+        "// trigger change\n"
+      );
+      await vscode.workspace.applyEdit(edit);
+      await document.save();
+
+      // Wait for linting to complete
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Check that diagnostics were set for the document
+      const diagnostics = vscode.languages.getDiagnostics(document.uri);
+      expect(diagnostics).to.be.an("array").with.length.greaterThan(0);
+      expect(diagnostics.some((d) => d.message.includes("out of order"))).to.be.true;
+
+      // Now, execute the fix command on the entire document
+      await vscode.commands.executeCommand(
+        "keep-sorted.fix",
+        document,
+        new vscode.Range(0, 0, document.lineCount, 0)
+      );
+
+      // Wait for the fix to apply
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check that the document content has been updated (fixed)
+      const updatedContent = document.getText();
+      expect(updatedContent).to.include("const alpha");
+      expect(updatedContent).to.include("const beta");
+      expect(updatedContent).to.include("const delta");
+      expect(updatedContent).to.include("const zebra");
+
+      // Verify the order: alpha before beta before delta before zebra
+      const alphaIndex = updatedContent.indexOf("const alpha");
+      const betaIndex = updatedContent.indexOf("const beta");
+      const deltaIndex = updatedContent.indexOf("const delta");
+      const zebraIndex = updatedContent.indexOf("const zebra");
+      expect(alphaIndex).to.be.lessThan(betaIndex);
+      expect(betaIndex).to.be.lessThan(deltaIndex);
+      expect(deltaIndex).to.be.lessThan(zebraIndex);
     });
   });
 });

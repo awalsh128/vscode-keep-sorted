@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
 import { RateLimiter } from "limiter";
 import { LRUCache } from "lru-cache";
+import * as path from "path";
 
+/** Unique name of extension in VS Code */
 export const EXT_NAME = "keep-sorted";
+/** Display friendly name of extension in VS Code */
 export const EXT_DISPLAY_NAME = "Keep Sorted";
 
 /**
@@ -41,62 +44,27 @@ function createLogger(): vscode.LogOutputChannel {
 export const logger = createLogger();
 
 /**
- * Manages diagnostic warnings for keep-sorted blocks across all open documents.
+ * Gets a logging prefix to help the debugger with the documentation and location being operated on
+ * in a uniform way for all logging.
  *
- * Ensures diagnostics are scoped to this extension (via source filtering) and provides lifecycle
- * management through VS Code's DiagnosticCollection. Acts as a centralized store for all
- * keep-sorted warnings that integrates with VS Code's Problems panel.
+ * @param document The document in scope for logging
+ * @param range Optional range in scope for evaluation
  */
-export class KeepSortedDiagnostics implements vscode.Disposable {
-  private readonly diagnostics: vscode.DiagnosticCollection;
+export function getLogPrefix(document: vscode.TextDocument, range?: vscode.Range): string {
+  const workspacePath = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? null;
+  const documentRelPath = workspacePath
+    ? path.relative(workspacePath, document.uri.fsPath)
+    : document.uri.fsPath;
 
-  constructor() {
-    this.diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
-  }
-
-  dispose() {
-    this.diagnostics.dispose();
-  }
-
-  set(document: vscode.TextDocument, diagnostics: vscode.Diagnostic[]) {
-    const filteredDiagnostics = diagnostics.filter((d) => d.source === EXT_NAME);
-    if (filteredDiagnostics.length > 0) {
-      logger.debug(
-        `Found ${filteredDiagnostics.length} diagnostics / findings for document: ${document.uri.fsPath}`
-      );
-      this.diagnostics.set(document.uri, filteredDiagnostics);
+  let rangeText = "";
+  if (range) {
+    if (range.end.line === 0) {
+      rangeText = `[${range.start.line + 1}]`;
     } else {
-      logger.debug(`No diagnostics / findings found for document: ${document.uri.fsPath}`);
+      rangeText = `[${range.start.line + 1}:${range.end.line}]`;
     }
   }
-
-  append(document: vscode.TextDocument, diagnostics: vscode.Diagnostic[]) {
-    const existingDiagnostics = this.diagnostics.get(document.uri) || [];
-    const combinedDiagnostics = existingDiagnostics.concat(
-      diagnostics.filter((d) => d.source === EXT_NAME)
-    );
-    this.diagnostics.set(document.uri, combinedDiagnostics);
-    logger.debug(
-      `Appended diagnostics. Document: ${document.uri.fsPath}, total diagnostics: ${combinedDiagnostics.length}`
-    );
-  }
-
-  clear(document: vscode.TextDocument) {
-    this.diagnostics.delete(document.uri);
-    logger.debug(`Cleared diagnostics for document: ${document.uri.fsPath}`);
-  }
-
-  get(document: vscode.TextDocument): vscode.Diagnostic[] | undefined {
-    const filteredDiagnostics = this.diagnostics
-      .get(document.uri)
-      ?.filter((diagnostic) => diagnostic.source === EXT_NAME);
-    logger.debug(
-      `Retrieved ${filteredDiagnostics?.length ?? 0} diagnostics for document: ${
-        document.uri.fsPath
-      }`
-    );
-    return filteredDiagnostics;
-  }
+  return `${documentRelPath}${rangeText}`;
 }
 
 /**
@@ -119,8 +87,14 @@ export class ErrorTracker {
 
   constructor() {}
 
+  /** Gets a deep clone of the unique errors recorded so far. */
   getUniqueErrors(): Error[] {
-    return JSON.parse(JSON.stringify(this.uniqueErrors.values()));
+    return Array.from(this.uniqueErrors.values()).map((error) => {
+      const clonedError = new Error(error.message);
+      clonedError.stack = error.stack;
+      clonedError.name = error.name;
+      return clonedError;
+    });
   }
 
   /**
@@ -128,19 +102,29 @@ export class ErrorTracker {
    *
    * @returns True if throttled, otherwise false.
    */
-  async recordError(error: Error): Promise<boolean> {
+  async recordError(
+    error: Error,
+    document: vscode.TextDocument,
+    range?: vscode.Range
+  ): Promise<boolean> {
     this.uniqueErrors.set(error.message, error);
 
     const tokens = await this.errorRate.removeTokens(1);
     if (tokens < 0) {
-      logger.error("Error rate limit exceeded. Throttling error collection and logging.");
+      logger.error(
+        `${getLogPrefix(document, range)} Error rate limit exceeded. Throttling error collection and logging.`
+      );
       return false;
     }
-    logger.error(error.message, error);
+    logger.error(`${getLogPrefix(document, range)} ${error.message}`, error);
     return true;
   }
 
-  /** Builds a formatted summary of errors for bug reports. */
+  /**
+   * Builds a formatted summary of errors for bug reports.
+   *
+   * @param uniqueErrors The unique errors to include in the summary.
+   */
   private static createLogSummary(uniqueErrors: Error[]): string {
     const timestamp = new Date().toISOString();
     const platform = `${process.platform} ${process.arch}`;
@@ -222,6 +206,11 @@ ${ErrorTracker.createLogSummary(errors)}
   }
 }
 
+/**
+ * Displays a notification to the user about maximum errors and prompts for action.
+ *
+ * @param githubIssueUrl GitHub issue URL with the bug reported packed into the parameters
+ */
 export async function displayMaxErrorAndPrompt(githubIssueUrl: string): Promise<void> {
   // Show user notification with options
   const reportIssueLabel = "Report Issue";
