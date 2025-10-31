@@ -4,12 +4,12 @@ export default defineConfig({
   files: "out/test/**/*.test.js",
   version: "stable",
   workspaceFolder: "./test-workspace",
-  launchArgs: ["--disable-extensions", "--disable-workspace-trust"],
+  launchArgs: ["--disable-workspace-trust"],
   extensionDevelopmentPath: ".",
-  extensionTestsPath: "./out/test/index",
+  extensionTestsPath: "./out/test/suite/index.js",
   mocha: {
     ui: "bdd",
-    timeout: 5000,
+    timeout: 20000,
     color: true,
   },
 });

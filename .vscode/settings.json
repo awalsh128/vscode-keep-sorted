@@ -45,6 +45,8 @@
     "editor.formatOnSave": true,
     "editor.wordWrap": "wordWrapColumn"
   },
+  "testing.automaticallyOpenPeekView": "failureInVisibleDocument",
+  "testing.defaultGutterClickAction": "run",
   "prettier.semi": true,
   "prettier.singleQuote": false,
   "prettier.trailingComma": "es5",

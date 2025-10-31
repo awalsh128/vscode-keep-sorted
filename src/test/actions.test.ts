@@ -66,12 +66,12 @@ describe("actions", () => {
         applyEditStub = sandbox.stub(vscode.workspace, "applyEdit");
       });
 
-      it("should process document with unsorted content", () => {
+      it("should process document with unsorted content", async () => {
         // Arrange
         applyEditStub.resolves(true);
 
         // Act
-        executeFixAction({
+        await executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,
@@ -82,12 +82,12 @@ describe("actions", () => {
         void expect(applyEditStub).to.have.been.calledOnce;
       });
 
-      it("should create workspace edit when content needs fixing", () => {
+      it("should create workspace edit when content needs fixing", async () => {
         // Arrange
         applyEditStub.resolves(true);
 
         // Act
-        executeFixAction({
+        const edit = await executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,
@@ -96,16 +96,15 @@ describe("actions", () => {
 
         // Assert
         void expect(applyEditStub).to.have.been.calledOnce;
-        const edit = applyEditStub.firstCall.args[0] as vscode.WorkspaceEdit;
         expect(edit).to.be.instanceOf(vscode.WorkspaceEdit);
       });
 
-      it("should update diagnostics after successful fix", () => {
+      it("should update diagnostics after successful fix", async () => {
         // Arrange
         applyEditStub.resolves(true);
 
         // Act
-        executeFixAction({
+        await executeFixAction({
           linter: realLinter,
           diagnostics: realDiagnostics,
           document: mockDocument,

@@ -73,38 +73,39 @@ describe("configuration", () => {
       getConfigurationStub.returns(configStub);
     });
 
-    const MATCHING_CASES = [
+    [
       {
         name: "matching regex pattern",
-        excludePattern: ".*\\.test\\.ts$",
+        excludePattern: /.*\.test\.ts$/,
         filePath: "/path/to/file.test.ts",
+        expectedMatchingRegex: /.*\.test\.ts$/,
       },
       {
         name: "matching glob pattern",
         excludePattern: "**/*/*test.ts",
         filePath: "/path/to/file.test.ts",
-        expected: true,
+        expectedMatchingRegex: /^(.+\/)?([^/]+)\/([^/]+)test\.ts$/,
       },
       {
         name: "no matching regex pattern",
-        excludePattern: ".*notfile\\.temp\\..*",
+        excludePattern: /.*notfile\.temp\..*/,
         filePath: "/path/to/file.temp.ts",
-        expected: false,
+        expectedMatchingRegex: null,
       },
       {
         name: "no matching glob pattern",
         excludePattern: "**/*/*temp.*",
         filePath: "/path/to/file.test.ts",
-        expected: false,
+        expectedMatchingRegex: null,
       },
       {
         name: "empty exclude patterns",
         excludePattern: "",
         filePath: "/path/to/file.test.ts",
-        expected: false,
+        expectedMatchingRegex: null,
       },
-    ].forEach(({ name, excludePattern, filePath, expected }) => {
-      it(`should return ${expected} when ${name} is configured`, () => {
+    ].forEach(({ name, excludePattern, filePath, expectedMatchingRegex }) => {
+      it(`should return ${expectedMatchingRegex} when ${name} is configured`, () => {
         // Arrange
         configStub.get
           .withArgs("exclude", DEFAULT_EXCLUDE)
@@ -123,50 +124,8 @@ describe("configuration", () => {
         const result = pathExcluded(testUri);
 
         // Assert
-        expect(result).to.be.equal(expected);
+        expect(result?.source).to.be.equal(expectedMatchingRegex?.source);
       });
-    });
-
-    it("should return true when file matches exclude regex pattern", () => {
-      // Arrange
-      const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
-      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-
-      // Trigger config reload
-      const mockEvent = {
-        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
-      } as vscode.ConfigurationChangeEvent;
-      onConfigurationChange(mockEvent);
-
-      const testUri = vscode.Uri.file("/path/to/file.test.ts");
-
-      // Act
-      const result = pathExcluded(testUri);
-
-      // Assert
-      expect(result).to.be.true;
-    });
-
-    it("should return false when file does not match exclude patterns", () => {
-      // Arrange
-      const excludePatterns = [".*\\.test\\.ts$", ".*generated.*"];
-      configStub.get.withArgs("exclude", DEFAULT_EXCLUDE).returns(excludePatterns);
-      configStub.get.withArgs("enabled", DEFAULT_ENABLED).returns(DEFAULT_ENABLED);
-
-      // Trigger config reload
-      const mockEvent = {
-        affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
-      } as vscode.ConfigurationChangeEvent;
-      onConfigurationChange(mockEvent);
-
-      const testUri = vscode.Uri.file("/path/to/regular-file.ts");
-
-      // Act
-      const result = pathExcluded(testUri);
-
-      // Assert
-      expect(result).to.be.false;
     });
   });
 

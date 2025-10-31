@@ -8,6 +8,12 @@ export function run(): Promise<void> {
   const mocha = new (Mocha as any)({ ui: "bdd", color: true, timeout: 20000 });
   const testsRoot = path.resolve(__dirname, "..");
 
+  // Support filtering tests via MOCHA_GREP environment variable
+  const grep = process.env.MOCHA_GREP;
+  if (grep) {
+    mocha.grep(grep);
+  }
+
   return new Promise((resolve, reject) => {
     try {
       const files = globSync("**/**.test.js", { cwd: testsRoot });
