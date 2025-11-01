@@ -8,7 +8,7 @@ A VS Code extension that automatically keeps sorted blocks in your code organize
 
 ## Features
 
-- Automatically detects and sorts keepSorted blocks
+- Automatically detects and sorts Keep Sorted blocks
 - Real-time diagnostics for unsorted content
 - Quick fix actions to sort blocks
 - Supports multiple file types
