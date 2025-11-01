@@ -1,0 +1,15 @@
+.vscode-test/
+.vscode-test-user-data/
+.vscode-test-web/
+coverage/
+node_modules/
+src/
+scripts/
+test-workspace/
+.github/
+.git/
+.env
+*.tsbuildinfo
+*.log
+.DS_Store
+Thumbs.db
