@@ -7,7 +7,7 @@ on:
 
 jobs:
   check-binaries-not-in-pr:
-    name: Check binaries not included in PR
+    name: Check binaries are not included in PR
     runs-on: ubuntu-latest
 
     steps:

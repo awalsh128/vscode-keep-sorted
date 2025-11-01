@@ -15,19 +15,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - uses: ./.github/actions/setupenv
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
 
-    - name: Download VS Code
-      run: npx @vscode/test-electron --version
+      - name: Install dependencies
+        shell: bash
+        run: npm ci
 
-    - name: Run linting
-      run: npm run lint
+      - uses: oke-py/npm-audit-action@v3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          audit_level: moderate
+          github_token: $GH_TOKEN
+          create_pr_comments: true
+          create_issues: true
+          issue_labels: vulnerability,test
+          dedupe_issues: true
 
-    - name: Run TypeScript compilation
-      run: npm run compile
+      - name: Download VS Code
+        run: npx @vscode/test-electron --version
 
-    - name: Run tests
-      run: npm test
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run TypeScript compilation
+        run: npm run compile
+
+      - name: Run tests
+        run: npm test
