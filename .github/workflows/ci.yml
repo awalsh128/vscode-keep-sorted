@@ -13,13 +13,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      checks: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2
         with:
           node-version: "18"
           cache: "npm"
@@ -28,7 +33,7 @@ jobs:
         shell: bash
         run: npm ci
 
-      - uses: oke-py/npm-audit-action@v3
+      - uses: oke-py/npm-audit-action@af618bdf10c8bc2ae07f3edd1553dd29948fc2af
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -46,6 +51,6 @@ jobs:
         run: npm run compile
 
       - name: Run tests
-        uses: GabrielBB/xvfb-action@v1
+        uses: GabrielBB/xvfb-action@5bcda06da84ba084708898801da79736b88e00a9
         with:
           run: npm test
