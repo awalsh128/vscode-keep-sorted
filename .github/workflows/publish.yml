@@ -5,14 +5,6 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      release_version:
-        description: Release version to publish
-        required: true
-      pre_release:
-        description: Publish as a pre-release
-        required: true
-        type: boolean
-        default: true
       dry_run:
         description: Perform a dry run without actual publishing
         required: true
@@ -42,7 +34,6 @@ jobs:
         with:
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           dryRun: ${{ github.event.inputs.dry_run }}
-          preRelease: ${{ github.event.inputs.pre_release }}
 
       - name: Publish to Visual Studio Marketplace
         id: vsmarketplace-publish
@@ -52,4 +43,3 @@ jobs:
           registryUrl: https://marketplace.visualstudio.com
           extensionFile: ${{ steps.openvsx-publish.outputs.vsixPath }}
           dryRun: ${{ github.event.inputs.dry_run }}
-          preRelease: ${{ github.event.inputs.pre_release }}
