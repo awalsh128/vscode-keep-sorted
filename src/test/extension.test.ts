@@ -5,6 +5,7 @@ import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as path from "path";
 import { activate } from "../extension";
+import { readFileSync } from "fs";
 
 use(sinonChai);
 
@@ -171,66 +172,26 @@ describe("extension", () => {
     });
 
     it("should handle multiple open documents on activation", () => {
-      const mockDoc1 = {
-        uri: vscode.Uri.file("/test/file1.ts"),
-        fsPath: "/test/file1.ts",
-        fileName: "/test/file1.ts",
-        isUntitled: false,
-        languageId: "typescript",
-        version: 1,
-        isDirty: false,
-        isClosed: false,
-        eol: vscode.EndOfLine.LF,
-        lineCount: 10,
-      } as unknown as vscode.TextDocument;
+      const mockDoc = (fsPath: string) => {
+        return {
+          uri: vscode.Uri.file(fsPath),
+          fsPath,
+          fileName: fsPath,
+          isUntitled: false,
+          languageId: "typescript",
+          version: 1,
+          isDirty: false,
+          isClosed: false,
+          eol: vscode.EndOfLine.LF,
+          lineCount: 10,
+        } as unknown as vscode.TextDocument;
+      };
 
-      const mockDoc2 = {
-        uri: vscode.Uri.file("/test/file2.ts"),
-        fsPath: "/test/file2.ts",
-        fileName: "/test/file2.ts",
-        isUntitled: false,
-        languageId: "typescript",
-        version: 1,
-        isDirty: false,
-        isClosed: false,
-        eol: vscode.EndOfLine.LF,
-        lineCount: 10,
-      } as unknown as vscode.TextDocument;
-
-      sandbox.stub(vscode.workspace, "textDocuments").value([mockDoc1, mockDoc2]);
+      sandbox
+        .stub(vscode.workspace, "textDocuments")
+        .value([mockDoc("/test/file1.ts"), mockDoc("/test/file2.ts")]);
 
       expect(() => activate(mockContext)).not.to.throw();
-    });
-  });
-
-  describe("shouldLintDocument logic", () => {
-    it("should skip untitled documents", () => {
-      const untitledDoc = {
-        uri: vscode.Uri.parse("untitled:Untitled-1"),
-        fsPath: "",
-      } as unknown as vscode.TextDocument;
-
-      // This is tested indirectly through activate
-      expect(untitledDoc.uri.scheme).not.to.equal("file");
-    });
-
-    it("should skip .git files", () => {
-      const gitDoc = {
-        uri: vscode.Uri.file("/project/.git/config"),
-        fsPath: "/project/.git/config",
-      } as unknown as vscode.TextDocument;
-
-      expect(gitDoc.uri.fsPath).to.include("/.git/");
-    });
-
-    it("should process normal files", () => {
-      const normalDoc = {
-        uri: vscode.Uri.file("/project/src/file.ts"),
-        fsPath: "/project/src/file.ts",
-      } as unknown as vscode.TextDocument;
-
-      expect(normalDoc.uri.scheme).to.equal("file");
-      expect(normalDoc.uri.fsPath).not.to.include("/.git/");
     });
   });
 
@@ -282,6 +243,7 @@ describe("extension", () => {
       // Open the sample file
       const sampleUri = vscode.Uri.file(path.join(__dirname, "../../test-workspace/sample.ts"));
       const document = await vscode.workspace.openTextDocument(sampleUri);
+      const originalText = document.getText();
 
       // Trigger linting by making a change and saving
       const edit = new vscode.WorkspaceEdit();
@@ -312,20 +274,22 @@ describe("extension", () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Check that the document content has been updated (fixed)
+      const expected = readFileSync(
+        path.join(__dirname, "../../test-workspace/sample_fixed.ts"),
+        "utf-8"
+      );
       const updatedContent = document.getText();
-      expect(updatedContent).to.include("const alpha");
-      expect(updatedContent).to.include("const beta");
-      expect(updatedContent).to.include("const delta");
-      expect(updatedContent).to.include("const zebra");
+      expect(updatedContent).to.equal(expected);
 
-      // Verify the order: alpha before beta before delta before zebra
-      const alphaIndex = updatedContent.indexOf("const alpha");
-      const betaIndex = updatedContent.indexOf("const beta");
-      const deltaIndex = updatedContent.indexOf("const delta");
-      const zebraIndex = updatedContent.indexOf("const zebra");
-      expect(alphaIndex).to.be.lessThan(betaIndex);
-      expect(betaIndex).to.be.lessThan(deltaIndex);
-      expect(deltaIndex).to.be.lessThan(zebraIndex);
+      // Clean up: revert document to original content
+      const revertEdit = new vscode.WorkspaceEdit();
+      const fullRange = new vscode.Range(
+        document.positionAt(0),
+        document.positionAt(updatedContent.length)
+      );
+      revertEdit.replace(document.uri, fullRange, originalText);
+      await vscode.workspace.applyEdit(revertEdit);
+      await document.save();
     });
   });
 });
