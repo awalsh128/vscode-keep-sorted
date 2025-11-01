@@ -43,14 +43,80 @@ function createLogger(): vscode.LogOutputChannel {
 /** Singleton logger instance for the keep-sorted extension */
 export const logger = createLogger();
 
+/** Prefixes all log messages with a specified string to provide context for the log lines. */
+export class ContextualLogger implements vscode.LogOutputChannel {
+  readonly prefix: string;
+
+  constructor(prefix: string) {
+    this.prefix = prefix;
+  }
+
+  logLevel: vscode.LogLevel = logger.logLevel;
+
+  onDidChangeLogLevel: vscode.Event<vscode.LogLevel> = logger.onDidChangeLogLevel;
+
+  name: string = logger.name;
+
+  append(value: string): void {
+    logger.append(value);
+  }
+  appendLine(value: string): void {
+    logger.appendLine(value);
+  }
+  replace(value: string): void {
+    logger.replace(value);
+  }
+  clear(): void {
+    logger.clear();
+  }
+  show(column?: unknown, preserveFocus?: unknown): void {
+    logger.show(column as vscode.ViewColumn | undefined, preserveFocus as boolean | undefined);
+  }
+  hide(): void {
+    logger.hide();
+  }
+  dispose(): void {
+    logger.dispose();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  trace(message: string, ...args: any[]): void {
+    logger.trace(`${this.prefix} ${message}`, ...args);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  debug(message: string, ...args: any[]): void {
+    logger.debug(`${this.prefix} ${message}`, ...args);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  info(message: string, ...args: any[]): void {
+    logger.info(`${this.prefix} ${message}`, ...args);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  warn(message: string, ...args: any[]): void {
+    logger.warn(`${this.prefix} ${message}`, ...args);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error(message: string, ...args: any[]): void {
+    logger.error(`${this.prefix} ${message}`, ...args);
+  }
+}
+
 /**
- * Gets a logging prefix to help the debugger with the documentation and location being operated on
- * in a uniform way for all logging.
+ * Creates a contextualized logger for a specific document and optional range.
  *
  * @param document The document in scope for logging
  * @param range Optional range in scope for evaluation
+ *
+ * @returns A ContextualLogger instance with the document and range context prefixed to all logs
  */
-export function getLogPrefix(document: vscode.TextDocument, range?: vscode.Range): string {
+export function contextualizeLogger(
+  document: vscode.TextDocument,
+  range?: vscode.Range
+): ContextualLogger {
   const workspacePath = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? null;
   const documentRelPath = workspacePath
     ? path.relative(workspacePath, document.uri.fsPath)
@@ -64,7 +130,27 @@ export function getLogPrefix(document: vscode.TextDocument, range?: vscode.Range
       rangeText = `[${range.start.line + 1}:${range.end.line}]`;
     }
   }
-  return `${documentRelPath}${rangeText}`;
+  return new ContextualLogger(`${documentRelPath}${rangeText}`);
+}
+
+/**
+ * Gets a log prefix string for a document and optional range.
+ *
+ * @param document The document
+ * @param range Optional range
+ *
+ * @returns The prefix string
+ */
+export function getLogPrefix(document: vscode.TextDocument, range?: vscode.Range): string {
+  const workspacePath = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? null;
+  const documentRelPath = workspacePath
+    ? path.relative(workspacePath, document.uri.fsPath)
+    : document.uri.fsPath;
+
+  if (range) {
+    return `${documentRelPath}[${range.start.line + 1}:${range.end.line}]`;
+  }
+  return documentRelPath;
 }
 
 /**
@@ -109,14 +195,13 @@ export class ErrorTracker {
   ): Promise<boolean> {
     this.uniqueErrors.set(error.message, error);
 
+    const recordLogger = contextualizeLogger(document, range);
     const tokens = await this.errorRate.removeTokens(1);
     if (tokens < 0) {
-      logger.error(
-        `${getLogPrefix(document, range)} Error rate limit exceeded. Throttling error collection and logging.`
-      );
+      recordLogger.error(`Error rate limit exceeded. Throttling error collection and logging.`);
       return false;
     }
-    logger.error(`${getLogPrefix(document, range)} ${error.message}`, error);
+    recordLogger.error(`${error.message}`, error);
     return true;
   }
 

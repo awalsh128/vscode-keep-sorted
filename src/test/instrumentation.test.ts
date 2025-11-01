@@ -3,7 +3,12 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { logger, getLogPrefix, ErrorTracker, displayMaxErrorAndPrompt } from "../instrumentation";
+import {
+  logger,
+  ErrorTracker,
+  displayMaxErrorAndPrompt,
+  contextualizeLogger,
+} from "../instrumentation";
 
 use(sinonChai);
 
@@ -20,7 +25,9 @@ describe("instrumentation", () => {
     sandbox.restore();
   });
 
-  describe("getLogPrefix", () => {
+  describe("contextualizeLogger", () => {
+    const anyLogMessage = "test log message";
+    let infoMethod: sinon.SinonStub;
     let mockDocument: vscode.TextDocument;
 
     beforeEach(() => {
@@ -28,32 +35,35 @@ describe("instrumentation", () => {
         uri: vscode.Uri.file("/test/file.ts"),
         fsPath: "/test/file.ts",
       } as unknown as vscode.TextDocument;
+      infoMethod = sandbox.stub();
+      logger.info = infoMethod;
     });
 
-    it("should return document path without range", () => {
+    it("should log document path without range", () => {
       // Arrange
       const expectedPrefix = "/test/file.ts";
 
       // Act
-      const result = getLogPrefix(mockDocument);
+      logger.info = infoMethod;
+      contextualizeLogger(mockDocument).info(anyLogMessage);
 
       // Assert
-      expect(result).to.equal(expectedPrefix);
+      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
     });
 
-    it("should return document path with range", () => {
+    it("should log document path with range", () => {
       // Arrange
       const range = new vscode.Range(1, 0, 3, 0);
       const expectedPrefix = "/test/file.ts[2:3]";
 
       // Act
-      const result = getLogPrefix(mockDocument, range);
+      contextualizeLogger(mockDocument, range).info(anyLogMessage);
 
       // Assert
-      expect(result).to.equal(expectedPrefix);
+      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
     });
 
-    it("should return relative path when workspace folder available", () => {
+    it("should log relative path when workspace folder available", () => {
       // Arrange
       const workspaceFolder = {
         uri: vscode.Uri.file("/test"),
@@ -67,10 +77,10 @@ describe("instrumentation", () => {
       const expectedPrefix = "file.ts";
 
       // Act
-      const result = getLogPrefix(mockDocument);
+      contextualizeLogger(mockDocument).info(anyLogMessage);
 
       // Assert
-      expect(result).to.equal(expectedPrefix);
+      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
     });
   });
 

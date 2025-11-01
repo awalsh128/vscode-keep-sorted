@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { logger, getLogPrefix } from "./instrumentation";
+import { contextualizeLogger } from "./instrumentation";
 import { KeepSorted } from "./keepSorted";
 
 export const FIX_COMMAND: vscode.Command = {
@@ -27,32 +27,40 @@ async function onExecute(context: FixContext): Promise<vscode.WorkspaceEdit | un
   return edit;
 }
 
+/**
+ * Applies fixes to the document based on the provided context; linter, diagnostics, and documents
+ * with range in scope for fix.
+ *
+ * @param context The context for the fix action
+ *
+ * @returns The applied WorkspaceEdit, undefined on error, or null if no edit was necessary
+ */
 export async function executeFixAction(
   context: FixContext
 ): Promise<vscode.WorkspaceEdit | undefined | null> {
   // Don't require an activeTextEditor for the command to run in tests or programmatic calls.
   // Use the provided context.document to operate on the target document.
 
-  const logPrefix = getLogPrefix(context.document, context.range);
-  logger.info(`${logPrefix} Executing command ${FIX_COMMAND.command}`);
+  const actionLogger = contextualizeLogger(context.document, context.range);
+  actionLogger.info(`Executing command ${FIX_COMMAND.command}`);
 
   const edit = await onExecute(context);
 
   if (edit === undefined) {
-    logger.error(`${logPrefix} ${FIX_COMMAND.command} encountered an error`);
+    actionLogger.error(`${FIX_COMMAND.command} encountered an error`);
     return undefined;
   }
 
   if (!edit) {
-    logger.info(`${logPrefix} ${FIX_COMMAND.command} returned no edit`);
+    actionLogger.info(`${FIX_COMMAND.command} returned no edit`);
     return null;
   }
   const editApplied = await vscode.workspace.applyEdit(edit);
   if (!editApplied) {
-    logger.info(`${logPrefix} No fix to apply.`);
+    actionLogger.info(`No fix to apply.`);
     return;
   }
-  logger.info(`${logPrefix} Fix applied.`);
+  actionLogger.info(`Fix applied.`);
 
   // Return the applied edit for callers/tests that may want to inspect it
   return edit;
@@ -105,7 +113,7 @@ export class KeepSortedActionProvider implements vscode.CodeActionProvider {
     const actions = [action];
 
     const commandNames = actions.map((a) => a.command!.command).join(", ");
-    logger.debug(`${getLogPrefix(document, range)} Providing code action(s) "${commandNames}"`);
+    contextualizeLogger(document, range).info(`Providing code action(s) "${commandNames}"`);
     return actions;
   }
 }

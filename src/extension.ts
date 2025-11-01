@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { logger, ErrorTracker, getLogPrefix, EXT_NAME } from "./instrumentation";
+import { logger, ErrorTracker, EXT_NAME, contextualizeLogger } from "./instrumentation";
 import { KeepSorted } from "./keepSorted";
 import { executeFixAction, FIX_COMMAND, KeepSortedActionProvider } from "./actions";
 import { excluded, getConfig, onConfigurationChange } from "./configuration";
@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
   async function maybeLintAndUpdateDiagnostics(document: vscode.TextDocument): Promise<void> {
     const regexp = excluded(document.uri);
     if (regexp) {
-      logger.info(`${getLogPrefix(document)} Document is excluded with regex ${regexp.source}.`);
+      contextualizeLogger(document).info(`Document is excluded with regex ${regexp.source}.`);
       return;
     }
     const results = await linter.lintDocument(document);
@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
   eventSubscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document: vscode.TextDocument) => {
       if (shouldProcessDocument(document)) {
-        logger.debug(`${getLogPrefix(document)} Document saved.`);
+        contextualizeLogger(document).debug(`Document saved.`);
         await maybeLintAndUpdateDiagnostics(document);
       }
     })
@@ -90,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       event.contentChanges.forEach((change) => {
-        logger.debug(`${getLogPrefix(event.document, change.range)} Document change detected.`);
+        contextualizeLogger(event.document, change.range).debug(`Document change detected.`);
       });
       maybeExecute(() => maybeLintAndUpdateDiagnostics(event.document));
     })

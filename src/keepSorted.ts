@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { spawn } from "child_process";
 import * as path from "path";
-import { EXT_NAME, ErrorTracker, logger, getLogPrefix } from "./instrumentation";
+import { EXT_NAME, ErrorTracker, logger, contextualizeLogger } from "./instrumentation";
 
 /** Keep Sorted finding in the format reported by it's binary. */
 export interface KeepSortedFinding {
@@ -112,13 +112,14 @@ export class KeepSorted {
    * @returns An array of diagnostics if findings are present, or undefined on error
    */
   async lintDocument(document: vscode.TextDocument): Promise<vscode.Diagnostic[] | undefined> {
+    const kpLogger = contextualizeLogger(document);
     try {
       const findings = await this.getFindings(document);
       if (!Array.isArray(findings)) {
         const error = new Error(
           `Keep Sorted unexpected findings type, expected array but got "${typeof findings}"`
         );
-        logger.error(error.message, { value: findings });
+        kpLogger.error(error.message, { value: findings });
         await this.errorTracker.recordError(error, document);
         return undefined;
       }
@@ -128,9 +129,7 @@ export class KeepSorted {
         const startPos = new vscode.Position(finding.lines.start - 1, 0);
         const endPos = new vscode.Position(finding.lines.end, 0);
         const range = new vscode.Range(startPos, endPos);
-        logger.debug(
-          `${getLogPrefix(document, range)} Keep Sorted finding for lines ${finding.lines.start}-${finding.lines.end}`
-        );
+        kpLogger.debug(`Keep Sorted finding for lines ${finding.lines.start}-${finding.lines.end}`);
         const diagnostic = new vscode.Diagnostic(
           range,
           finding.message,
@@ -140,12 +139,12 @@ export class KeepSorted {
         return diagnostic;
       });
 
-      logger.info(`${getLogPrefix(document)} Keep Sorted found ${diagnostics.length} diagnostics.`);
+      kpLogger.info(`Keep Sorted found ${diagnostics.length} diagnostics.`);
 
       return diagnostics;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error(`${getLogPrefix(document)} Keep Sorted encountered error during linting.`, err);
+      kpLogger.error(`Keep Sorted encountered error during linting.`, err);
       await this.errorTracker.recordError(err, document);
       return undefined;
     }
@@ -153,7 +152,7 @@ export class KeepSorted {
 
   private getFindings(document: vscode.TextDocument): Promise<KeepSortedFinding[]> {
     return new Promise((resolve, reject) => {
-      const logPrefix = getLogPrefix(document);
+      const kpLogger = contextualizeLogger(document);
       this.spawnCommand(["--mode", "lint", "-"], document, (code, stdout, stderr) => {
         if (code === 0) {
           // No issues found
@@ -164,10 +163,10 @@ export class KeepSorted {
             const findings: KeepSortedFinding[] = JSON.parse(stdout);
             resolve(findings);
           } catch (parseError) {
-            reject(new Error(`${logPrefix} Failed to parse with error: ${parseError}`));
+            reject(new Error(`${kpLogger.prefix} Failed to parse with error: ${parseError}`));
           }
         } else {
-          reject(new Error(`${logPrefix} ${EXT_NAME} failed with code ${code}: ${stderr}`));
+          reject(new Error(`${kpLogger.prefix} ${EXT_NAME} failed with code ${code}: ${stderr}`));
         }
       });
     });
@@ -178,10 +177,10 @@ export class KeepSorted {
     document: vscode.TextDocument,
     onClose: (code: number, stdout: string, stderr: string) => void
   ): void {
-    const logPrefix = getLogPrefix(document);
+    const spawnLogger = contextualizeLogger(document);
     // <binary> <args> <document paths>...
     const command = `${this.binaryFilename} ${args.join(" ")} ${document.uri.fsPath}`;
-    logger.debug(`${logPrefix} Spawning "${command}"`);
+    spawnLogger.debug(`Spawning "${command}"`);
 
     const startTime = performance.now();
     function getExecTimeText(): string {
@@ -205,19 +204,19 @@ export class KeepSorted {
     });
 
     child.on("close", (code) => {
-      logger.debug(`${logPrefix} ${command} exited (time: ${getExecTimeText()}, code: ${code})`);
+      spawnLogger.debug(`${command} exited (time: ${getExecTimeText()}, code: ${code})`);
       if (code !== 0 && code !== 1) {
-        logger.error(`${logPrefix} ${command} error output: ${stderr}`);
+        spawnLogger.error(`${command} error output: ${stderr}`);
       }
       onClose(code ?? 1, stdout, stderr);
     });
 
     child.on("error", (error) => {
-      logger.error(
-        `${logPrefix} Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`
+      spawnLogger.error(
+        `Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`
       );
-      const errorMessage = `${logPrefix} Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`;
-      logger.error(errorMessage);
+      const errorMessage = `Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`;
+      spawnLogger.error(errorMessage);
       throw new Error(errorMessage);
     });
 
@@ -225,6 +224,6 @@ export class KeepSorted {
     const text = document.getText();
     child.stdin.write(text);
     child.stdin.end();
-    logger.debug(`${logPrefix} Processed document with size ${text.length}.`);
+    spawnLogger.debug(`Processed document with size ${text.length}.`);
   }
 }
