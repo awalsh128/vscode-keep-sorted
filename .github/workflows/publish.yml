@@ -25,14 +25,14 @@ jobs:
         uses: actions/checkout@v4
       - uses: ./.github/workflows/ci.yml
 
-      - name: Publish to Open VSX Registry
-        id: openvsx-publish
-        uses: HaaLeo/publish-vscode-extension@v2
-        with:
-          # TODO: Set secret in repository
-          pat: ${{ secrets.OPEN_VSX_TOKEN }}
-          dryRun: ${{ github.event.inputs.dry_run }}
-          preRelease: ${{ github.event.inputs.pre_release }}
+      # - name: Publish to Open VSX Registry
+      #   id: openvsx-publish
+      #   uses: HaaLeo/publish-vscode-extension@v2
+      #   with:
+      #     # TODO: Set secret in repository
+      #     pat: ${{ secrets.OPEN_VSX_TOKEN }}
+      #     dryRun: ${{ github.event.inputs.dry_run }}
+      #     preRelease: ${{ github.event.inputs.pre_release }}
 
       - name: Publish to Visual Studio Marketplace
         id: vsmarketplace-publish
@@ -43,9 +43,3 @@ jobs:
           extensionFile: ${{ steps.openvsx-publish.outputs.vsixPath }}
           dryRun: ${{ github.event.inputs.dry_run }}
           preRelease: ${{ github.event.inputs.pre_release }}
-
-      # TODO: Setup account and extension
-      # - name: Output Published Extension Info
-      #   run: |
-      #     echo "Open VSX Extension ID: ${{ steps.openvsx-publish.outputs.extensionId }}"
-      #     echo "Visual Studio Marketplace Extension ID: ${{ steps.vsmarketplace-publish.outputs.extensionId }}"
