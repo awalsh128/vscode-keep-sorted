@@ -34,11 +34,11 @@ jobs:
     needs: ci
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Publish to Open VSX Registry
         id: openvsx-publish
-        uses: HaaLeo/publish-vscode-extension@v2
+        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
         with:
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           dryRun: ${{ github.event.inputs.dry_run }}
@@ -46,7 +46,7 @@ jobs:
 
       - name: Publish to Visual Studio Marketplace
         id: vsmarketplace-publish
-        uses: HaaLeo/publish-vscode-extension@v2
+        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
         with:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
           registryUrl: https://marketplace.visualstudio.com
