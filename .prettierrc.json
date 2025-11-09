@@ -1,0 +1,15 @@
+{
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "es5",
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "proseWrap": "always",
+  "plugins": ["prettier-plugin-jsdoc"],
+  "jsdocPreferCodeFences": true,
+  "jsdocSeparateReturnsFromParam": true,
+  "jsdocSeparateTagGroups": true
+}

@@ -1,0 +1,45 @@
+name: Publish Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Perform a dry run without actual publishing
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      checks: write
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Publish to Open VSX Registry
+        id: openvsx-publish
+        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
+        with:
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+          dryRun: ${{ github.event.inputs.dry_run }}
+
+      - name: Publish to Visual Studio Marketplace
+        id: vsmarketplace-publish
+        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
+        with:
+          pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          registryUrl: https://marketplace.visualstudio.com
+          extensionFile: ${{ steps.openvsx-publish.outputs.vsixPath }}
+          dryRun: ${{ github.event.inputs.dry_run }}

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      checks: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+
+      - name: Setup Node.js
+        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        shell: bash
+        run: npm ci
+
+      - uses: oke-py/npm-audit-action@af618bdf10c8bc2ae07f3edd1553dd29948fc2af
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          audit_level: moderate
+          github_token: $GH_TOKEN
+          create_pr_comments: true
+          create_issues: true
+          issue_labels: vulnerability,test
+          dedupe_issues: true
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run TypeScript compilation
+        run: npm run compile
+
+      - name: Run tests
+        uses: GabrielBB/xvfb-action@5bcda06da84ba084708898801da79736b88e00a9
+        with:
+          run: npm test
