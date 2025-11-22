@@ -3,7 +3,7 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { logger, contextualizeLogger } from "../instrumentation";
+import { contextualizeLogger } from "../instrumentation";
 
 use(sinonChai);
 
@@ -18,9 +18,9 @@ describe("instrumentation", () => {
     sandbox.restore();
   });
 
+  const relativePath = "relative/path/to/file.ts";
+
   describe("contextualizeLogger", () => {
-    const anyLogMessage = "test log message";
-    let infoMethod: sinon.SinonStub;
     let mockDocument: vscode.TextDocument;
     let mockUri: vscode.Uri;
 
@@ -30,52 +30,50 @@ describe("instrumentation", () => {
         uri: mockUri,
         fsPath: "/test/file.ts",
       } as unknown as vscode.TextDocument;
-      infoMethod = sandbox.stub();
-      logger.info = infoMethod;
     });
 
     it("should log document path without range", () => {
-      // Arrange
-      const expectedPrefix = "/test/file.ts";
-
       // Act
-      logger.info = infoMethod;
-      contextualizeLogger(mockDocument).info(anyLogMessage);
+      const child = contextualizeLogger(mockDocument);
 
       // Assert
-      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
+      const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
+      expect(child.defaultMeta).to.deep.equal({
+        documentRelativePath: relativePath,
+        range: "",
+      });
     });
 
     it("should log document path with range", () => {
       // Arrange
       const range = new vscode.Range(1, 0, 3, 0);
-      const expectedPrefix = "/test/file.ts[2:3]";
 
       // Act
-      contextualizeLogger(mockDocument, range).info(anyLogMessage);
+      const child = contextualizeLogger(mockDocument, range);
 
       // Assert
-      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
+      const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
+      expect(child.defaultMeta).to.deep.equal({
+        documentRelativePath: relativePath,
+        range: "[2:3]",
+      });
     });
 
     it("should log relative path when workspace folder available", () => {
       // Arrange
-      const workspaceFolder = {
-        uri: vscode.Uri.file("/test"),
-        name: "test",
-        index: 0,
-      };
       sandbox
-        .stub(vscode.workspace, "getWorkspaceFolder")
+        .stub(vscode.workspace, "asRelativePath")
         .withArgs(mockDocument.uri)
-        .returns(workspaceFolder);
-      const expectedPrefix = "file.ts";
+        .returns(relativePath);
 
       // Act
-      contextualizeLogger(mockDocument).info(anyLogMessage);
+      const child = contextualizeLogger(mockDocument);
 
       // Assert
-      expect(infoMethod).to.have.been.calledWith(`${expectedPrefix} ${anyLogMessage}`);
+      expect(child.defaultMeta).to.deep.equal({
+        documentRelativePath: relativePath,
+        range: "",
+      });
     });
 
     it("should accept URI directly without document", () => {
@@ -83,27 +81,30 @@ describe("instrumentation", () => {
       const uri = vscode.Uri.file("/test/direct.ts");
 
       // Act
-      contextualizeLogger(uri).info(anyLogMessage);
+      const child = contextualizeLogger(uri);
 
       // Assert
-      expect(infoMethod).to.have.been.calledWith(`/test/direct.ts ${anyLogMessage}`);
+      expect(child.defaultMeta).to.deep.equal({
+        documentRelativePath: vscode.workspace.asRelativePath(uri),
+        range: "",
+      });
     });
 
     it("should handle URI with workspace folder", () => {
       // Arrange
-      const uri = vscode.Uri.file("/test/workspace/file.ts");
-      const workspaceFolder = {
-        uri: vscode.Uri.file("/test/workspace"),
-        name: "workspace",
-        index: 0,
-      };
-      sandbox.stub(vscode.workspace, "getWorkspaceFolder").withArgs(uri).returns(workspaceFolder);
+      const expectedRelativePath = "folder/file.ts";
+      const workspaceFolder = "/test/workspace";
+      const uri = vscode.Uri.file(workspaceFolder + "/" + expectedRelativePath);
+      sandbox.stub(vscode.workspace, "asRelativePath").withArgs(uri).returns(expectedRelativePath);
 
       // Act
-      contextualizeLogger(uri).info(anyLogMessage);
+      const child = contextualizeLogger(uri);
 
       // Assert
-      expect(infoMethod).to.have.been.calledWith(`file.ts ${anyLogMessage}`);
+      expect(child.defaultMeta).to.deep.equal({
+        documentRelativePath: expectedRelativePath,
+        range: "",
+      });
     });
   });
 });

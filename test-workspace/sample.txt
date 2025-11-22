@@ -7,12 +7,10 @@
 // keep-sorted end
 
 // keep-sorted start block=yes
-/**
- * Block 1:
- * - zebra
- * - alpha
- * - delta
- */
+Block 1:
+ - zebra
+ - alpha
+ - delta
 // keep-sorted end
 
 // keep-sorted start case=no

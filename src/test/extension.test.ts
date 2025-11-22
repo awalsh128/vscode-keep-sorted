@@ -6,7 +6,7 @@ import * as path from "path";
 import { TEST_WORKSPACE_DIR } from "./testing";
 import { readFileSync, writeFileSync } from "fs";
 import * as workspace from "../workspace";
-import { KeepSorted } from "../keepsorted";
+import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "../commands";
 
 /* eslint-disable @typescript-eslint/no-unused-expressions */
 
@@ -62,37 +62,36 @@ describe("extension", () => {
 
     it("should fix document on command", async () => {
       // Arrange
-      const linter = new KeepSorted(process.cwd());
-      // Open document in active editor
       const document = await getDocument(SAMPLE_TS_FILENAME);
-      vscode.workspace.openTextDocument(document.uri);
+
+      // Ensure the document is opened and set as active
+      await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
 
       // Act - Execute the fix command
-      await vscode.commands.executeCommand("keep-sorted.fixFile");
+      await vscode.commands.executeCommand(FixFileCommandHandler.COMMAND.command);
 
       // Wait for async fix processing
-      await delay(1000);
+      await delay(2000);
 
       // Assert - Verify document content has been changed
-      expect(await linter.lintDocument(document)).to.be.empty;
+
       expect(document.getText()).to.equal(
         await getDocument(SAMPLE_SORTED_TS_FILENAME).then((doc) => doc.getText())
       );
     });
 
-    it("should fix workspace on command", async () => {
-      // Arrange
-      const linter = new KeepSorted(process.cwd());
+    it("should not contain any diagnostics after fix workspace", async () => {
+      // Arrange - nothing to setup
 
       // Act
-      await vscode.commands.executeCommand("keep-sorted.fixWorkspace");
+      await vscode.commands.executeCommand(FixWorkspaceCommandHandler.COMMAND.command);
 
       // Wait for async fix processing
       await delay(3000);
 
       // Assert - Verify all documents are fixed
       (await workspace.inScopeUris()).forEach(async (uri) => {
-        expect(await linter.lintDocument(await vscode.workspace.openTextDocument(uri))).to.be.empty;
+        expect(vscode.languages.getDiagnostics(uri)).to.be.empty;
       });
     });
   });

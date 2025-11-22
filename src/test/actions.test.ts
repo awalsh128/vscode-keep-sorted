@@ -21,6 +21,8 @@ const KEEP_SORTED_SOURCE = "keep-sorted";
 const TEST_WORKSPACE = path.join(__dirname, "..", "..", "test-workspace");
 const MIXED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "mixed_blocks.ts");
 
+const ACTION_COUNT = 3;
+
 describe("actions", () => {
   describe("ActionProvider", () => {
     let provider: ActionProvider;
@@ -51,7 +53,7 @@ describe("actions", () => {
     });
 
     describe("actionKinds", () => {
-      it("should have QuickFix action kind", () => {
+      it("should have specific action kinds", () => {
         // Arrange - No setup needed
 
         // Act
@@ -66,7 +68,7 @@ describe("actions", () => {
     });
 
     describe("provideCodeActions", () => {
-      it("should return two actions when diagnostics exist", async () => {
+      it("should return 3 actions when diagnostics exist", async () => {
         // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
@@ -80,7 +82,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, range);
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
       });
 
       it("should return empty array when no diagnostics exist", async () => {
@@ -118,7 +120,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, range);
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
 
         // First action should be block fix
         expect(actions![0].title).to.equal("Sort all lines in block (keep-sorted)");
@@ -154,7 +156,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, range);
 
         // Assert - Only diagnostic1 included since it intersects with mockRange (0,0 to 0,10)
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
         expect(actions![0].diagnostics).to.have.length(1);
         expect(actions![0].diagnostics![0]).to.equal(diagnostic1);
         expect(actions![1].diagnostics).to.have.length(1);
@@ -201,7 +203,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, range);
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
         expect(actions![0].diagnostics).to.have.length(1);
         expect(actions![0].diagnostics![0]).to.equal(intersectingDiagnostic);
         expect(actions![1].diagnostics).to.have.length(1);
@@ -222,7 +224,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, range);
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
         const blockAction = actions![0];
         const fixAllAction = actions![1];
 
@@ -254,13 +256,15 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, blockRange);
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(3);
         const blockAction = actions![0];
-        const fixAllAction = actions![1];
+        const fixAllSrcAction = actions![1];
+        const fixFileAction = actions![2];
 
         // Verify both actions have edits
         void expect(blockAction.edit).to.not.be.undefined;
-        void expect(fixAllAction.edit).to.not.be.undefined;
+        void expect(fixAllSrcAction.edit).to.not.be.undefined;
+        void expect(fixFileAction.edit).to.not.be.undefined;
 
         // TODO: Fix this test - the edit is created but appears to be empty
         // This might be due to how the linter interacts with the test document
@@ -298,7 +302,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, new vscode.Range(5, 0, 8, 0));
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
 
         const blockAction = actions.find(
           (a) => a.title === "Sort all lines in block (keep-sorted)"
@@ -341,7 +345,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, new vscode.Range(0, 0, 0, 20));
 
         // Assert
-        expect(actions).to.have.length(2);
+        expect(actions).to.have.length(ACTION_COUNT);
         const blockAction = actions.find(
           (a) => a.title === "Sort all lines in block (keep-sorted)"
         );

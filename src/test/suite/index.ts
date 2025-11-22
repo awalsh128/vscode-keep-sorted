@@ -1,5 +1,7 @@
 import * as path from "path";
 import * as Mocha from "mocha";
+import * as fs from "fs";
+import { rotateTestLogs, TEST_LOGS_DIR, ifExists } from "../testing";
 import { sync as globSync } from "glob";
 
 export function run(): Promise<void> {
@@ -13,6 +15,15 @@ export function run(): Promise<void> {
   if (grep) {
     mocha.grep(grep);
   }
+
+  ifExists(TEST_LOGS_DIR, () => fs.rmSync(TEST_LOGS_DIR, { recursive: true, force: true }));
+  fs.mkdirSync(TEST_LOGS_DIR, { recursive: true });
+
+  console.info("Test logs writing to directory: ", TEST_LOGS_DIR);
+
+  mocha.suite.afterEach(function (this: Mocha.Context) {
+    rotateTestLogs(this.currentTest);
+  });
 
   return new Promise((resolve, reject) => {
     try {

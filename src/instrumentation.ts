@@ -1,16 +1,120 @@
 import * as vscode from "vscode";
+import * as winston from "winston";
 import * as workspace from "./workspace";
+import * as tb from "triple-beam";
+import * as path from "path";
+/* eslint-disable @typescript-eslint/no-require-imports */
+import TransportStream = require("winston-transport");
 
-/** Unique name of extension in VS Code */
+import type { TransformableInfo } from "logform";
+
+/** Unique name of extension in VS Code. */
 export const EXT_NAME = "keep-sorted";
-/** Display friendly name of extension in VS Code */
+/** Display friendly name of extension in VS Code. */
 export const EXT_DISPLAY_NAME = "Keep Sorted";
 
+/** Custom Winston transport for VS Code output channel. */
+class OutputChannelTransport extends TransportStream {
+  private readonly outputChannel: vscode.LogOutputChannel;
+
+  constructor(
+    opts?: TransportStream.TransportStreamOptions & { outputChannel: vscode.LogOutputChannel }
+  ) {
+    super(opts);
+    this.outputChannel = opts!.outputChannel;
+  }
+
+  public log(info: TransformableInfo, next: () => void) {
+    setImmediate(() => {
+      this.emit("logged", info);
+    });
+    const message = String(info[tb.MESSAGE] || info.message || "");
+    const level = String(info[tb.LEVEL] || info.level || "info");
+
+    switch (level) {
+      case "error":
+        this.outputChannel.error(message);
+        break;
+      case "warn":
+      case "warning":
+        this.outputChannel.warn(message);
+        break;
+      case "info":
+        this.outputChannel.info(message);
+        break;
+      case "debug":
+        this.outputChannel.debug(message);
+        break;
+      case "trace":
+        this.outputChannel.trace(message);
+        break;
+      default:
+        this.outputChannel.appendLine(`[UNKNOWN/${level}] ${message}`);
+    }
+
+    next();
+  }
+}
+
 /**
- * Creates a VS Code LogOutputChannel for extension logging.
+ * Creates a file logger based on the specified file path in the keep-sorted extension.
+ * configuration.
+ */
+function createFileTransport(filepath: string) {
+  return new winston.transports.File({
+    filename: filepath,
+    format: winston.format.printf((info: TransformableInfo) => {
+      const timestamp = info.timestamp || new Date().toISOString();
+      return `${timestamp} [${info.level}] ${logFormat(info)}`;
+    }),
+  });
+}
+
+/** Creates a logger instance for the extension. */
+function createLogger(): winston.Logger {
+  const outputChannel = vscode.window.createOutputChannel(EXT_DISPLAY_NAME, { log: true });
+  outputChannel.show();
+
+  const winstonLogLevel = (vscodeLevel: vscode.LogLevel) =>
+    (vscodeLevel ? vscode.LogLevel[vscodeLevel] : vscode.LogLevel.Info.toString()).toLowerCase();
+
+  const logLevel = winstonLogLevel(vscode.env.logLevel);
+
+  const logger = winston.createLogger({
+    level: logLevel,
+    // VS Code log levels mapped to winston
+    levels: {
+      error: 0,
+      warn: 1,
+      info: 2,
+      debug: 3,
+      trace: 4,
+    },
+    transports: [
+      new OutputChannelTransport({
+        outputChannel,
+        format: winston.format.printf(logFormat),
+        level: logLevel,
+      }),
+    ],
+  });
+
+  vscode.env.onDidChangeLogLevel((newLevel: vscode.LogLevel) => {
+    const previousLogLevel = logger.level;
+    const newWinstonLevel = winstonLogLevel(newLevel);
+    logger.level = newWinstonLevel;
+    logger.transports.forEach((t) => (t.level = newWinstonLevel));
+    logger.info(`Log level changed from '${previousLogLevel}' to '${logger.level}'`);
+  });
+
+  return logger;
+}
+
+/**
+ * Singleton logger instance for the keep-sorted extension.
  *
- * The LogOutputChannel provides built-in log levels (Trace, Debug, Info, Warning, Error) with
- * automatic timestamp formatting and VS Code integration.
+ * Wraps VS Code's LogOutputChannel, file and other transports for structured logging. All logging
+ * configurations from VSCode are preserved by this logger.
  *
  * Users can change the log level at runtime via Command Palette:
  *
@@ -18,100 +122,75 @@ export const EXT_DISPLAY_NAME = "Keep Sorted";
  * 2. Type "Developer: Set Log Level..."
  * 3. Select the extension name
  * 4. Choose desired level (changes apply immediately, no restart needed)
- *
- * @example
- *   ```typescript
- *   const logger = createLogger("My Extension");
- *   logger.info("Extension activated");
- *   logger.debug("Processing file", { fileName: "test.ts" });
- *   logger.error("Failed to process", error);
- *   ```;
- *
- * @param name - The display name for the output channel
- *
- * @returns A LogOutputChannel instance with methods: trace(), debug(), info(), warn(), error()
  */
-function createLogger(): vscode.LogOutputChannel {
-  const channel = vscode.window.createOutputChannel(EXT_DISPLAY_NAME, { log: true });
-  channel.show();
-  channel.info(`Log output channel created for: ${EXT_DISPLAY_NAME}`);
-  return channel;
-}
-
-/** Singleton logger instance for the keep-sorted extension */
 export const logger = createLogger();
 
-/** Prefixes all log messages with a specified string to provide context for the log lines. */
-export class ContextualLogger implements vscode.LogOutputChannel {
-  readonly prefix: string;
+function uri(documentOrUri: vscode.TextDocument | vscode.Uri): vscode.Uri {
+  return documentOrUri instanceof vscode.Uri ? documentOrUri : documentOrUri.uri;
+}
 
-  constructor(prefix: string) {
-    this.prefix = prefix;
-  }
+/** Logs an error and returns it so it can be handled / thrown. */
+export function logAndGetError(logger: winston.Logger, error: Error | string | unknown): Error {
+  const getError = (error: Error | string | unknown): Error => {
+    if (error instanceof Error) {
+      return error;
+    }
+    if (error instanceof String) {
+      return new Error(error.toString());
+    }
+    return new Error(workspace.toJson(error));
+  };
+  const err = getError(error);
+  logger.error(err.message, { error: err, stack: err.stack });
+  return err;
+}
 
-  // Forward the log level to the underlying logger so runtime changes are reflected.
-  get logLevel(): vscode.LogLevel {
-    return logger.logLevel;
-  }
+function logFormat(info: TransformableInfo) {
+  const findingPath = info.documentRelativePath;
+  const findingLoc = findingPath ? `${findingPath}${info.range}: ` : "";
+  return info.error ? workspace.toJson(info) : `${findingLoc}${info.message}`;
+}
 
-  onDidChangeLogLevel: vscode.Event<vscode.LogLevel> = logger.onDidChangeLogLevel;
+/**
+ * Gets diagnostics for the given document or URI relevant to the extension, optionally filtered by
+ * range.
+ */
+export function relevantDiagnostics(
+  documentOrUri: vscode.TextDocument | vscode.Uri,
+  range?: vscode.Range
+): vscode.Diagnostic[] {
+  const diagnostics = vscode.languages.getDiagnostics(uri(documentOrUri));
+  const relevantDiagnostics = range
+    ? diagnostics.filter((d) => d.range.intersection(range))
+    : diagnostics;
+  return relevantDiagnostics;
+}
 
-  get name(): string {
-    return logger.name;
-  }
+/**
+ * Sets up or removes file logging for the extension.
+ *
+ * @param filepath Optional file path to enable logging to. If not specified, file logging is
+ *   removed.
+ */
+export function setFileLogging(filepath?: string) {
+  // Reset all file transports first
+  logger.transports
+    .filter((t) => t instanceof winston.transports.File)
+    .forEach((t) => logger.remove(t));
 
-  append(value: string): void {
-    logger.append(value);
-  }
-  appendLine(value: string): void {
-    logger.appendLine(value);
-  }
-  replace(value: string): void {
-    logger.replace(value);
-  }
-  clear(): void {
-    logger.clear();
-  }
-  show(column?: unknown, preserveFocus?: unknown): void {
-    logger.show(column as vscode.ViewColumn | undefined, preserveFocus as boolean | undefined);
-  }
-  hide(): void {
-    logger.hide();
-  }
-  dispose(): void {
-    logger.dispose();
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trace(message: string, ...args: any[]): void {
-    logger.trace(`${this.prefix} ${message}`, ...args);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug(message: string, ...args: any[]): void {
-    logger.debug(`${this.prefix} ${message}`, ...args);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  info(message: string, ...args: any[]): void {
-    logger.info(`${this.prefix} ${message}`, ...args);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  warn(message: string, ...args: any[]): void {
-    logger.warn(`${this.prefix} ${message}`, ...args);
+  if (!filepath || filepath.trim() === "") {
+    logger.info("File logging disabled");
+    return;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error(message: string, ...args: any[]): void {
-    logger.error(`${this.prefix} ${message}`, ...args);
-  }
-
-  logAndGetError(message: string, ...args: unknown[]): never {
-    const fullMessage = `${this.prefix} ${message}`;
-    logger.error(fullMessage, ...args);
-    throw new Error(fullMessage);
-  }
+  const rootPath = workspace.rootPath();
+  const normalizedFilepath = rootPath ? path.join(rootPath, filepath) : path.normalize(filepath);
+  const fileTransport = createFileTransport(normalizedFilepath);
+  fileTransport.level = logger.level;
+  logger.add(fileTransport);
+  logger.info(`File logging enabled
+  path: "${normalizedFilepath}"
+  level: "${logger.level}"`);
 }
 
 /**
@@ -125,7 +204,15 @@ export class ContextualLogger implements vscode.LogOutputChannel {
 export function contextualizeLogger(
   documentOrUri: vscode.TextDocument | vscode.Uri,
   range?: vscode.Range
-): ContextualLogger {
-  const uri = documentOrUri instanceof vscode.Uri ? documentOrUri : documentOrUri.uri;
-  return new ContextualLogger(`${workspace.relativePath(uri)}${workspace.rangeText(range)}`);
+): winston.Logger {
+  const relativePath = vscode.workspace.asRelativePath(uri(documentOrUri));
+  const meta = {
+    documentRelativePath: relativePath,
+    range: workspace.rangeText(range),
+  };
+  const child = logger.child(meta);
+  // Ensure the child logger exposes the metadata in a predictable place for tests and
+  // consumers that may inspect the logger object.
+  (child as unknown as { defaultMeta: typeof meta }).defaultMeta = meta;
+  return child;
 }

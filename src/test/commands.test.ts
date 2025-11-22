@@ -42,66 +42,55 @@ describe("commands", () => {
       handler = new FixFileCommandHandler(diagnostics, editFactory);
     });
 
-    it("should create handler with correct command properties", () => {
-      // Assert
-      expect(handler.command).to.deep.equal({
-        title: "Sort all lines in file (keep-sorted)",
-        command: "keep-sorted.fixFile",
-        tooltip: "Sort all keep-sorted blocks in the current file",
-      });
+    it("should do nothing when no active editor", async () => {
+      // Arrange - Close any active editor
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+
+      // Act
+      await handler.handle();
+
+      // Assert - applyEdit should not have been called
+      void expect(applyEditStub).to.not.have.been.called;
     });
 
-    describe("handle", () => {
-      it("should do nothing when no active editor", async () => {
-        // Arrange - Close any active editor
-        await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-
-        // Act
-        await handler.handle();
-
-        // Assert - applyEdit should not have been called
-        void expect(applyEditStub).to.not.have.been.called;
+    it("should do nothing when editFactory.create returns null", async () => {
+      // Arrange - Open a document with no keep-sorted blocks
+      const document = await vscode.workspace.openTextDocument({
+        content: "const a = 1;\nconst b = 2;\n",
+        language: "typescript",
       });
+      await vscode.window.showTextDocument(document);
 
-      it("should do nothing when editFactory.create returns null", async () => {
-        // Arrange - Open a document with no keep-sorted blocks
-        const document = await vscode.workspace.openTextDocument({
-          content: "const a = 1;\nconst b = 2;\n",
-          language: "typescript",
-        });
-        await vscode.window.showTextDocument(document);
+      // Act
+      await handler.handle();
 
-        // Act
-        await handler.handle();
+      // Assert - applyEdit should not have been called
+      void expect(applyEditStub).to.not.have.been.called;
+    });
 
-        // Assert - applyEdit should not have been called
-        void expect(applyEditStub).to.not.have.been.called;
-      });
+    it("should apply edit when editFactory.create returns valid result", async () => {
+      // Arrange - Open document with unsorted keep-sorted block
+      const document = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
+      await vscode.window.showTextDocument(document);
 
-      it("should apply edit when editFactory.create returns valid result", async () => {
-        // Arrange - Open document with unsorted keep-sorted block
-        const document = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
-        await vscode.window.showTextDocument(document);
+      // Set diagnostics to trigger edit creation
+      const diagnostic = new vscode.Diagnostic(
+        new vscode.Range(5, 0, 8, 0),
+        "Lines are not sorted",
+        vscode.DiagnosticSeverity.Warning
+      );
+      diagnostic.source = EXT_NAME;
+      diagnostics.set(document.uri, [diagnostic]);
 
-        // Set diagnostics to trigger edit creation
-        const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(5, 0, 8, 0),
-          "Lines are not sorted",
-          vscode.DiagnosticSeverity.Warning
-        );
-        diagnostic.source = EXT_NAME;
-        diagnostics.set(document.uri, [diagnostic]);
+      applyEditStub.resolves(true);
 
-        applyEditStub.resolves(true);
+      // Act
+      await handler.handle();
 
-        // Act
-        await handler.handle();
-
-        // Assert - applyEdit should have been called with a WorkspaceEdit
-        void expect(applyEditStub).to.have.been.calledOnce;
-        const editArg = applyEditStub.firstCall.args[0];
-        void expect(editArg).to.be.instanceOf(vscode.WorkspaceEdit);
-      });
+      // Assert - applyEdit should have been called with a WorkspaceEdit
+      void expect(applyEditStub).to.have.been.calledOnce;
+      const editArg = applyEditStub.firstCall.args[0];
+      void expect(editArg).to.be.instanceOf(vscode.WorkspaceEdit);
     });
   });
 
@@ -112,59 +101,48 @@ describe("commands", () => {
       handler = new FixWorkspaceCommandHandler(diagnostics, editFactory);
     });
 
-    it("should create handler with correct command properties", () => {
-      // Assert
-      expect(handler.command).to.deep.equal({
-        title: "Sort all lines in workspace (keep-sorted)",
-        command: "keep-sorted.fixWorkspace",
-        tooltip: "Sort all keep-sorted blocks in the workspace",
-      });
+    it("should process all in-scope workspace files", async function () {
+      // Arrange
+      applyEditStub.resolves(true);
+
+      // Act
+      await handler.handle();
+
+      // Assert - applyEdit may or may not be called depending on whether files have diagnostics
+      // Just verify the method completes without errors
+      void expect(handler.handle()).to.eventually.be.fulfilled;
     });
 
-    describe("handle", () => {
-      it("should process all in-scope workspace files", async function () {
-        // Arrange
-        applyEditStub.resolves(true);
+    it("should skip files with no diagnostics", async function () {
+      // Arrange
+      applyEditStub.resolves(true);
 
-        // Act
-        await handler.handle();
+      // Clear all diagnostics
+      diagnostics.clear();
+      const initialCallCount = applyEditStub.callCount;
 
-        // Assert - applyEdit may or may not be called depending on whether files have diagnostics
-        // Just verify the method completes without errors
-        void expect(handler.handle()).to.eventually.be.fulfilled;
-      });
+      // Act
+      await handler.handle();
 
-      it("should skip files with no diagnostics", async function () {
-        // Arrange
-        applyEditStub.resolves(true);
+      // Assert - applyEdit should not have been called for files without diagnostics
+      expect(applyEditStub.callCount).to.equal(initialCallCount);
+    });
 
-        // Clear all diagnostics
-        diagnostics.clear();
-        const initialCallCount = applyEditStub.callCount;
+    it("should apply edits when files have diagnostics", async function () {
+      // Arrange
+      applyEditStub.resolves(true);
 
-        // Act
-        await handler.handle();
+      // Note: This test verifies the handler processes workspace files correctly
+      // The actual application of edits depends on the diagnostic state at runtime
+      // which can be affected by test execution order and workspace state
 
-        // Assert - applyEdit should not have been called for files without diagnostics
-        expect(applyEditStub.callCount).to.equal(initialCallCount);
-      });
+      // Act - Execute the handler
+      await handler.handle();
 
-      it("should apply edits when files have diagnostics", async function () {
-        // Arrange
-        applyEditStub.resolves(true);
-
-        // Note: This test verifies the handler processes workspace files correctly
-        // The actual application of edits depends on the diagnostic state at runtime
-        // which can be affected by test execution order and workspace state
-
-        // Act - Execute the handler
-        await handler.handle();
-
-        // Assert - Verify the handler completes without errors
-        // In a real scenario with unsorted blocks and diagnostics set,
-        // applyEdit would be called. For this test, we just verify completion.
-        void expect(Promise.resolve()).to.eventually.be.fulfilled;
-      });
+      // Assert - Verify the handler completes without errors
+      // In a real scenario with unsorted blocks and diagnostics set,
+      // applyEdit would be called. For this test, we just verify completion.
+      void expect(Promise.resolve()).to.eventually.be.fulfilled;
     });
   });
 

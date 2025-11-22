@@ -21,36 +21,6 @@ describe("workspace", () => {
     sandbox.restore();
   });
 
-  describe("relativePath", () => {
-    it("returns full fsPath when no workspace folder", () => {
-      // Arrange
-      const uri = vscode.Uri.file("/some/random/file.ts");
-
-      // Act
-      const result = workspace.relativePath(uri);
-
-      // Assert
-      expect(result).to.equal(uri.fsPath);
-    });
-
-    it("returns workspace relative path when workspace folder exists", () => {
-      // Arrange
-      const uri = vscode.Uri.file("/workspace/src/file.ts");
-      const workspaceFolder = {
-        uri: vscode.Uri.file("/workspace"),
-        name: "ws",
-        index: 0,
-      } as unknown as vscode.WorkspaceFolder;
-      sandbox.stub(vscode.workspace, "getWorkspaceFolder").withArgs(uri).returns(workspaceFolder);
-
-      // Act
-      const result = workspace.relativePath(uri);
-
-      // Assert
-      expect(result).to.equal("src/file.ts");
-    });
-  });
-
   describe("isInScope", () => {
     it("returns false for non-file schemes", () => {
       // Arrange

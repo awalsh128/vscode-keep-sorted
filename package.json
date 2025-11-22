@@ -33,7 +33,8 @@
     "format",
     "code",
     "auto-sort",
-    "keep-sorted"
+    "keep-sorted",
+    "language-agnostic"
   ],
   "categories": [
     "Formatters",
@@ -45,6 +46,16 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "keep-sorted.fixFile",
+        "title": "Keep Sorted: Fix Current File"
+      },
+      {
+        "command": "keep-sorted.fixWorkspace",
+        "title": "Keep Sorted: Fix Entire Workspace"
+      }
+    ],
     "configuration": {
       "title": "Keep Sorted",
       "properties": {
@@ -52,11 +63,6 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable the keep-sorted extension"
-        },
-        "keep-sorted.fixOnSave": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically fix documents when they are saved"
         },
         "keep-sorted.exclude": {
           "type": "array",
@@ -70,20 +76,15 @@
             "**/dist/**",
             "^tests/[^1-9]\\w+.*\\.js"
           ]
+        },
+        "keep-sorted.logFilepath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional. File path for logging output. If specified, logs will be written to the specified location. If empty or undefined, file logging is disabled. If a relative path is provided, it will be resolved relative to the workspace root."
         }
       }
     }
   },
-  "commands": [
-    {
-      "command": "keep-sorted.fixFile",
-      "title": "Keep Sorted: Fix Current File"
-    },
-    {
-      "command": "keep-sorted.fixWorkspace",
-      "title": "Keep Sorted: Fix Entire Workspace"
-    }
-  ],
   "scripts": {
     "vscode:prepublish": "npm ci && npm run compile",
     "compile": "npm run clean && tsc -b --clean && tsc -b",
@@ -101,16 +102,19 @@
     "@stylistic/eslint-plugin": "^2.9.0",
     "@types/chai": "^5.2.3",
     "@types/chai-as-promised": "^8.0.2",
+    "@types/logform": "^1.2.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22",
     "@types/sinon": "^17.0.4",
     "@types/sinon-chai": "^4.0.0",
     "@types/source-map-support": "^0.5.10",
+    "@types/triple-beam": "^1.3.5",
     "@types/vscode": "^1.100.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "chai": "^6.2.0",
     "eslint": "^9.13.0",
+    "logform": "^2.7.0",
     "mocha": "^11.7.4",
     "mocha-explorer-launcher-scripts": "^0.4.0",
     "prettier-plugin-jsdoc": "^1.3.3",
@@ -118,14 +122,19 @@
     "sinon": "^21.0.0",
     "sinon-chai": "^4.0.1",
     "source-map-support": "^0.5.21",
+    "triple-beam": "^1.4.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.39.0"
+    "typescript-eslint": "^8.39.0",
+    "typescript-lru-cache": "^2.0.0",
+    "winston": "^3.18.3",
+    "winston-transport-vscode": "^0.1.0"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",
     "chai-as-promised": "^8.0.2",
+    "chalk": "^5.6.2",
     "glob-regex": "^0.3.2",
     "limiter": "^3.0.0",
     "lru-cache": "^11.2.2"

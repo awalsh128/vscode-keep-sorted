@@ -45,6 +45,9 @@
     "editor.formatOnSave": true,
     "editor.wordWrap": "wordWrapColumn"
   },
+  "[log]": {
+    "editor.wordWrap": "off"
+  },
   "testing.automaticallyOpenPeekView": "failureInVisibleDocument",
   "testing.defaultGutterClickAction": "run",
   "prettier.semi": true,

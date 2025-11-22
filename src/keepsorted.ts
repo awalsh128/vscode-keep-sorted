@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { spawn } from "child_process";
 import * as path from "path";
-import { EXT_NAME, logger, contextualizeLogger } from "./instrumentation";
+import { EXT_NAME, logger, contextualizeLogger, logAndGetError } from "./instrumentation";
 
 /**
  * Keep Sorted finding in the JSON format reported by it's binary. Uses casing matching the binary's
@@ -39,9 +39,16 @@ export class KeepSorted {
 
   constructor(extensionPath: string) {
     this.extensionPath = extensionPath;
-    const binaryInfo = this.getBundledBinaryPath();
-    this.binaryPath = binaryInfo.fullPath;
-    this.binaryFilename = binaryInfo.filename;
+    // Allow override for test/CI environments
+    const override = process.env.KEEP_SORTED_BINARY;
+    if (override) {
+      this.binaryPath = path.resolve(override);
+      this.binaryFilename = path.basename(this.binaryPath);
+    } else {
+      const binaryInfo = this.getBundledBinaryPath();
+      this.binaryPath = binaryInfo.fullPath;
+      this.binaryFilename = binaryInfo.filename;
+    }
   }
 
   /** Gets the platform specific binary based on the extension runner's OS. */
@@ -65,56 +72,56 @@ export class KeepSorted {
         logger.warn(`Unsupported platform ${process.platform}, trying linux binary`);
         binaryPath = path.join(this.extensionPath, "bin", "keep-sorted-linux-amd64");
     }
-    logger.debug(`Using keep-sorted binary at path: ${binaryPath}`);
+    logger.info(`Using keep-sorted binary at path: ${binaryPath}`);
     return {
       fullPath: binaryPath,
       filename: path.basename(binaryPath),
     };
   }
 
-  async getAndValidateFindings(
+  async getSingleReplacement(
     document: vscode.TextDocument,
-    range?: vscode.Range
-  ): Promise<KeepSortedFinding[]> {
-    const kpLogger = contextualizeLogger(document);
-    const findings = await this.getFindings(document, range);
-    if (findings.length === 0) {
-      return [];
-    }
+    findings: KeepSortedFinding[]
+  ): Promise<string | null> {
     if (findings.length > 1) {
-      kpLogger.warn(
-        `Multiple (${findings.length}) findings; only the first will be applied\n${JSON.stringify(findings)}`
-      );
+      return null;
     }
     const fixes = findings[0].fixes;
     if (fixes.length === 0) {
-      throw new Error(
-        "Unexpected no fixes available for the finding.\n" + JSON.stringify(findings[0])
-      );
+      return null;
     }
     if (fixes.length > 1) {
-      kpLogger.warn(`Multiple (${fixes.length}) fixes available; only the first will be applied.`);
+      return null;
     }
     if (fixes[0].replacements.length === 0) {
-      throw new Error(
-        "Unexpected no replacements available in the fix.\n" + JSON.stringify(fixes[0])
-      );
+      return null;
     }
     if (fixes[0].replacements.length > 1) {
-      kpLogger.warn(
-        `Multiple (${fixes[0].replacements.length}) replacements available; only the first will be applied.`
-      );
+      return null;
     }
-    return findings;
+    return fixes[0].replacements[0].new_content;
   }
 
   /** Fixes the specified range in the document and returns the fixed content. */
   async fixDocument(document: vscode.TextDocument, range?: vscode.Range): Promise<string | null> {
-    const findings = await this.getAndValidateFindings(document, range);
+    const findings = await this.getFindings(document, range);
     if (findings.length === 0) {
-      return null;
+      // If linting the specified range returns no findings, attempt a whole-file fix as a
+      // fallback. This handles cases where the CLI's range parsing may differ between
+      // in-memory document representations and the on-disk file.
+      const fixed = await this.fixFileText(document);
+      if (fixed === null) {
+        // No findings to fix in either range or full-file
+        throw new Error("No findings to fix");
+      }
+      return fixed;
     }
-    return findings[0].fixes[0].replacements[0].new_content;
+    const singleReplacement = await this.getSingleReplacement(document, findings);
+    if (singleReplacement) {
+      return singleReplacement;
+    }
+    // Fix the entire file to avoid async file writes that can lead to file corruption
+    return this.fixFileText(document);
   }
 
   /**
@@ -143,11 +150,32 @@ export class KeepSorted {
         vscode.DiagnosticSeverity.Warning
       );
       diagnostic.source = EXT_NAME;
+      diagnostic.code = {
+        value: "help",
+        target: vscode.Uri.parse("https://github.com/google/keep-sorted/blob/main/README.md"),
+      };
       return diagnostic;
     });
 
     kpLogger.info(`${this.binaryFilename} found ${diagnostics.length} replacements.`);
     return diagnostics;
+  }
+
+  private async fixFileText(document: vscode.TextDocument): Promise<string | null> {
+    const kpLogger = contextualizeLogger(document);
+    const { code, stdout, stderr } = await this.spawnCommand(
+      ["--mode", "fix", "-"],
+      document.uri,
+      document.getText()
+    );
+    if (code === 0) {
+      // No issues found
+      return null;
+    } else if (code === 1 && stdout) {
+      // Issues found and fixed, return fixed content
+      return stdout;
+    }
+    throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
   }
 
   private async getFindings(
@@ -156,7 +184,16 @@ export class KeepSorted {
   ): Promise<KeepSortedFinding[]> {
     const kpLogger = contextualizeLogger(document);
     const args = range
-      ? ["--mode", "lint", "--lines", `${range.start.line + 1}:${range.end.line}`, "-"]
+      ? (() => {
+          const startOneBased = range.start.line + 1;
+          let endOneBased = range.end.line;
+          // If the provided end value appears to be zero-based and is less than the start,
+          // normalize it to the start to ensure the CLI receives a valid inclusive range.
+          if (endOneBased < startOneBased) {
+            endOneBased = startOneBased;
+          }
+          return ["--mode", "lint", "--lines", `${startOneBased}:${endOneBased}`, "-"];
+        })()
       : ["--mode", "lint", "-"];
     const { code, stdout, stderr } = await this.spawnCommand(
       args,
@@ -171,10 +208,10 @@ export class KeepSorted {
       try {
         return JSON.parse(stdout);
       } catch (parseError) {
-        throw kpLogger.logAndGetError(`Failed to parse command output: ${parseError}`);
+        throw logAndGetError(kpLogger, `Failed to parse command output: ${parseError}`);
       }
     }
-    throw kpLogger.logAndGetError(`${this.binaryFilename} failed with code ${code}: ${stderr}`);
+    throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
   }
 
   private async spawnCommand(

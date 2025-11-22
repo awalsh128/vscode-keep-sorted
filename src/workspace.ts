@@ -1,14 +1,28 @@
 import * as vscode from "vscode";
+import * as util from "util";
 import { excluded } from "./configuration";
-import { contextualizeLogger } from "./instrumentation";
-import * as path from "path";
+import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 
+/** Schemas that this extension supports */
+export const IN_SCOPE_SCHEMAS = ["file", "untitled"];
 export interface CreateEditResult {
   documentUri: vscode.Uri;
   edit: vscode.WorkspaceEdit;
   diagnostics: vscode.Diagnostic[];
 }
+
+/** Converts a CreateEditResult array to a loggable string */
+export const toLogText = (results: CreateEditResult[]): string =>
+  toJson(
+    results.map((r) => {
+      return {
+        path: r.documentUri.path,
+        edit: r.edit,
+        diagnostics: r.diagnostics,
+      };
+    })
+  );
 
 /** Factory to create WorkspaceEdits that apply fixes to documents */
 export class EditFactory {
@@ -31,7 +45,7 @@ export class EditFactory {
     }
     edit.replace(
       document.uri,
-      range ?? new vscode.Range(0, 0, document.lineCount, 0),
+      range ?? new vscode.Range(0, 0, document.lineCount - 1, 0),
       fixedContent
     );
   }
@@ -44,33 +58,23 @@ export class EditFactory {
     document: vscode.TextDocument,
     range?: vscode.Range
   ): Promise<CreateEditResult | null> {
-    const documentDiagnostics = this.diagnostics.get(document.uri);
-    if (!documentDiagnostics || documentDiagnostics.length === 0) {
+    const diagnostics = relevantDiagnostics(document, range);
+    if (!diagnostics || diagnostics.length === 0) {
       return null;
     }
 
-    // Filter diagnostics to only those that intersect with the provided range
-    const relevantDiagnostics =
-      range == null
-        ? documentDiagnostics
-        : documentDiagnostics?.filter((d) => d.range.intersection(range) !== undefined);
-
     const editLogger = contextualizeLogger(document, range);
 
-    if (relevantDiagnostics.length === 0) {
+    if (diagnostics.length === 0) {
       editLogger.debug(`No relevant diagnostics found`);
       return null;
     }
 
+    const uri = document.uri;
     const edit = new vscode.WorkspaceEdit();
-    for (const diagnostic of relevantDiagnostics) {
-      const range = diagnostic.range;
-      await this.applyToEdit(edit, document, range);
-    }
+    await this.applyToEdit(edit, document, range);
 
-    editLogger.info(`Created fixes for ${relevantDiagnostics.length} diagnostic(s)`);
-
-    return { documentUri: document.uri, edit, diagnostics: [...relevantDiagnostics] };
+    return { documentUri: uri, edit, diagnostics: [...diagnostics] };
   }
 }
 
@@ -88,6 +92,14 @@ export function rangeText(range?: vscode.Range): string {
   return `[${range.start.line + 1}:${range.end.line}]`;
 }
 
+/** Gets the root path of the first workspace found, or undefined if no workspace is open. */
+export function rootPath(): string | undefined {
+  if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    return vscode.workspace.workspaceFolders[0].uri.fsPath;
+  }
+  return undefined;
+}
+
 /** Gets all URIs in the workspace that are in scope (not excluded) and are a regular file. */
 export async function inScopeUris(): Promise<vscode.Uri[]> {
   const uris = await vscode.workspace.findFiles("**/*");
@@ -96,7 +108,7 @@ export async function inScopeUris(): Promise<vscode.Uri[]> {
 
 /** Checks whether a URI is in scope (not excluded) and is a regular file. */
 export function isInScope(uri: vscode.Uri): boolean {
-  if (uri.scheme !== "file") {
+  if (!IN_SCOPE_SCHEMAS.includes(uri.scheme)) {
     return false;
   }
   const scopeLogger = contextualizeLogger(uri);
@@ -104,20 +116,16 @@ export function isInScope(uri: vscode.Uri): boolean {
   if (!regexp) {
     return true;
   }
-  scopeLogger.info(`Document is excluded with regex ${regexp.source}.`);
+  scopeLogger.debug(`Document is excluded with regex ${regexp.source}.`);
   return false;
 }
 
-/**
- * Gets the workspace relative path of a URI, or full path if not in a workspace.
- *
- * @param uri The URI to get the path for
- *
- * @returns The workspace relative path, or full path if not in a workspace
- */
-export function relativePath(uri: vscode.Uri): string | null {
-  const workspacePath = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath ?? null;
-  return workspacePath ? path.relative(workspacePath, uri.fsPath) : uri.fsPath;
+/** Converts a value to a pretty printed JSON string representation. */
+export function toJson(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  return util.inspect(value, { depth: null, compact: false, colors: false });
 }
 
 /**

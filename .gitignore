@@ -4,6 +4,10 @@ dist/
 *.vsix
 *.tsbuildinfo
 
+# Test outputs
+bin/mock-keep-sorted
+src/test/logs/
+
 # Dependencies
 node_modules/
 

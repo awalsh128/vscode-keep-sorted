@@ -1,3 +1,5 @@
 {
   "keep-sorted.enabled": true,
+  "keep-sorted.exclude": ["node_modules/**", "dist/**", "out/**", ".git/**", "log/**"],
+  "keep-sorted.logFilepath": "log/keep-sorted.log"
 }

@@ -1,16 +1,20 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "./commands";
-import { logger, EXT_NAME, contextualizeLogger } from "./instrumentation";
+import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
-import { handleConfigurationChange, onEnabledChange } from "./configuration";
+import {
+  getConfig,
+  handleConfigurationChange,
+  onEnabledChange,
+  onLogFilepathChange,
+} from "./configuration";
 
 const EXECUTE_DELAY_MS = 3000;
 
 export function activate(context: vscode.ExtensionContext) {
   // Create output channel
-  logger.show();
   logger.info(`Activating extension ${EXT_NAME}...`);
 
   const linter = new KeepSorted(context.extensionPath);
@@ -21,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const extSubsHandler = new workspace.ExtensionSubscriptionsHandler(context.subscriptions);
 
-  const maybeExecute = (fn: () => void) => {
+  const maybeExecute = async (fn: () => void) => {
     let timeoutId: NodeJS.Timeout | null = null;
     return () => {
       if (!timeoutId) {
@@ -33,6 +37,13 @@ export function activate(context: vscode.ExtensionContext) {
     };
   };
 
+  const maybeLint = async (document: vscode.TextDocument) => {
+    if (workspace.isInScope(document.uri)) {
+      contextualizeLogger(document).debug(`Document updated.`);
+      await maybeExecute(async () => await lint(document));
+    }
+  };
+
   async function lint(document: vscode.TextDocument): Promise<void> {
     try {
       const results = await linter.lintDocument(document);
@@ -40,17 +51,16 @@ export function activate(context: vscode.ExtensionContext) {
         diagnostics.set(document.uri, results);
       }
     } catch (err: Error | unknown) {
-      const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+      const errorMessage = err instanceof Error ? err.message : workspace.toJson(err);
       contextualizeLogger(document).error(`Linting failed with:\n${errorMessage}`);
     }
   }
 
   // Register code action provider
   extSubsHandler.addRegister(async () => {
-    // Register for file-system documents and unsaved (untitled) buffers so the provider is
-    // invoked in both saved and unsaved editors. This helps ensure the lightbulb appears
-    // whether the user is working in an on-disk file or an untitled buffer.
-    const selector: vscode.DocumentSelector = [{ scheme: "file" }, { scheme: "untitled" }];
+    const selector: vscode.DocumentSelector = workspace.IN_SCOPE_SCHEMAS.map((s: string) => ({
+      scheme: s,
+    }));
     return vscode.languages.registerCodeActionsProvider(selector, actionProvider, {
       providedCodeActionKinds: ActionProvider.kinds,
     });
@@ -66,29 +76,15 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Document listeners
-  extSubsHandler.addRegister(async () => {
-    return vscode.workspace.onDidSaveTextDocument(async (document: vscode.TextDocument) => {
-      if (workspace.isInScope(document.uri)) {
-        contextualizeLogger(document).debug(`Document saved.`);
-        await lint(document);
-      }
-    });
-  });
-  extSubsHandler.addRegister(async () => {
-    return vscode.workspace.onDidChangeTextDocument(
-      async (event: vscode.TextDocumentChangeEvent) => {
-        if (!workspace.isInScope(event.document.uri)) {
-          return;
-        }
-        event.contentChanges.forEach((change) => {
-          contextualizeLogger(event.document, change.range).debug(`Document change detected.`);
-        });
-        maybeExecute(() => lint(event.document));
-      }
-    );
+  [
+    vscode.workspace.onDidOpenTextDocument(maybeLint),
+    vscode.workspace.onDidSaveTextDocument(maybeLint),
+    vscode.workspace.onDidChangeTextDocument((e) => maybeLint(e.document)),
+  ].forEach((disposable) => {
+    extSubsHandler.addRegister(async () => disposable);
   });
 
-  // Configuration change, handle enabling/disabling extension
+  // Configuration change, handle enabling/disabling extension and logging filepath changes
   // Not added to handler because it controls the handler behavior itself; should always be active
   // and listening
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(handleConfigurationChange));
@@ -104,19 +100,22 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
+  context.subscriptions.push(onLogFilepathChange(setFileLogging));
+  setFileLogging(getConfig().logFilepath);
 
   extSubsHandler.registerExtensionSubscriptions();
 
   // Initial linting of all documents upon activation
-  workspace.inScopeUris().then((uris) => {
+  workspace.inScopeUris().then(async (uris) => {
     logger.info(`Found ${uris.length} workspace documents for possible linting on activation`);
-    uris.forEach((uri) => {
-      vscode.workspace.openTextDocument(uri).then((document) => {
+    await Promise.all(
+      uris.map(async (uri) => {
+        const document = await vscode.workspace.openTextDocument(uri);
         if (document) {
           lint(document);
         }
-      });
-    });
+      })
+    );
   });
 
   logger.info(`Extension ${EXT_NAME} activated.`);

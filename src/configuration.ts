@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import globRegex from "glob-regex";
 import * as path from "path";
 import { logger } from "./instrumentation";
+import { toJson } from "./workspace";
 
 /** Configuration namespace for the Keep Sorted extension. */
 const CONFIGURATION_SECTION = "keep-sorted";
@@ -10,11 +11,19 @@ const CONFIGURATION_SECTION = "keep-sorted";
 export interface KeepSortedConfiguration {
   /** Whether the extension is enabled */
   readonly enabled: boolean;
+
   /**
    * Regular expressions for files to ignore such as auto generated files, temporary files, and
    * other files that should not be processed by the extension
    */
   readonly exclude: string[];
+
+  /**
+   * Optional. File path for logging output
+   *
+   * If specified, logs will be written to the specified location relative to workspace root.
+   */
+  readonly logFilepath?: string;
 }
 
 interface Context {
@@ -46,10 +55,11 @@ function loadContext(): Context {
   const configuration: KeepSortedConfiguration = {
     enabled: config.get<boolean>("enabled", true),
     exclude: config.get<string[]>("exclude", []),
+    logFilepath: config.get<string | undefined>("logFilepath", undefined),
   };
 
   // Use console during module loading to avoid circular dependency
-  logger.info(`Fetched configuration: ${JSON.stringify(configuration, null, 2)}`);
+  logger.info(`Fetched configuration: ${toJson(configuration)}`);
   // Build regex objects from configured patterns. Prefer direct RegExp construction for
   // patterns that are already valid regex literals (tests use strings like ".*\\.test\\.ts$")
   const regexs = configuration.exclude.map((p) => {
@@ -92,9 +102,13 @@ export function excluded(uri: vscode.Uri): RegExp | null {
 export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent): boolean {
   if (event.affectsConfiguration(CONFIGURATION_SECTION)) {
     const previousEnabled = context.config.enabled;
+    const previousLogFilepath = context.config.logFilepath;
     context = loadContext();
     if (context.config.enabled !== previousEnabled) {
       onEnabledChangeEmitter.fire(context.config.enabled);
+    }
+    if (context.config.logFilepath !== previousLogFilepath) {
+      onLogFilepathChangeEmitter.fire(context.config.logFilepath);
     }
     return true;
   }
@@ -105,3 +119,9 @@ const onEnabledChangeEmitter = new vscode.EventEmitter<boolean>();
 
 /** Event triggered when the enabled state changes. */
 export const onEnabledChange: vscode.Event<boolean> = onEnabledChangeEmitter.event;
+
+const onLogFilepathChangeEmitter = new vscode.EventEmitter<string | undefined>();
+
+/** Event triggered when the log filepath changes. */
+export const onLogFilepathChange: vscode.Event<string | undefined> =
+  onLogFilepathChangeEmitter.event;

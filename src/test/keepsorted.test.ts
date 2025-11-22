@@ -95,7 +95,7 @@ const beta = 2;
       const actualBinaryPath = spawnStub.getCall(0).args[0] as string;
       // Truncate the folder path; unable to use path library since this must work for Windows
       // paths too
-      expect(actualBinaryPath.slice((EXT_WORKSPACE_DIR + "/bin").length)).to.equal(expectedBinary);
+      expect(actualBinaryPath.slice((EXT_WORKSPACE_DIR + "/bin/").length)).to.equal(expectedBinary);
     });
   });
 
