@@ -5,13 +5,43 @@ import * as tb from "triple-beam";
 import * as path from "path";
 /* eslint-disable @typescript-eslint/no-require-imports */
 import TransportStream = require("winston-transport");
-
 import type { TransformableInfo } from "logform";
 
 /** Unique name of extension in VS Code. */
 export const EXT_NAME = "keep-sorted";
 /** Display friendly name of extension in VS Code. */
 export const EXT_DISPLAY_NAME = "Keep Sorted";
+
+function createLeveledLog(logger: winston.Logger, level: string): winston.LeveledLogMethod {
+  function logLevel(message: string, ...meta: unknown[]): winston.Logger;
+  function logLevel(message: string): winston.Logger;
+  function logLevel(infoObject: object): winston.Logger;
+  function logLevel(...args: unknown[]): winston.Logger {
+    if (args.length === 1) {
+      return logger.log(level, args[0]);
+    }
+    const [message, ...meta] = args;
+    return logger.log(level, message as string, ...(meta as unknown[]));
+  }
+  // string | number | unknown[] | object
+  return logLevel;
+}
+
+class LazyLogger extends winston.Logger {
+  error = createLeveledLog(this, "error");
+  warn = createLeveledLog(this, "warn");
+  help = createLeveledLog(this, "help");
+  data = createLeveledLog(this, "data");
+  info = createLeveledLog(this, "info");
+  debug = createLeveledLog(this, "debug");
+  trace = createLeveledLog(this, "trace");
+
+  traceLazy(getMessage: () => string): void {
+    if (this.isLevelEnabled("trace")) {
+      this.log("trace", getMessage());
+    }
+  }
+}
 
 /** Custom Winston transport for VS Code output channel. */
 class OutputChannelTransport extends TransportStream {
@@ -71,16 +101,19 @@ function createFileTransport(filepath: string) {
 }
 
 /** Creates a logger instance for the extension. */
-function createLogger(): winston.Logger {
+function createLogger(): LazyLogger {
   const outputChannel = vscode.window.createOutputChannel(EXT_DISPLAY_NAME, { log: true });
   outputChannel.show();
 
   const winstonLogLevel = (vscodeLevel: vscode.LogLevel) =>
     (vscodeLevel ? vscode.LogLevel[vscodeLevel] : vscode.LogLevel.Info.toString()).toLowerCase();
 
-  const logLevel = winstonLogLevel(vscode.env.logLevel);
+  // Use the current VS Code log level for the output channel specifically. This ensures that
+  // changes to the log level via command line --log=awalsh128.keep-sorted:<level> are respected.
+  const logLevel = winstonLogLevel(outputChannel.logLevel);
 
-  const logger = winston.createLogger({
+  // const logger = createLoggerWithOptions<LazyLogger>({
+  const logger = new LazyLogger({
     level: logLevel,
     // VS Code log levels mapped to winston
     levels: {
@@ -204,7 +237,7 @@ export function setFileLogging(filepath?: string) {
 export function contextualizeLogger(
   documentOrUri: vscode.TextDocument | vscode.Uri,
   range?: vscode.Range
-): winston.Logger {
+): LazyLogger {
   const relativePath = vscode.workspace.asRelativePath(uri(documentOrUri));
   const meta = {
     documentRelativePath: relativePath,

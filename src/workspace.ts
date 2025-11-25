@@ -38,16 +38,13 @@ export class EditFactory {
     edit: vscode.WorkspaceEdit,
     document: vscode.TextDocument,
     range?: vscode.Range
-  ) {
-    const fixedContent = await this.linter.fixDocument(document, range);
-    if (fixedContent === null) {
-      return;
+  ): Promise<{ content: string; range: vscode.Range } | null> {
+    const result = await this.linter.fixDocument(document, range);
+    if (result === null || result.content === null) {
+      return null;
     }
-    edit.replace(
-      document.uri,
-      range ?? new vscode.Range(0, 0, document.lineCount - 1, 0),
-      fixedContent
-    );
+    edit.replace(document.uri, result.range, result.content);
+    return result;
   }
 
   /**
@@ -59,10 +56,6 @@ export class EditFactory {
     range?: vscode.Range
   ): Promise<CreateEditResult | null> {
     const diagnostics = relevantDiagnostics(document, range);
-    if (!diagnostics || diagnostics.length === 0) {
-      return null;
-    }
-
     const editLogger = contextualizeLogger(document, range);
 
     if (diagnostics.length === 0) {
@@ -70,11 +63,25 @@ export class EditFactory {
       return null;
     }
 
+    const targetRange =
+      range ??
+      diagnostics.slice(1).reduce<vscode.Range>((combined, diagnostic) => {
+        return combined.union(diagnostic.range);
+      }, diagnostics[0].range);
+
     const uri = document.uri;
     const edit = new vscode.WorkspaceEdit();
-    await this.applyToEdit(edit, document, range);
+    const result = await this.applyToEdit(edit, document, targetRange);
+    if (result === null) {
+      return null;
+    }
 
-    return { documentUri: uri, edit, diagnostics: [...diagnostics] };
+    // Remove the actual diagnostics that were fixed in case the whole document was fixed
+    const affectedDiagnostics = relevantDiagnostics(document, result.range);
+    editLogger.debug(
+      `Created edit for ${uri.toString()} with ${affectedDiagnostics.length} affected diagnostics`
+    );
+    return { documentUri: uri, edit, diagnostics: [...affectedDiagnostics] };
   }
 }
 

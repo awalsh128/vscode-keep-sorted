@@ -1,10 +1,8 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
+import { describe, it } from "mocha";
 import { expect } from "chai";
 import * as vscode from "vscode";
 import * as path from "path";
-// import { readFileSync } from "fs";
 import { TEST_WORKSPACE_DIR } from "./testing";
-import { readFileSync, writeFileSync } from "fs";
 import * as workspace from "../workspace";
 import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "../commands";
 
@@ -13,16 +11,6 @@ import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "../commands";
 describe("extension", () => {
   const SAMPLE_TS_FILENAME = "sample.ts";
   const SAMPLE_SORTED_TS_FILENAME = "sample_sorted.ts";
-
-  let originalDocumentText = "";
-
-  beforeEach(async () => {
-    originalDocumentText = readFileSync(path.join(TEST_WORKSPACE_DIR, SAMPLE_TS_FILENAME), "utf-8");
-  });
-
-  afterEach(() => {
-    writeFileSync(path.join(TEST_WORKSPACE_DIR, SAMPLE_TS_FILENAME), originalDocumentText);
-  });
 
   it("should complete activation successfully", async () => {
     // Arrange
@@ -41,6 +29,17 @@ describe("extension", () => {
   };
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  const waitForDiagnostics = async (uri: vscode.Uri, timeoutMs = 5000): Promise<void> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (vscode.languages.getDiagnostics(uri).length > 0) {
+        return;
+      }
+      await delay(100);
+    }
+    throw new Error(`Timed out waiting for diagnostics for ${uri.fsPath}`);
+  };
+
   describe("activation behavior", () => {
     it("should create diagnostics on save", async () => {
       // Arrange
@@ -58,6 +57,7 @@ describe("extension", () => {
       // Assert
       const diagnostics = vscode.languages.getDiagnostics(document.uri);
       expect(diagnostics).to.be.an("array").with.length.greaterThan(0);
+      // Note: Global afterEach in index.ts restores workspace files including in-memory cache
     });
 
     it("should fix document on command", async () => {
@@ -66,6 +66,8 @@ describe("extension", () => {
 
       // Ensure the document is opened and set as active
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
+
+      await waitForDiagnostics(document.uri);
 
       // Act - Execute the fix command
       await vscode.commands.executeCommand(FixFileCommandHandler.COMMAND.command);

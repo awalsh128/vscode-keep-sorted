@@ -11,8 +11,6 @@ import {
   onLogFilepathChange,
 } from "./configuration";
 
-const EXECUTE_DELAY_MS = 3000;
-
 export function activate(context: vscode.ExtensionContext) {
   // Create output channel
   logger.info(`Activating extension ${EXT_NAME}...`);
@@ -25,22 +23,10 @@ export function activate(context: vscode.ExtensionContext) {
 
   const extSubsHandler = new workspace.ExtensionSubscriptionsHandler(context.subscriptions);
 
-  const maybeExecute = async (fn: () => void) => {
-    let timeoutId: NodeJS.Timeout | null = null;
-    return () => {
-      if (!timeoutId) {
-        fn();
-        timeoutId = setTimeout(() => {
-          timeoutId = null;
-        }, EXECUTE_DELAY_MS);
-      }
-    };
-  };
-
   const maybeLint = async (document: vscode.TextDocument) => {
     if (workspace.isInScope(document.uri)) {
       contextualizeLogger(document).debug(`Document updated.`);
-      await maybeExecute(async () => await lint(document));
+      await lint(document);
     }
   };
 

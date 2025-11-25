@@ -15,7 +15,7 @@
         // workspace
         "${workspaceFolder}/test-workspace",
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "--log awalsh128.keep-sorted:debug"
+        "--log=awalsh128.keep-sorted:debug"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "npm: compile"
@@ -29,7 +29,7 @@
         "${workspaceFolder}/test-workspace",
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--disable-extensions",
-        "--log awalsh128.keep-sorted:debug"
+        "--log=awalsh128.keep-sorted:debug"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "preLaunchTask": "npm: compile",
@@ -47,7 +47,7 @@
         "--reuse-window",
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--extensionTestsPath=${workspaceFolder}/out/test/suite/index",
-        "--log awalsh128.keep-sorted:debug"
+        "--log=awalsh128.keep-sorted:debug"
       ],
       "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
       "preLaunchTask": "npm: compile"

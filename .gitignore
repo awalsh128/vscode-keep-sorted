@@ -6,7 +6,8 @@ dist/
 
 # Test outputs
 bin/mock-keep-sorted
-src/test/logs/
+src/test/logs
+tests.log
 
 # Dependencies
 node_modules/

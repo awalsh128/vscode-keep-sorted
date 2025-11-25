@@ -29,4 +29,3 @@ const ComponentC = "C";
 export const animals = [alpha, beta, delta, zebra];
 export const numbers = [item1, item2, item10, item20];
 export const components = [ComponentA, componentB, ComponentC];
-// testing trigger change

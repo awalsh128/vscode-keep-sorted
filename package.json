@@ -90,7 +90,7 @@
     "compile": "npm run clean && tsc -b --clean && tsc -b",
     "lint": "eslint",
     "watch": "tsc -watch -p ./",
-    "test": "npm run compile && node ./out/test/runTest.js",
+    "test": "npm run compile && rimraf ./src/test/logs/ && node ./out/test/runTest.js",
     "test:runner": "npm run compile && node ./out/test/runTest.js",
     "create-binaries": "tsx scripts/create-binaries.ts",
     "clean": "rimraf out/",

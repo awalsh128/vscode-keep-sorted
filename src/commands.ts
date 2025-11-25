@@ -25,6 +25,9 @@ export abstract class CommandHandler {
     try {
       const createResults = await this.onHandle();
       if (createResults) {
+        logger.debug(
+          () => `${this.command.command} create results:\n` + workspace.toLogText(createResults)
+        );
         for (const createResult of createResults) {
           this.diagnostics.delete(createResult.documentUri);
           await vscode.workspace.applyEdit(createResult.edit);
@@ -49,16 +52,16 @@ export class FixFileCommandHandler extends CommandHandler {
   public async onHandle(): Promise<workspace.CreateEditResult[] | null> {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-      logger.debug(`No active editor found for ${this.command.command} command.`);
+      vscode.window.showErrorMessage(
+        "No active editor found with file contents to fix (keep-sorted)."
+      );
+      logger.error(`No active editor found for ${this.command.command} command.`);
       return null;
     }
     const createResult = await this.editFactory.create(editor.document);
     if (!createResult) {
       return null;
     }
-    logger.debug(
-      () => `${this.command.command} create result:\n` + workspace.toLogText([createResult])
-    );
     return [createResult];
   }
 }
@@ -83,9 +86,6 @@ export class FixWorkspaceCommandHandler extends CommandHandler {
     );
     const createResults = allResults.filter((result) => result !== null);
     if (createResults.length > 0) {
-      logger.debug(
-        () => `${this.command.command} create results:\n` + workspace.toLogText(createResults)
-      );
       return createResults;
     }
     return null;

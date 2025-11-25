@@ -5,7 +5,7 @@ import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as childProcess from "child_process";
 import * as path from "path";
-import { readFileSync, writeFileSync } from "fs";
+import * as fs from "fs";
 import { KeepSorted } from "../keepsorted";
 import { EXT_WORKSPACE_DIR, TEST_WORKSPACE_DIR } from "./testing";
 import chaiAsPromised from "chai-as-promised";
@@ -131,7 +131,7 @@ const beta = 2;
       mockChildProcess(2, "", errorMessage);
 
       // Act & Assert
-      expect(keepSorted.lintDocument(mockDocument())).to.be.rejectedWith(Error, errorMessage);
+      await expect(keepSorted.lintDocument(mockDocument())).to.be.rejectedWith(Error, errorMessage);
     });
 
     it("should lint test-workspace/sample.ts", async function () {
@@ -161,23 +161,16 @@ const beta = 2;
   });
 
   describe("fixDocument", () => {
-    let originalDocumentText = "";
-
-    beforeEach(() => {
-      originalDocumentText = readFileSync(path.join(TEST_WORKSPACE_DIR, "sample.ts"), "utf-8");
-    });
-
-    afterEach(() => {
-      writeFileSync(path.join(TEST_WORKSPACE_DIR, "sample.ts"), originalDocumentText);
-    });
-
     it("should throw error on non-zero/non-one exit code", async function () {
       // Arrange
       this.timeout(5000);
       mockChildProcess(2, "", errorMessage);
 
       // Act & Assert
-      expect(keepSorted.fixDocument(mockDocument(), range)).to.be.rejectedWith(Error, errorMessage);
+      await expect(keepSorted.fixDocument(mockDocument(), range)).to.be.rejectedWith(
+        Error,
+        errorMessage
+      );
     });
 
     it("should fix unsorted content using real binary", async function () {
@@ -188,18 +181,20 @@ const beta = 2;
       const result = await keepSorted.fixDocument(mockDocument(unsortedTextBlock), range);
 
       // Assert
-      expect(result).to.be.equal(sortedText);
+      expect(result).to.not.be.null;
+      expect(result?.content).to.equal(sortedText);
     });
 
-    it("should throw an error when no fixes present", async function () {
+    it("should return same content when already sorted", async function () {
       // Arrange
       this.timeout(5000);
 
-      // Act & Assert
-      expect(keepSorted.fixDocument(mockDocument(sortedTextBlock), range)).to.be.rejectedWith(
-        Error,
-        "No findings to fix"
-      );
+      // Act - The binary returns exit code 0 with the same content for already-sorted blocks
+      const result = await keepSorted.fixDocument(mockDocument(sortedTextBlock), range);
+
+      // Assert - Content is returned unchanged (binary doesn't distinguish "already sorted")
+      expect(result).to.not.be.null;
+      expect(result?.content).to.equal(sortedTextBlock);
     });
 
     it("should fix test-workspace/sample.ts", async function () {
@@ -214,13 +209,10 @@ const beta = 2;
         document,
         new vscode.Range(0, 0, document.lineCount, 0)
       );
-      expect(result).to.equal(
-        `const alpha = "alpha";
-const beta = "beta";
-const delta = "delta";
-const zebra = "zebra";
-`
-      );
+      expect(result).to.deep.equal({
+        content: fs.readFileSync(path.join(TEST_WORKSPACE_DIR, "sample_sorted.ts"), "utf-8"),
+        range: new vscode.Range(0, 0, document.lineCount, 0),
+      });
     });
   });
 });

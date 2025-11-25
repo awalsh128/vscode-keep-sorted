@@ -1,7 +1,12 @@
 import * as path from "path";
 import * as Mocha from "mocha";
-import * as fs from "fs";
-import { rotateTestLogs, TEST_LOGS_DIR, ifExists } from "../testing";
+import * as vscode from "vscode";
+import {
+  TestLogs,
+  TEST_LOGS_DIR as TEST_OUTPUT_LOGS_DIR,
+  TestWorkspace,
+  TEST_WORKSPACE_DIR,
+} from "../testing";
 import { sync as globSync } from "glob";
 
 export function run(): Promise<void> {
@@ -16,13 +21,19 @@ export function run(): Promise<void> {
     mocha.grep(grep);
   }
 
-  ifExists(TEST_LOGS_DIR, () => fs.rmSync(TEST_LOGS_DIR, { recursive: true, force: true }));
-  fs.mkdirSync(TEST_LOGS_DIR, { recursive: true });
+  const workspace = TestWorkspace.createWithSnapshot(TEST_WORKSPACE_DIR, ["log/keep-sorted.log"]);
+  const logs = TestLogs.create(TEST_OUTPUT_LOGS_DIR, TEST_WORKSPACE_DIR);
+  console.info("Test logs writing to directory: ", TEST_OUTPUT_LOGS_DIR);
 
-  console.info("Test logs writing to directory: ", TEST_LOGS_DIR);
+  // Close all open text documents before each test to ensure clean state
+  mocha.suite.beforeEach(async function () {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
 
-  mocha.suite.afterEach(function (this: Mocha.Context) {
-    rotateTestLogs(this.currentTest);
+  mocha.suite.afterEach(async function (this: Mocha.Context) {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    logs.rotate(this.currentTest);
+    await workspace.restore();
   });
 
   return new Promise((resolve, reject) => {

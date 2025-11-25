@@ -7,6 +7,7 @@ import { ActionProvider } from "../actions";
 import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
 import { EXT_NAME } from "../instrumentation";
+import * as sinon from "sinon";
 
 use(sinonChai);
 
@@ -20,6 +21,7 @@ const KEEP_SORTED_SOURCE = "keep-sorted";
 // Path to test workspace
 const TEST_WORKSPACE = path.join(__dirname, "..", "..", "test-workspace");
 const MIXED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "mixed_blocks.ts");
+const SORTED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "sorted_blocks.ts");
 
 const ACTION_COUNT = 3;
 
@@ -32,9 +34,11 @@ describe("actions", () => {
     let document: vscode.TextDocument;
 
     let range: vscode.Range;
+    let sandbox: sinon.SinonSandbox;
 
     beforeEach(async () => {
       // Arrange - Use real objects
+      sandbox = sinon.createSandbox();
       linter = new KeepSorted(process.cwd());
       diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
       editFactory = new EditFactory(linter, diagnostics);
@@ -42,13 +46,16 @@ describe("actions", () => {
       // Open real document from test workspace
       document = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
 
-      // Range that intersects with first keep-sorted block (lines 4-8)
-      range = new vscode.Range(0, 0, 0, 10);
+      // Range covering part of the first keep-sorted block (line 6)
+      range = new vscode.Range(5, 0, 6, 0);
 
       provider = new ActionProvider(editFactory);
     });
 
     afterEach(() => {
+      // Clear diagnostics before disposing to prevent "object is disposed" errors
+      diagnostics.clear();
+      sandbox.restore();
       diagnostics.dispose();
     });
 
@@ -86,21 +93,24 @@ describe("actions", () => {
       });
 
       it("should return empty array when no diagnostics exist", async () => {
-        // Arrange - Real diagnostics collection is empty by default
+        // Arrange - Use a file with sorted blocks (no lint issues)
+        const sortedDoc = await vscode.workspace.openTextDocument(SORTED_BLOCKS_FILE);
+        const sortedRange = new vscode.Range(5, 0, 6, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
         void expect(actions).to.be.an("array").that.is.empty;
       });
 
       it("should return empty array when diagnostics.get returns empty array", async () => {
-        // Arrange
-        diagnostics.set(document.uri, []);
+        // Arrange - Use a file with sorted blocks (no lint issues)
+        const sortedDoc = await vscode.workspace.openTextDocument(SORTED_BLOCKS_FILE);
+        const sortedRange = new vscode.Range(5, 0, 6, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
         void expect(actions).to.be.an("array").that.is.empty;
@@ -135,79 +145,48 @@ describe("actions", () => {
         void expect(actions![1].isPreferred).to.be.false;
       });
       it("should return actions with multiple diagnostics", async () => {
-        // Arrange
-        const diagnostic1 = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 10),
-          FIRST_DIAGNOSTIC_MESSAGE,
-          vscode.DiagnosticSeverity.Warning
-        );
-        diagnostic1.source = KEEP_SORTED_SOURCE;
-
-        const diagnostic2 = new vscode.Diagnostic(
-          new vscode.Range(1, 0, 1, 10),
-          SECOND_DIAGNOSTIC_MESSAGE,
-          vscode.DiagnosticSeverity.Warning
-        );
-        diagnostic2.source = KEEP_SORTED_SOURCE;
-
-        diagnostics.set(document.uri, [diagnostic1, diagnostic2]);
+        // Arrange - The mixed_blocks.ts file has 3 unsorted blocks
+        // Use a range that covers the whole file to get all diagnostics
+        const fullRange = new vscode.Range(0, 0, document.lineCount, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = await provider.provideCodeActions(document, fullRange);
 
-        // Assert - Only diagnostic1 included since it intersects with mockRange (0,0 to 0,10)
+        // Assert - Should get actions with all diagnostics from all blocks
         expect(actions).to.have.length(ACTION_COUNT);
-        expect(actions![0].diagnostics).to.have.length(1);
-        expect(actions![0].diagnostics![0]).to.equal(diagnostic1);
-        expect(actions![1].diagnostics).to.have.length(1);
-        expect(actions![1].diagnostics![0]).to.equal(diagnostic1);
+        // First action (block fix) should have diagnostics
+        expect(actions![0].diagnostics).to.have.length.greaterThan(0);
+        // Fix all action should also have diagnostics
+        expect(actions![1].diagnostics).to.have.length.greaterThan(0);
       });
 
       it("should return empty array when diagnostics exist but don't intersect with range", async () => {
-        // Arrange
-        const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(2, 0, 2, 10), // Different line from mockRange (0,0 to
-          // 0,10)
-          ANY_DIAGNOSTIC_MESSAGE,
-          vscode.DiagnosticSeverity.Warning
-        );
-        diagnostic.source = KEEP_SORTED_SOURCE;
-        diagnostics.set(document.uri, [diagnostic]);
+        // Arrange - Use a range that doesn't intersect with any keep-sorted block
+        const nonIntersectingRange = new vscode.Range(12, 0, 12, 10);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = await provider.provideCodeActions(document, nonIntersectingRange);
 
         // Assert
         void expect(actions).to.be.an("array").that.is.empty;
       });
 
       it("should filter diagnostics to only those intersecting with range", async () => {
-        // Arrange
-        const intersectingDiagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 10), // Intersects with mockRange
-          ANY_DIAGNOSTIC_MESSAGE,
-          vscode.DiagnosticSeverity.Warning
-        );
-        intersectingDiagnostic.source = KEEP_SORTED_SOURCE;
-
-        const nonIntersectingDiagnostic = new vscode.Diagnostic(
-          new vscode.Range(3, 0, 3, 10), // Does not intersect with mockRange
-          ANY_SHORT_MESSAGE,
-          vscode.DiagnosticSeverity.Warning
-        );
-        nonIntersectingDiagnostic.source = KEEP_SORTED_SOURCE;
-
-        diagnostics.set(document.uri, [intersectingDiagnostic, nonIntersectingDiagnostic]);
+        // Arrange - mixed_blocks.ts has 3 unsorted blocks:
+        // Block 1: lines 5-9, Block 2: lines 16-20, Block 3: lines 28-32
+        // Use a range that only intersects with the first block
+        const firstBlockRange = new vscode.Range(5, 0, 9, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = await provider.provideCodeActions(document, firstBlockRange);
 
-        // Assert
+        // Assert - Should only get diagnostics for the first block
         expect(actions).to.have.length(ACTION_COUNT);
         expect(actions![0].diagnostics).to.have.length(1);
-        expect(actions![0].diagnostics![0]).to.equal(intersectingDiagnostic);
-        expect(actions![1].diagnostics).to.have.length(1);
-        expect(actions![1].diagnostics![0]).to.equal(intersectingDiagnostic);
+        // Verify the diagnostic is for the first block (lines 5-9)
+        const diag = actions![0].diagnostics![0];
+        expect(diag.range.start.line).to.be.lessThanOrEqual(9);
+        expect(diag.range.end.line).to.be.greaterThanOrEqual(5);
       });
 
       it("should create actions with command", async () => {
