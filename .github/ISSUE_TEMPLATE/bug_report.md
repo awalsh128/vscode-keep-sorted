@@ -36,14 +36,23 @@ A clear and concise description of what actually happened.
 
 Please include relevant logs from the keep-sorted output channel:
 
+### Option 1: Log to file (preferred)
+
+The extension can be configured to write logs to a file and attached to this issue.
+
+```json
+{
+  "keep-sorted.enabled": false,
+  "keep-sorted.logFilepath": "log/keep-sorted.log"
+}
+```
+
+### Option 2: Copy / Paste from Output Channel
+
 1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
 2. Type "Output: Show Output Channels"
 3. Select "keep-sorted"
 4. Copy and paste relevant error messages below:
-
-```
-Paste logs here
-```
 
 ## Additional Context
 

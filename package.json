@@ -4,7 +4,7 @@
   "displayName": "Keep Sorted",
   "description": "VS Code extension to automatically keep code blocks sorted",
   "version": "0.0.1",
-  "icon": "vsks-simple.png",
+  "icon": "logo.png",
   "publisher": "awalsh128",
   "author": {
     "name": "awalsh128"
