@@ -19,7 +19,7 @@
     "url": "https://github.com/awalsh128/vscode-keep-sorted/issues"
   },
   "engines": {
-    "vscode": "^0.0.1"
+    "vscode": "^1.100.0"
   },
   "keywords": [
     "sort",
