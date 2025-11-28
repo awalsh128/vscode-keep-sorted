@@ -19,13 +19,7 @@
     "url": "https://github.com/awalsh128/vscode-keep-sorted/issues"
   },
   "engines": {
-    "vscode": "^1.100.0"
-  },
-  "mocha": {
-    "spec": "out/test/**/*.test.js",
-    "require": [
-      "source-map-support/register"
-    ]
+    "vscode": "^0.0.1"
   },
   "keywords": [
     "sort",
@@ -95,7 +89,6 @@
     "test:runner": "npm run compile && node ./out/test/runTest.js",
     "create-binaries": "tsx scripts/create-binaries.ts",
     "clean": "rimraf out/",
-    "prebuild": "npm run clean",
     "refreshlock": "npm i --package-lock-only"
   },
   "devDependencies": {
@@ -103,6 +96,7 @@
     "@stylistic/eslint-plugin": "^2.9.0",
     "@types/chai": "^5.2.3",
     "@types/chai-as-promised": "^8.0.2",
+    "chai-as-promised": "^8.0.2",
     "@types/logform": "^1.2.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22",
@@ -128,16 +122,10 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0",
-    "typescript-lru-cache": "^2.0.0",
-    "winston": "^3.18.3",
-    "winston-transport-vscode": "^0.1.0"
+    "winston": "^3.18.3"
   },
   "dependencies": {
-    "async-mutex": "^0.5.0",
-    "chai-as-promised": "^8.0.2",
-    "chalk": "^5.6.2",
     "glob-regex": "^0.3.2",
-    "limiter": "^3.0.0",
     "lru-cache": "^11.2.2"
   }
 }
