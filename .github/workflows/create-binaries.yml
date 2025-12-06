@@ -22,7 +22,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
-          go-version: "1.21"
+          # keep-sorted v0.7.1 requires go >= 1.23.1, make sure CI uses a compatible toolchain
+          go-version: "1.23.1"
           cache: false
 
       - name: Setup Node.js
@@ -49,7 +50,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
-          go-version: "1.21"
+          # ensure the runner's Go version meets remote package minimums
+          go-version: "1.23.1"
           cache: false
 
       - name: Setup Node.js

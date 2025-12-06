@@ -16,28 +16,48 @@ const PLATFORMS = [
   { goos: "linux", goarch: "amd64", filename: "keep-sorted-linux-amd64" },
 ] as const;
 
+function ensureGoVersion(minVersion = "1.23.1") {
+  try {
+    const output = execSync("go version", { encoding: "utf-8" }).trim();
+    console.log("go version output:", output);
+
+    // output example: go version go1.21.13 linux/amd64
+    const m = output.match(/go(?:version)?\s+go([0-9.]+(?:\.[0-9]+)*)/i);
+    if (!m) {
+      throw new Error("unable to parse go version from: " + output);
+    }
+    const installed = m[1];
+
+    const installedParts = installed.split(".").map((s) => parseInt(s, 10));
+    const needParts = minVersion.split(".").map((s) => parseInt(s, 10));
+
+    for (let i = 0; i < needParts.length; i++) {
+      const a = installedParts[i] ?? 0;
+      const b = needParts[i] ?? 0;
+      if (a > b) {
+        return; // good
+      }
+      if (a < b) {
+        throw new Error(`Go ${minVersion} or newer is required (installed: ${installed})`);
+      }
+    }
+  } catch (err) {
+    throw new Error(`Go check failed: ${(err as Error).message}`);
+  }
+}
+
 function buildBinary(
-  platform: (typeof PLATFORMS)[number],
-  goPath: string,
-  hostGoos: string,
-  hostGoarch: string
+  platform: (typeof PLATFORMS)[number]
 ): void {
+  const outputPath = join(BIN_DIR, platform.filename);
+
   console.log(`Building ${platform.filename} (${platform.goos}/${platform.goarch})...`);
 
-  execSync(`go install github.com/google/keep-sorted@${KEEP_SORTED_VERSION}`, {
+  // Build directly to the desired location using GOOS/GOARCH so we don't rely on GOPATH/GOBIN rules
+  execSync(`env CGO_ENABLED=0 GOOS=${platform.goos} GOARCH=${platform.goarch} go build -o "${outputPath}" github.com/google/keep-sorted@${KEEP_SORTED_VERSION}`, {
     stdio: "inherit",
-    env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
+    env: { ...process.env },
   });
-
-  // Determine installed path based on whether it's a native or cross-compiled build
-  const isNative = platform.goos === hostGoos && platform.goarch === hostGoarch;
-  const binaryName = platform.goos === "windows" ? "keep-sorted.exe" : "keep-sorted";
-  const installedPath = isNative
-    ? join(goPath, "bin", binaryName)
-    : join(goPath, "bin", `${platform.goos}_${platform.goarch}`, binaryName);
-
-  const outputPath = join(BIN_DIR, platform.filename);
-  execSync(`mv "${installedPath}" "${outputPath}"`, { stdio: "inherit" });
 
   if (platform.goos !== "windows") {
     chmodSync(outputPath, 0o755);
@@ -54,12 +74,16 @@ function buildBinary(
 
 mkdirSync(BIN_DIR, { recursive: true });
 
-// Cache go env values
+// Ensure the runner has a sufficiently new Go toolchain
+ensureGoVersion("1.23.1");
+
+// Cache go env values and print them for diagnostics
 const goPath = execSync("go env GOPATH", { encoding: "utf-8" }).trim();
 const hostGoos = execSync("go env GOOS", { encoding: "utf-8" }).trim();
 const hostGoarch = execSync("go env GOARCH", { encoding: "utf-8" }).trim();
+console.log("GOPATH:", goPath, "host:", hostGoos + '/' + hostGoarch);
 
 // Build all platforms
 for (const platform of PLATFORMS) {
-  buildBinary(platform, goPath, hostGoos, hostGoarch);
+  buildBinary(platform);
 }
