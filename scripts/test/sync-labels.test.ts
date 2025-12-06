@@ -124,49 +124,49 @@ labels:
   describe("needsUpdate", () => {
     [
       {
-        description: "returns false when label matches exactly",
+        description: "label matches exactly",
         existing: { color: COLOR, description: DESCRIPTION },
         desired: { name: NAME, color: COLOR_WITH_HASH, description: DESCRIPTION },
         expected: false,
       },
       {
-        description: "returns false when color matches without #",
+        description: "color matches without #",
         existing: { color: COLOR, description: DESCRIPTION },
         desired: { name: NAME, color: COLOR, description: DESCRIPTION },
         expected: false,
       },
       {
-        description: "returns true when color differs",
+        description: "color differs",
         existing: { color: COLOR, description: DESCRIPTION },
         desired: { name: NAME, color: `#${OTHER_COLOR}`, description: DESCRIPTION },
         expected: true,
       },
       {
-        description: "returns true when description differs",
+        description: "description differs",
         existing: { color: COLOR, description: DESCRIPTION },
         desired: { name: NAME, color: COLOR_WITH_HASH, description: OTHER_DESCRIPTION },
         expected: true,
       },
       {
-        description: "returns true when existing description is null and desired has value",
+        description: "existing description is null and desired has value",
         existing: { color: COLOR, description: null },
         desired: { name: NAME, color: COLOR_WITH_HASH, description: DESCRIPTION },
         expected: true,
       },
       {
-        description: "returns true when existing is null and desired is undefined",
+        description: "existing is null and desired is undefined",
         existing: { color: COLOR, description: null },
         desired: { name: NAME, color: COLOR_WITH_HASH },
         expected: true,
       },
       {
-        description: "returns false when existing is empty and desired is undefined",
+        description: "existing is empty and desired is undefined",
         existing: { color: COLOR, description: "" },
         desired: { name: NAME, color: COLOR_WITH_HASH },
         expected: false,
       },
     ].forEach(({ description, existing, desired, expected }) => {
-      it(`should ${description}`, () => {
+      it(`should returns false ${expected} when ${description}`, () => {
         expect(needsUpdate(existing, desired)).to.equal(expected);
       });
     });

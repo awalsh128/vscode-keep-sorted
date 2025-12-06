@@ -72,9 +72,6 @@ describe("extension", () => {
       // Act - Execute the fix command
       await vscode.commands.executeCommand(FixFileCommandHandler.COMMAND.command);
 
-      // Wait for async fix processing
-      await delay(2000);
-
       // Assert - Verify document content has been changed
 
       expect(document.getText()).to.equal(

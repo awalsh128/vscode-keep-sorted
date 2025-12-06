@@ -101,7 +101,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
-        void expect(actions).to.be.an("array").that.is.empty;
+        expect(actions).to.be.an("array").that.has.lengthOf(0);
       });
 
       it("should return empty array when diagnostics.get returns empty array", async () => {
@@ -113,7 +113,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
-        void expect(actions).to.be.an("array").that.is.empty;
+        expect(actions).to.be.an("array").that.has.lengthOf(0);
       });
 
       it("should return both block fix and fix all actions when diagnostics exist", async () => {
@@ -136,13 +136,13 @@ describe("actions", () => {
         expect(actions![0].title).to.equal("Sort all lines in block (keep-sorted)");
         expect(actions![0].kind).to.equal(vscode.CodeActionKind.QuickFix);
         expect(actions![0].diagnostics).to.have.length.greaterThan(0);
-        void expect(actions![0].isPreferred).to.be.true;
+        expect(actions![0].isPreferred).to.equal(true);
 
         // Second action should be fix all
         expect(actions![1].title).to.equal("Sort all lines in file (keep-sorted)");
         expect(actions![1].kind).to.equal(vscode.CodeActionKind.SourceFixAll);
         expect(actions![1].diagnostics).to.have.length.greaterThan(0);
-        void expect(actions![1].isPreferred).to.be.false;
+        expect(actions![1].isPreferred).to.equal(false);
       });
       it("should return actions with multiple diagnostics", async () => {
         // Arrange - The mixed_blocks.ts file has 3 unsorted blocks
@@ -168,7 +168,7 @@ describe("actions", () => {
         const actions = await provider.provideCodeActions(document, nonIntersectingRange);
 
         // Assert
-        void expect(actions).to.be.an("array").that.is.empty;
+        expect(actions).to.be.an("array").that.has.lengthOf(0);
       });
 
       it("should filter diagnostics to only those intersecting with range", async () => {
@@ -185,8 +185,8 @@ describe("actions", () => {
         expect(actions![0].diagnostics).to.have.length(1);
         // Verify the diagnostic is for the first block (lines 5-9)
         const diag = actions![0].diagnostics![0];
-        expect(diag.range.start.line).to.be.lessThanOrEqual(9);
-        expect(diag.range.end.line).to.be.greaterThanOrEqual(5);
+        expect(diag.range.start.line <= 9).to.equal(true);
+        expect(diag.range.end.line >= 5).to.equal(true);
       });
 
       it("should create actions with command", async () => {
@@ -211,12 +211,12 @@ describe("actions", () => {
         expect(blockAction.title).to.equal("Sort all lines in block (keep-sorted)");
         expect(blockAction.kind).to.equal(vscode.CodeActionKind.QuickFix);
         expect(blockAction.diagnostics).to.have.length.greaterThan(0);
-        void expect(blockAction.isPreferred).to.be.true;
+        expect(blockAction.isPreferred).to.equal(true);
 
         // Check fix all action
         expect(fixAllAction.title).to.equal("Sort all lines in file (keep-sorted)");
         expect(fixAllAction.kind).to.equal(vscode.CodeActionKind.SourceFixAll);
-        void expect(fixAllAction.isPreferred).to.be.false;
+        expect(fixAllAction.isPreferred).to.equal(false);
       });
 
       it("should create actions with edits", async () => {
@@ -241,9 +241,9 @@ describe("actions", () => {
         const fixFileAction = actions![2];
 
         // Verify both actions have edits
-        void expect(blockAction.edit).to.not.be.undefined;
-        void expect(fixAllSrcAction.edit).to.not.be.undefined;
-        void expect(fixFileAction.edit).to.not.be.undefined;
+        expect(blockAction.edit).to.not.equal(undefined);
+        expect(fixAllSrcAction.edit).to.not.equal(undefined);
+        expect(fixFileAction.edit).to.not.equal(undefined);
 
         // TODO: Fix this test - the edit is created but appears to be empty
         // This might be due to how the linter interacts with the test document
@@ -290,12 +290,12 @@ describe("actions", () => {
           (a) => a.title === "Sort all lines in file (keep-sorted)"
         );
 
-        void expect(blockAction).to.not.be.undefined;
-        void expect(fixAllAction).to.not.be.undefined;
+        expect(blockAction).to.not.equal(undefined);
+        expect(fixAllAction).to.not.equal(undefined);
 
         // Block fix should be preferred, fix all should not
-        void expect(blockAction!.isPreferred).to.be.true;
-        void expect(fixAllAction!.isPreferred).to.be.false;
+        expect(blockAction!.isPreferred).to.equal(true);
+        expect(fixAllAction!.isPreferred).to.equal(false);
 
         // Different action kinds
         expect(blockAction!.kind).to.equal(vscode.CodeActionKind.QuickFix);
@@ -329,9 +329,9 @@ describe("actions", () => {
           (a) => a.title === "Sort all lines in block (keep-sorted)"
         );
 
-        void expect(blockAction).to.not.be.undefined;
+        expect(blockAction).to.not.equal(undefined);
         // Actions now have edits directly, no command arguments
-        void expect(blockAction!.edit).to.not.be.undefined;
+        expect(blockAction!.edit).to.not.equal(undefined);
       });
     });
   });
