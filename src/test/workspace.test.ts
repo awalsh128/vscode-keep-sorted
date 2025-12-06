@@ -8,8 +8,6 @@ import * as configuration from "../configuration";
 
 use(sinonChai);
 
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-
 describe("workspace", () => {
   let sandbox: sinon.SinonSandbox;
 
@@ -30,7 +28,7 @@ describe("workspace", () => {
       const result = workspace.isInScope(uri);
 
       // Assert
-      expect(result).to.be.false;
+      expect(result).to.equal(false);
     });
 
     it("returns true for file scheme when not excluded", () => {
@@ -43,7 +41,7 @@ describe("workspace", () => {
       const result = workspace.isInScope(uri);
 
       // Assert
-      expect(result).to.be.true;
+      expect(result).to.equal(true);
     });
 
     it("returns false when excluded by configuration", () => {
@@ -56,7 +54,7 @@ describe("workspace", () => {
       const result = workspace.isInScope(uri);
 
       // Assert
-      expect(result).to.be.false;
+      expect(result).to.equal(false);
     });
   });
 

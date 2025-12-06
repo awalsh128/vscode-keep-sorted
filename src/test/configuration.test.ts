@@ -12,8 +12,6 @@ import {
 
 use(sinonChai);
 
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-
 // Constants for test values
 const KEEP_SORTED_CONFIG_NAMESPACE = "keep-sorted";
 const DEFAULT_ENABLED = true;
@@ -140,7 +138,7 @@ describe("configuration", () => {
       const result = handleConfigurationChange(mockEvent);
 
       // Assert
-      expect(result).to.be.true;
+      expect(result).to.equal(true);
       expect(mockEvent.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
     });
 
@@ -154,7 +152,7 @@ describe("configuration", () => {
       const result = handleConfigurationChange(mockEvent);
 
       // Assert
-      expect(result).to.be.false;
+      expect(result).to.equal(false);
       expect(mockEvent.affectsConfiguration).to.have.been.calledWith(KEEP_SORTED_CONFIG_NAMESPACE);
     });
 

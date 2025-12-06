@@ -6,8 +6,6 @@ import { TEST_WORKSPACE_DIR } from "./testing";
 import * as workspace from "../workspace";
 import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "../commands";
 
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-
 describe("extension", () => {
   const SAMPLE_TS_FILENAME = "sample.ts";
   const SAMPLE_SORTED_TS_FILENAME = "sample_sorted.ts";
@@ -17,7 +15,8 @@ describe("extension", () => {
     const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
 
     // Act & Assert
-    expect(extension.activate()).to.not.be.rejected.and.not.null;
+    await expect(extension.activate()).to.not.be.rejected;
+    expect(extension.isActive).to.equal(true);
   });
 
   const getDocument = async (filename?: string | vscode.Uri) => {
@@ -89,9 +88,9 @@ describe("extension", () => {
       await delay(3000);
 
       // Assert - Verify all documents are fixed
-      (await workspace.inScopeUris()).forEach(async (uri) => {
-        expect(vscode.languages.getDiagnostics(uri)).to.be.empty;
-      });
+      for (const uri of await workspace.inScopeUris()) {
+        expect(vscode.languages.getDiagnostics(uri)).to.have.lengthOf(0);
+      }
     });
   });
 });

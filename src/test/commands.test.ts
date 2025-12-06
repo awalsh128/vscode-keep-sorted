@@ -50,7 +50,7 @@ describe("commands", () => {
       await handler.handle();
 
       // Assert - applyEdit should not have been called
-      void expect(applyEditStub).to.not.have.been.called;
+      expect(applyEditStub.called).to.equal(false);
     });
 
     it("should do nothing when editFactory.create returns null", async () => {
@@ -65,7 +65,7 @@ describe("commands", () => {
       await handler.handle();
 
       // Assert - applyEdit should not have been called
-      void expect(applyEditStub).to.not.have.been.called;
+      expect(applyEditStub.called).to.equal(false);
     });
 
     it("should apply edit when editFactory.create returns valid result", async () => {
@@ -88,9 +88,9 @@ describe("commands", () => {
       await handler.handle();
 
       // Assert - applyEdit should have been called with a WorkspaceEdit
-      void expect(applyEditStub).to.have.been.calledOnce;
+      expect(applyEditStub.calledOnce).to.equal(true);
       const editArg = applyEditStub.firstCall.args[0];
-      void expect(editArg).to.be.instanceOf(vscode.WorkspaceEdit);
+      expect(editArg).to.be.an.instanceOf(vscode.WorkspaceEdit);
     });
   });
 
@@ -110,7 +110,7 @@ describe("commands", () => {
 
       // Assert - applyEdit may or may not be called depending on whether files have diagnostics
       // Just verify the method completes without errors
-      void expect(handler.handle()).to.eventually.be.fulfilled;
+      await expect(handler.handle()).to.eventually.be.fulfilled;
     });
 
     it("should skip files with no diagnostics", async function () {
@@ -126,7 +126,7 @@ describe("commands", () => {
 
       // Assert - Handler should complete without errors
       // The actual number of edits depends on workspace state
-      void expect(Promise.resolve()).to.eventually.be.fulfilled;
+      await expect(Promise.resolve()).to.eventually.be.fulfilled;
     });
 
     it("should apply edits when files have diagnostics", async function () {
@@ -143,7 +143,7 @@ describe("commands", () => {
       // Assert - Verify the handler completes without errors
       // In a real scenario with unsorted blocks and diagnostics set,
       // applyEdit would be called. For this test, we just verify completion.
-      void expect(Promise.resolve()).to.eventually.be.fulfilled;
+      await expect(Promise.resolve()).to.eventually.be.fulfilled;
     });
   });
 
@@ -167,7 +167,7 @@ describe("commands", () => {
     await handler.handle();
 
     // Assert
-    void expect(applyEditStub).to.have.been.called;
+    expect(applyEditStub.called).to.equal(true);
   });
 
   it("should execute fixWorkspace command without errors", async function () {

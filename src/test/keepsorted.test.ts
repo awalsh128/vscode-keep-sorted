@@ -13,8 +13,6 @@ import chaiAsPromised from "chai-as-promised";
 use(sinonChai);
 use(chaiAsPromised);
 
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-
 describe("KeepSorted", () => {
   const errorMessage = "test error message";
   const sortedText = `const alpha = 1;
@@ -108,7 +106,7 @@ const beta = 2;
       const result = await keepSorted.lintDocument(mockDocument(sortedTextBlock));
 
       // Assert
-      expect(result).to.be.an("array").that.is.empty;
+      expect(result).to.be.an("array").that.has.lengthOf(0);
     });
 
     it("should return diagnostics for unsorted content", async function () {
@@ -181,7 +179,7 @@ const beta = 2;
       const result = await keepSorted.fixDocument(mockDocument(unsortedTextBlock), range);
 
       // Assert
-      expect(result).to.not.be.null;
+      expect(result).to.not.equal(null);
       expect(result?.content).to.equal(sortedText);
     });
 
@@ -193,7 +191,7 @@ const beta = 2;
       const result = await keepSorted.fixDocument(mockDocument(sortedTextBlock), range);
 
       // Assert - Content is returned unchanged (binary doesn't distinguish "already sorted")
-      expect(result).to.not.be.null;
+      expect(result).to.not.equal(null);
       expect(result?.content).to.equal(sortedTextBlock);
     });
 
