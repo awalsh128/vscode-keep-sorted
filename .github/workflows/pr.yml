@@ -6,13 +6,27 @@ on:
       - main
 
 jobs:
+  dependabot-auto-approve:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Approve Dependabot PR
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   check-binaries-not-in-pr:
     name: Check binaries are not included in PR
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@v6
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+
       - name: Check for binary changes
         run: |
           if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^bin/'; then
