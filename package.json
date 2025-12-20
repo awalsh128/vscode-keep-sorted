@@ -3,7 +3,7 @@
   "private": true,
   "displayName": "Keep Sorted",
   "description": "VS Code extension to automatically keep code blocks sorted",
-  "version": "0.0.2",
+  "version": "0.0.1",
   "icon": "logo.png",
   "publisher": "awalsh128",
   "author": {
