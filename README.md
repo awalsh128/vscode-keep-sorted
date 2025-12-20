@@ -9,6 +9,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md)
 [![CI](https://github.com/awalsh128/vscode-keep-sorted/workflows/CI/badge.svg)](https://github.com/awalsh128/vscode-keep-sorted/actions)
 [![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
 
 A lightweight VS Code extension that automatically keeps sorted blocks in your code organized using
 **[Google's Keep Sorted](https://github.com/google/keep-sorted)** formatter. Keep Sorted is a
