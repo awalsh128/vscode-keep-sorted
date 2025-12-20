@@ -1,4 +1,9 @@
-# VSCode Keep Sorted Extension
+<table width="100%">
+  <tr>
+    <td width="48"><img src="logo.png" alt="Logo" width="48" height="48"></td>
+    <td style="padding-left:1em"><h1>VSCode Keep Sorted Extension</h1></td>
+  </tr>
+</table>
 
 [![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/package.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md)
@@ -6,7 +11,7 @@
 [![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
 
 A lightweight VS Code extension that automatically keeps sorted blocks in your code organized using
-[Google's Keep Sorted](https://github.com/google/keep-sorted) formatter. Keep Sorted is a
+**[Google's Keep Sorted](https://github.com/google/keep-sorted)** formatter. Keep Sorted is a
 language-agnostic formatter that sorts lines between two markers in a larger file, helping maintain
 consistent ordering of imports, exports, configuration entries, and other list-like content.
 
