@@ -1,6 +1,6 @@
-<table width="100%">
+<table width="100%" style="table, tr, td, th { border: none; }">
   <tr>
-    <td width="48"><img src="logo.png" alt="Logo" width="48" height="48"></td>
+    <td width="48"><img src="logo.png" alt="Logo" width="128" height="128"></td>
     <td style="padding-left:1em"><h1>VSCode Keep Sorted Extension</h1></td>
   </tr>
 </table>
@@ -33,6 +33,8 @@ consistent ordering of imports, exports, configuration entries, and other list-l
 - 📝 **Output Channel Logging**: View extension activity in the VS Code Output panel
 - 🎛️ **Flexible Configuration**: File exclusion patterns, enable/disable toggle, and optional file
   logging
+- ✨ **Autocomplete for Options**: Get intelligent suggestions for keep-sorted options when typing
+  on a `keep-sorted start` line
 
 ## Configuration
 
