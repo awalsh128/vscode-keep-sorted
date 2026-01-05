@@ -12,6 +12,21 @@ export const EXT_NAME = "keep-sorted";
 /** Display friendly name of extension in VS Code. */
 export const EXT_DISPLAY_NAME = "Keep Sorted";
 
+/** Simple benchmarking to measure elapsed time. */
+export class Benchmark {
+  private readonly startTime: number;
+
+  constructor() {
+    this.startTime = performance.now();
+  }
+
+  /** Gets the elapsed time, in milliseconds, since creation as a formatted text string. */
+  getDeltaAsText(): string {
+    const endTime = performance.now();
+    return `${(endTime - this.startTime).toFixed(0)}ms`;
+  }
+}
+
 function createLeveledLog(logger: winston.Logger, level: string): winston.LeveledLogMethod {
   function logLevel(message: string, ...meta: unknown[]): winston.Logger;
   function logLevel(message: string): winston.Logger;
@@ -54,7 +69,7 @@ class OutputChannelTransport extends TransportStream {
     this.outputChannel = opts!.outputChannel;
   }
 
-  public log(info: TransformableInfo, next: () => void) {
+  log(info: TransformableInfo, next: () => void) {
     setImmediate(() => {
       this.emit("logged", info);
     });
@@ -158,10 +173,6 @@ function createLogger(): LazyLogger {
  */
 export const logger = createLogger();
 
-function uri(documentOrUri: vscode.TextDocument | vscode.Uri): vscode.Uri {
-  return documentOrUri instanceof vscode.Uri ? documentOrUri : documentOrUri.uri;
-}
-
 /** Logs an error and returns it so it can be handled / thrown. */
 export function logAndGetError(logger: winston.Logger, error: Error | string | unknown): Error {
   const getError = (error: Error | string | unknown): Error => {
@@ -189,14 +200,12 @@ function logFormat(info: TransformableInfo) {
  * range.
  */
 export function relevantDiagnostics(
-  documentOrUri: vscode.TextDocument | vscode.Uri,
+  diagnostics: vscode.DiagnosticCollection,
+  uri: vscode.Uri,
   range?: vscode.Range
-): vscode.Diagnostic[] {
-  const diagnostics = vscode.languages.getDiagnostics(uri(documentOrUri));
-  const relevantDiagnostics = range
-    ? diagnostics.filter((d) => d.range.intersection(range))
-    : diagnostics;
-  return relevantDiagnostics;
+): readonly vscode.Diagnostic[] {
+  const docDiagnostics = diagnostics.get(uri) || [];
+  return range ? docDiagnostics.filter((d) => d.range.intersection(range)) : docDiagnostics;
 }
 
 /**
@@ -229,16 +238,13 @@ export function setFileLogging(filepath?: string) {
 /**
  * Creates a contextualized logger for a specific document and optional range.
  *
- * @param documentOrUri The document or URI in scope for logging
+ * @param uri The document or URI in scope for logging
  * @param range Optional range in scope for evaluation
  *
  * @returns A ContextualLogger instance with the document and range context prefixed to all logs
  */
-export function contextualizeLogger(
-  documentOrUri: vscode.TextDocument | vscode.Uri,
-  range?: vscode.Range
-): LazyLogger {
-  const relativePath = vscode.workspace.asRelativePath(uri(documentOrUri));
+export function contextualizeLogger(uri: vscode.Uri, range?: vscode.Range): LazyLogger {
+  const relativePath = vscode.workspace.asRelativePath(uri);
   const meta = {
     documentRelativePath: relativePath,
     range: workspace.rangeText(range),

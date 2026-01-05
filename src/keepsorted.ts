@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
-import { spawn } from "child_process";
+import { spawnSync } from "child_process";
 import * as path from "path";
-import { EXT_NAME, logger, contextualizeLogger, logAndGetError } from "./instrumentation";
+import {
+  EXT_NAME,
+  logger,
+  contextualizeLogger,
+  logAndGetError,
+  Benchmark,
+} from "./instrumentation";
 import * as crypto from "crypto";
 
 /** Hash contents and return last 8 characters of the hash for brevity. */
@@ -121,10 +127,7 @@ export class KeepSorted {
     };
   }
 
-  async getSingleReplacement(
-    document: vscode.TextDocument,
-    findings: KeepSortedFinding[]
-  ): Promise<string | null> {
+  getSingleReplacement(findings: KeepSortedFinding[]): string | null {
     if (findings.length > 1) {
       return null;
     }
@@ -145,23 +148,25 @@ export class KeepSorted {
   }
 
   /** Fixes the specified range in the document and returns the fixed content. */
-  async fixDocument(
+  fixDocument(
     document: vscode.TextDocument,
     range?: vscode.Range
-  ): Promise<{ content: string; range: vscode.Range } | null> {
-    const findings = await this.getFindings(document, range);
+  ): { content: string; range: vscode.Range } | null {
+    const uri = document.uri;
+    const documentText = document.getText();
+    const findings = this.getFindings(uri, documentText, range);
     if (findings.length === 0) {
       // If linting the specified range returns no findings, attempt a whole-file fix as a
       // fallback. This handles cases where the CLI's range parsing may differ between
       // in-memory document representations and the on-disk file.
-      const fixed = await this.fixFileText(document);
+      const fixed = this.fixFileText(document);
       if (fixed === null) {
         // No findings to fix in either range or full-file
         throw new Error("No findings to fix");
       }
       return { content: fixed, range: new vscode.Range(0, 0, document.lineCount, 0) };
     }
-    const singleReplacement = await this.getSingleReplacement(document, findings);
+    const singleReplacement = this.getSingleReplacement(findings);
     if (singleReplacement) {
       return {
         content: singleReplacement,
@@ -169,11 +174,11 @@ export class KeepSorted {
       };
     }
     // Fix the entire file to avoid async file writes that can lead to file corruption
-    contextualizeLogger(document).warn(
-      `Multiple findings detected in document ${document.uri.fsPath}, ` +
+    contextualizeLogger(uri).warn(
+      `Multiple findings detected in document ${uri.fsPath}, ` +
         `falling back to full document fix to ensure consistency.`
     );
-    const fixed = await this.fixFileText(document);
+    const fixed = this.fixFileText(document);
     if (fixed === null) {
       throw new Error("No findings to fix");
     }
@@ -186,15 +191,15 @@ export class KeepSorted {
   /**
    * Lints the provided document and returns diagnostics for any findings.
    *
-   * @param document The document to lint
+   * @param uri The URI of the document to lint
    *
    * @returns An array of diagnostics
    *
    * @throws Error if the binary call fails
    */
-  async lintDocument(document: vscode.TextDocument): Promise<vscode.Diagnostic[]> {
-    const kpLogger = contextualizeLogger(document);
-    const findings = await this.getFindings(document);
+  lintDocument(document: vscode.TextDocument): vscode.Diagnostic[] {
+    const kpLogger = contextualizeLogger(document.uri);
+    const findings = this.getFindings(document.uri, document.getText());
     const diagnostics: vscode.Diagnostic[] = findings.map((finding) => {
       const kpRange = new KeepSortedRange(finding.lines.start, finding.lines.end);
       kpLogger.debug(
@@ -208,7 +213,7 @@ export class KeepSorted {
       );
       diagnostic.source = EXT_NAME;
       diagnostic.code = {
-        value: "help",
+        value: "docs",
         target: vscode.Uri.parse("https://github.com/google/keep-sorted/blob/main/README.md"),
       };
       return diagnostic;
@@ -218,12 +223,12 @@ export class KeepSorted {
     return diagnostics;
   }
 
-  private async fixFileText(document: vscode.TextDocument): Promise<string | null> {
-    const kpLogger = contextualizeLogger(document);
+  private fixFileText(document: vscode.TextDocument): string | null {
+    const kpLogger = contextualizeLogger(document.uri);
     const documentText = document.getText();
     const hashValue = hash(documentText);
 
-    const { code, stdout, stderr } = await this.spawnCommand(
+    const { code, stdout, stderr } = this.spawnCommand(
       ["--mode", "fix", "-"],
       document.uri,
       documentText
@@ -245,19 +250,16 @@ export class KeepSorted {
     throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
   }
 
-  private async getFindings(
-    document: vscode.TextDocument,
+  private getFindings(
+    documentUri: vscode.Uri,
+    documentText: string,
     range?: vscode.Range
-  ): Promise<KeepSortedFinding[]> {
-    const kpLogger = contextualizeLogger(document);
+  ): KeepSortedFinding[] {
+    const kpLogger = contextualizeLogger(documentUri);
     const args = range
       ? ["--mode", "lint", "--lines", `${KeepSortedRange.fromVscode(range)}`, "-"]
       : ["--mode", "lint", "-"];
-    const { code, stdout, stderr } = await this.spawnCommand(
-      args,
-      document.uri,
-      document.getText()
-    );
+    const { code, stdout, stderr } = this.spawnCommand(args, documentUri, documentText);
     if (code === 0) {
       // No issues found
       return [];
@@ -276,7 +278,7 @@ export class KeepSorted {
     throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
   }
 
-  // Usage: keep-sorted-linux-amd64 [flags] file1 [file2 ...]
+  // Usage: keep-sorted [flags] file1 [file2 ...]
   //
   // Note that '-' can be used to read from stdin, in which case the output is written to stdout.
   //
@@ -299,58 +301,38 @@ export class KeepSorted {
   //                                   One of ["fix", "lint"] (default fix)
   //   -v, --verbose count             Log more verbosely
   //       --version                   Report the keep-sorted version.
-  private async spawnCommand(
+  private spawnCommand(
     args: string[],
     uri: vscode.Uri,
     stdin: string
-  ): Promise<{ code: number; stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-      const spawnLogger = contextualizeLogger(uri);
-      // <binary> <args> <document paths>...
-      const command = `${this.binaryFilename} ${args.join(" ")} <text from ${uri.fsPath}>`;
-      spawnLogger.trace(`Spawning "${command}"`);
+  ): { code: number; stdout: string; stderr: string } {
+    const spawnLogger = contextualizeLogger(uri);
+    // <binary> <args> <document paths>...
+    const command = `${this.binaryFilename} ${args.join(" ")} <text from ${uri.fsPath}>`;
+    spawnLogger.trace(`Spawning "${command}"`);
 
-      const startTime = performance.now();
-      function getExecTimeText(): string {
-        const endTime = performance.now();
-        return `${(endTime - startTime).toFixed(0)}ms`;
-      }
+    const benchmark = new Benchmark();
 
-      const child = spawn(this.binaryPath, args, {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      let stdout = "";
-      let stderr = "";
-
-      child.stdout.on("data", (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      child.on("close", (code) => {
-        spawnLogger.debug(`${command} exited (time: ${getExecTimeText()}, code: ${code})`);
-        if (code !== 0 && code !== 1) {
-          spawnLogger.error(`${command} error output: ${stderr}`);
-        }
-        resolve({ code: code ?? 1, stdout, stderr });
-      });
-
-      child.on("error", (error) => {
-        spawnLogger.error(
-          `Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`
-        );
-        const errorMessage = `Failed to spawn ${command}: ${error.message} (time: ${getExecTimeText()})`;
-        spawnLogger.error(errorMessage);
-        reject(new Error(errorMessage));
-      });
-
-      // Write text content to stdin
-      child.stdin.write(stdin);
-      child.stdin.end();
+    const result = spawnSync(this.binaryPath, args, {
+      input: stdin,
+      encoding: "utf8",
     });
+
+    const code = result.status ?? 1;
+    const stdout = result.stdout ?? "";
+    const stderr = result.stderr ?? "";
+
+    spawnLogger.debug(`${command} exited (time: ${benchmark.getDeltaAsText()}, code: ${code})`);
+    if (code !== 0 && code !== 1) {
+      spawnLogger.error(`${command} error output: ${stderr}`);
+    }
+
+    if (result.error) {
+      const errorMessage = `Failed to spawn ${command}: ${result.error.message} (time: ${benchmark.getDeltaAsText()})`;
+      spawnLogger.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return { code, stdout, stderr };
   }
 }

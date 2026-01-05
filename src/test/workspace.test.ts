@@ -5,6 +5,7 @@ import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as workspace from "../workspace";
 import * as configuration from "../configuration";
+import * as path from "path";
 
 use(sinonChai);
 
@@ -60,30 +61,33 @@ describe("workspace", () => {
 
   describe("inScopeUris", () => {
     it("filters non-file URI", async () => {
-      // Arrange
-      const file1 = vscode.Uri.parse("git:/repo/one.ts");
-      const file2 = vscode.Uri.file("/a/two.ts");
-      sandbox.stub(vscode.workspace, "findFiles").resolves([file1, file2]);
+      // Arrange - Open a real document so it appears in textDocuments
+      const testFilePath = path.join(__dirname, "..", "..", "test-workspace", "sample.ts");
+      const testDoc = await vscode.workspace.openTextDocument(testFilePath);
 
-      // Act
-      const results = (await workspace.inScopeUris()).map((uri) => uri.fsPath);
+      // Stub configuration.excluded to return null (not excluded)
+      sandbox.stub(configuration, "excluded").returns(null);
 
-      // Assert
-      expect(results).to.contain.members([file2.fsPath]);
+      // Act - inScopeDocuments uses vscode.workspace.textDocuments
+      const results = (await workspace.inScopeDocuments()).map((doc) => doc.uri.fsPath);
+
+      // Assert - Should contain the opened file (file scheme)
+      expect(results).to.contain(testDoc.uri.fsPath);
     });
 
     it("filters excluded URIs", async () => {
-      // Arrange
-      const file1 = vscode.Uri.parse("git:/repo/one.ts");
-      const file2 = vscode.Uri.file("/a/two.ts");
-      sandbox.stub(vscode.workspace, "findFiles").resolves([file1, file2]);
-      sandbox.stub(configuration, "excluded").withArgs(file2).returns(/two/);
+      // Arrange - Open a real document
+      const testFilePath = path.join(__dirname, "..", "..", "test-workspace", "sample.ts");
+      const testDoc = await vscode.workspace.openTextDocument(testFilePath);
+
+      // Stub configuration.excluded to return a regex that matches the file
+      sandbox.stub(configuration, "excluded").returns(/sample/);
 
       // Act
-      const results = (await workspace.inScopeUris()).map((uri) => uri.fsPath);
+      const results = (await workspace.inScopeDocuments()).map((doc) => doc.uri.fsPath);
 
-      // Assert
-      expect(results).to.not.contain.members([file2.fsPath]);
+      // Assert - Should NOT contain the excluded file
+      expect(results).to.not.contain(testDoc.uri.fsPath);
     });
   });
 });

@@ -50,11 +50,18 @@ const beta = 2;
     } as unknown as vscode.TextDocument;
   }
 
-  function mockChildProcess(exitCode: number, stdout: string, stderr = "") {
-    const spawnStub = sandbox.stub(childProcess, "spawn");
-    const mockProcess = createMockChildProcess(exitCode, stdout, stderr);
-    spawnStub.returns(mockProcess);
-    return spawnStub;
+  function mockSpawnSync(exitCode: number, stdout: string, stderr = "") {
+    const spawnSyncStub = sandbox.stub(childProcess, "spawnSync");
+    spawnSyncStub.returns({
+      status: exitCode,
+      stdout: Buffer.from(stdout),
+      stderr: Buffer.from(stderr),
+      pid: 12345,
+      output: [null, Buffer.from(stdout), Buffer.from(stderr)],
+      signal: null,
+      error: undefined,
+    });
+    return spawnSyncStub;
   }
 
   beforeEach(() => {
@@ -80,7 +87,7 @@ const beta = 2;
       sandbox.stub(process, "platform").value(platform);
       sandbox.stub(process, "arch").value(arch);
 
-      const spawnStub = mockChildProcess(0, "");
+      const spawnStub = mockSpawnSync(0, "");
       // Re-create KeepSorted to pick up stubbed platform/arch
       keepSorted = new KeepSorted(EXT_WORKSPACE_DIR);
 
@@ -103,7 +110,7 @@ const beta = 2;
       this.timeout(5000);
 
       // Act
-      const result = await keepSorted.lintDocument(mockDocument(sortedTextBlock));
+      const result = keepSorted.lintDocument(mockDocument(sortedTextBlock));
 
       // Assert
       expect(result).to.be.an("array").that.has.lengthOf(0);
@@ -114,22 +121,21 @@ const beta = 2;
       this.timeout(5000);
 
       // Act
-      const result = await keepSorted.lintDocument(mockDocument(unsortedTextBlock));
+      const result = keepSorted.lintDocument(mockDocument(unsortedTextBlock));
 
       // Assert
       expect(result).to.be.an("array").with.length.greaterThan(0);
-      expect(result![0].message).to.include("out of order");
-      expect(result![0].severity).to.equal(vscode.DiagnosticSeverity.Warning);
+      expect(result![0].message).to.equal("These lines are out of order.");
       expect(result![0].source).to.equal("keep-sorted");
     });
 
-    it(`should throw error on non-zero/non-one exit code`, async function () {
+    it(`should throw error on non-zero/non-one exit code`, function () {
       // Arrange
       this.timeout(5000);
-      mockChildProcess(2, "", errorMessage);
+      mockSpawnSync(2, "", errorMessage);
 
       // Act & Assert
-      await expect(keepSorted.lintDocument(mockDocument())).to.be.rejectedWith(Error, errorMessage);
+      expect(() => keepSorted.lintDocument(mockDocument())).to.throw(Error, /test error message/);
     });
 
     it("should lint test-workspace/sample.ts", async function () {
@@ -140,7 +146,7 @@ const beta = 2;
       const document = await vscode.workspace.openTextDocument(sampleUri);
 
       // Lint the document - should find unsorted blocks
-      const diagnostics = await keepSorted.lintDocument(document);
+      const diagnostics = keepSorted.lintDocument(document);
       expect(diagnostics).to.be.an("array").with.length.greaterThan(0);
       expect(
         diagnostics?.map((d) => {
@@ -159,15 +165,15 @@ const beta = 2;
   });
 
   describe("fixDocument", () => {
-    it("should throw error on non-zero/non-one exit code", async function () {
+    it("should throw error on non-zero/non-one exit code", function () {
       // Arrange
       this.timeout(5000);
-      mockChildProcess(2, "", errorMessage);
+      mockSpawnSync(2, "", errorMessage);
 
       // Act & Assert
-      await expect(keepSorted.fixDocument(mockDocument(), range)).to.be.rejectedWith(
+      expect(() => keepSorted.fixDocument(mockDocument(), range)).to.throw(
         Error,
-        errorMessage
+        /test error message/
       );
     });
 
@@ -188,7 +194,7 @@ const beta = 2;
       this.timeout(5000);
 
       // Act - The binary returns exit code 0 with the same content for already-sorted blocks
-      const result = await keepSorted.fixDocument(mockDocument(sortedTextBlock), range);
+      const result = keepSorted.fixDocument(mockDocument(sortedTextBlock), range);
 
       // Assert - Content is returned unchanged (binary doesn't distinguish "already sorted")
       expect(result).to.not.equal(null);
@@ -203,7 +209,7 @@ const beta = 2;
       const document = await vscode.workspace.openTextDocument(sampleUri);
 
       // Fix the entire document
-      const result = await keepSorted.fixDocument(
+      const result = keepSorted.fixDocument(
         document,
         new vscode.Range(0, 0, document.lineCount, 0)
       );
@@ -214,42 +220,3 @@ const beta = 2;
     });
   });
 });
-
-/** Creates a mock child process with event emitters for testing. */
-function createMockChildProcess(exitCode: number, stdout: string, stderr: string) {
-  const stdinMock = {
-    write: sinon.stub(),
-    end: sinon.stub(),
-  };
-
-  const stdoutMock = {
-    on: sinon.stub().callsFake((event: string, callback: (data: Buffer) => void) => {
-      if (event === "data" && stdout) {
-        // Simulate async data emission
-        setTimeout(() => callback(Buffer.from(stdout)), 0);
-      }
-    }),
-  };
-
-  const stderrMock = {
-    on: sinon.stub().callsFake((event: string, callback: (data: Buffer) => void) => {
-      if (event === "data" && stderr) {
-        setTimeout(() => callback(Buffer.from(stderr)), 0);
-      }
-    }),
-  };
-
-  const processMock = {
-    stdin: stdinMock,
-    stdout: stdoutMock,
-    stderr: stderrMock,
-    on: sinon.stub().callsFake((event: string, callback: (code: number) => void) => {
-      if (event === "close") {
-        // Simulate async close event
-        setTimeout(() => callback(exitCode), 0);
-      }
-    }),
-  };
-
-  return processMock as unknown as childProcess.ChildProcess;
-}

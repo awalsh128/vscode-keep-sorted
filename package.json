@@ -43,12 +43,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "keep-sorted.fixFile",
-        "title": "Keep Sorted: Fix Current File"
-      },
-      {
-        "command": "keep-sorted.fixWorkspace",
-        "title": "Keep Sorted: Fix Entire Workspace"
+        "command": "keep-sorted.sortFile",
+        "title": "Keep Sorted: Sort Current File"
       }
     ],
     "configuration": {
@@ -59,6 +55,11 @@
           "default": true,
           "description": "Enable or disable the keep-sorted extension"
         },
+        "keep-sorted.autoComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable autocomplete suggestions for keep-sorted options when typing after the 'start' keyword."
+        },
         "keep-sorted.exclude": {
           "type": "array",
           "items": {
@@ -67,15 +68,22 @@
           "default": [],
           "description": "Array of glob or regex patterns to exclude files from being processed by the extension (relative to the workspace root).",
           "examples": [
-            "**/node_modules/**",
-            "**/dist/**",
-            "^tests/[^1-9]\\w+.*\\.js"
+            [
+              "**/node_modules/**",
+              "**/dist/**",
+              "^tests/[^1-9]\\w+.*\\.js"
+            ]
           ]
         },
         "keep-sorted.logFilepath": {
           "type": "string",
           "default": "",
-          "description": "Optional. File path for logging output. If specified, logs will be written to the specified location. If empty or undefined, file logging is disabled. If a relative path is provided, it will be resolved relative to the workspace root."
+          "description": "File path for logging output. If specified, logs will be written to the specified location. If empty or undefined, file logging is disabled. If a relative path is provided, it will be resolved relative to the workspace root.",
+          "examples": [
+            "",
+            "keep-sorted.log",
+            "/var/log/keep-sorted.log"
+          ]
         }
       }
     }
@@ -111,6 +119,7 @@
     "chai": "^6.2.0",
     "chai-as-promised": "^8.0.2",
     "eslint": "^9.13.0",
+    "eslint-plugin-mocha": "^11.2.0",
     "logform": "^2.7.0",
     "mocha": "^11.7.4",
     "mocha-explorer-launcher-scripts": "^0.4.0",

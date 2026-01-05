@@ -1,17 +1,23 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
-import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "./commands";
+import {
+  SortBlockCommandHandler,
+  SortFileCommandHandler,
+  ShowDocsCommandHandler,
+} from "./commands";
 import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
+import { KeepSortedCompletionProvider } from "./completion";
 import {
   getConfig,
   handleConfigurationChange,
+  onAutoCompleteChange,
   onEnabledChange,
   onLogFilepathChange,
 } from "./configuration";
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   // Create output channel
   logger.info(`Activating extension ${EXT_NAME}...`);
 
@@ -19,55 +25,63 @@ export function activate(context: vscode.ExtensionContext) {
   const diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
   context.subscriptions.push(diagnostics);
   const editFactory = new workspace.EditFactory(linter, diagnostics);
-  const actionProvider = new ActionProvider(editFactory);
+  const editCommandHandlers = {
+    sortBlock: new SortBlockCommandHandler(diagnostics, editFactory),
+    sortFile: new SortFileCommandHandler(diagnostics, editFactory),
+  };
+  const showDocsCommandHandler = new ShowDocsCommandHandler();
+  const actionProvider = new ActionProvider(diagnostics, editCommandHandlers);
+  const completionProvider = new KeepSortedCompletionProvider();
 
   const extSubsHandler = new workspace.ExtensionSubscriptionsHandler(context.subscriptions);
 
-  const maybeLint = async (document: vscode.TextDocument) => {
+  function maybeLint(document: vscode.TextDocument): void {
     if (workspace.isInScope(document.uri)) {
-      contextualizeLogger(document).debug(`Document updated.`);
-      await lint(document);
+      contextualizeLogger(document.uri).debug(`Document updated.`);
+      lint(document);
     }
-  };
+  }
 
-  async function lint(document: vscode.TextDocument): Promise<void> {
+  function lint(document: vscode.TextDocument): void {
     try {
-      const results = await linter.lintDocument(document);
+      const results = linter.lintDocument(document);
       if (results) {
         diagnostics.set(document.uri, results);
       }
     } catch (err: Error | unknown) {
       const errorMessage = err instanceof Error ? err.message : workspace.toJson(err);
-      contextualizeLogger(document).error(`Linting failed with:\n${errorMessage}`);
+      contextualizeLogger(document.uri).error(`Linting failed with:\n${errorMessage}`);
     }
   }
 
   // Register code action provider
-  extSubsHandler.addRegister(async () => {
-    const selector: vscode.DocumentSelector = workspace.IN_SCOPE_SCHEMAS.map((s: string) => ({
-      scheme: s,
-    }));
-    return vscode.languages.registerCodeActionsProvider(selector, actionProvider, {
-      providedCodeActionKinds: ActionProvider.kinds,
-    });
+  extSubsHandler.addRegistrant(actionProvider);
+
+  // Register completion provider for keep-sorted options autocomplete
+  extSubsHandler.addRegistrant(completionProvider);
+
+  // Register command handlers
+  Object.values(editCommandHandlers).forEach((handler) => {
+    extSubsHandler.addRegistrant(handler);
   });
-  [FixFileCommandHandler, FixWorkspaceCommandHandler].forEach((handler) => {
-    extSubsHandler.addRegister(async () => {
-      const commandHandler = new handler(diagnostics, editFactory);
-      return vscode.commands.registerCommand(
-        commandHandler.command.command,
-        commandHandler.handle.bind(commandHandler)
-      );
-    });
-  });
+  context.subscriptions.push(await showDocsCommandHandler.register());
 
   // Document listeners
   [
-    vscode.workspace.onDidOpenTextDocument(maybeLint),
-    vscode.workspace.onDidSaveTextDocument(maybeLint),
-    vscode.workspace.onDidChangeTextDocument((e) => maybeLint(e.document)),
-  ].forEach((disposable) => {
-    extSubsHandler.addRegister(async () => disposable);
+    {
+      id: vscode.workspace.onDidOpenTextDocument.name,
+      register: async () => vscode.workspace.onDidOpenTextDocument(maybeLint),
+    },
+    {
+      id: vscode.workspace.onDidSaveTextDocument.name,
+      register: async () => vscode.workspace.onDidSaveTextDocument(maybeLint),
+    },
+    {
+      id: vscode.workspace.onDidChangeTextDocument.name,
+      register: async () => vscode.workspace.onDidChangeTextDocument((e) => maybeLint(e.document)),
+    },
+  ].forEach((event) => {
+    extSubsHandler.addRegistrant(event);
   });
 
   // Configuration change, handle enabling/disabling extension and logging filepath changes
@@ -79,30 +93,31 @@ export function activate(context: vscode.ExtensionContext) {
       logger.info(`Extension enabled state is now: ${enabled}`);
       if (enabled) {
         logger.debug(`Extension enabled - registering event subscriptions.`);
-        extSubsHandler.registerExtensionSubscriptions();
+        extSubsHandler.registerAllEnabled();
       } else {
         logger.debug(`Extension disabled - disposing event subscriptions.`);
-        extSubsHandler.unregisterExtensionSubscriptions();
+        extSubsHandler.unregisterAll();
       }
     })
   );
+
   context.subscriptions.push(onLogFilepathChange(setFileLogging));
   setFileLogging(getConfig().logFilepath);
 
-  extSubsHandler.registerExtensionSubscriptions();
+  context.subscriptions.push(
+    onAutoCompleteChange((enabled: boolean) => {
+      logger.info(`Autocomplete enabled state is now: ${enabled}`);
+      extSubsHandler.setEnabled(completionProvider.id, enabled);
+    })
+  );
+
+  extSubsHandler.registerAllEnabled();
 
   // Initial linting of all documents upon activation
-  workspace.inScopeUris().then(async (uris) => {
-    logger.info(`Found ${uris.length} workspace documents for possible linting on activation`);
-    await Promise.all(
-      uris.map(async (uri) => {
-        const document = await vscode.workspace.openTextDocument(uri);
-        if (document) {
-          lint(document);
-        }
-      })
-    );
-  });
+  const documents = await workspace.inScopeDocuments();
+  logger.info(`Found ${documents.length} workspace documents for possible linting on activation`);
+  // Don't block activation on linting
+  await Promise.all(documents.map(lint));
 
   logger.info(`Extension ${EXT_NAME} activated.`);
 }

@@ -287,7 +287,21 @@ describe("ComponentName", () => {
       clock.tick(1000); // Advance fake time
 
       // Assert
-      expect(executed).to.be.true;
+      expect(executed).to.equals(true);
+    });
+  });
+
+  [{
+    value: 0,
+    expected: "0"
+  },
+  {
+    value: true
+    expected: "true"
+  }
+  }].forEach(({ value, expected }) => {
+    it(`should parse value ${value} as ${expected}`, () => {
+      expect(parseValue(value)).to.equal(expected);
     });
   });
 });

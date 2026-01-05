@@ -8,6 +8,7 @@ import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
 import { EXT_NAME } from "../instrumentation";
 import * as sinon from "sinon";
+import { CommandHandlers, SortBlockCommandHandler, SortFileCommandHandler } from "../commands";
 
 use(sinonChai);
 
@@ -23,7 +24,7 @@ const TEST_WORKSPACE = path.join(__dirname, "..", "..", "test-workspace");
 const MIXED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "mixed_blocks.ts");
 const SORTED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "sorted_blocks.ts");
 
-const ACTION_COUNT = 3;
+const ACTION_COUNT = 2;
 
 describe("actions", () => {
   describe("ActionProvider", () => {
@@ -32,6 +33,7 @@ describe("actions", () => {
     let diagnostics: vscode.DiagnosticCollection;
     let editFactory: EditFactory;
     let document: vscode.TextDocument;
+    let editCommandHandlers: CommandHandlers;
 
     let range: vscode.Range;
     let sandbox: sinon.SinonSandbox;
@@ -42,6 +44,10 @@ describe("actions", () => {
       linter = new KeepSorted(process.cwd());
       diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
       editFactory = new EditFactory(linter, diagnostics);
+      editCommandHandlers = {
+        sortBlock: new SortBlockCommandHandler(diagnostics, editFactory),
+        sortFile: new SortFileCommandHandler(diagnostics, editFactory),
+      };
 
       // Open real document from test workspace
       document = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
@@ -49,7 +55,7 @@ describe("actions", () => {
       // Range covering part of the first keep-sorted block (line 6)
       range = new vscode.Range(5, 0, 6, 0);
 
-      provider = new ActionProvider(editFactory);
+      provider = new ActionProvider(diagnostics, editCommandHandlers);
     });
 
     afterEach(() => {
@@ -67,18 +73,15 @@ describe("actions", () => {
         const kinds = ActionProvider.kinds;
 
         // Assert
-        expect(kinds).to.deep.equal([
-          vscode.CodeActionKind.QuickFix,
-          vscode.CodeActionKind.SourceFixAll,
-        ]);
+        expect(kinds).members([vscode.CodeActionKind.QuickFix]);
       });
     });
 
     describe("provideCodeActions", () => {
-      it("should return 3 actions when diagnostics exist", async () => {
-        // Arrange
+      it("should return 2 actions when diagnostics exist", async () => {
+        // Arrange - Diagnostic range must intersect with test range (5,0)-(6,0)
         const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 10),
+          new vscode.Range(5, 0, 6, 10),
           ANY_DIAGNOSTIC_MESSAGE,
           vscode.DiagnosticSeverity.Warning
         );
@@ -86,7 +89,7 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic]);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = provider.provideCodeActions(document, range);
 
         // Assert
         expect(actions).to.have.length(ACTION_COUNT);
@@ -98,7 +101,7 @@ describe("actions", () => {
         const sortedRange = new vscode.Range(5, 0, 6, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
+        const actions = provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
         expect(actions).to.be.an("array").that.has.lengthOf(0);
@@ -110,16 +113,16 @@ describe("actions", () => {
         const sortedRange = new vscode.Range(5, 0, 6, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(sortedDoc, sortedRange);
+        const actions = provider.provideCodeActions(sortedDoc, sortedRange);
 
         // Assert
         expect(actions).to.be.an("array").that.has.lengthOf(0);
       });
 
-      it("should return both block fix and fix all actions when diagnostics exist", async () => {
-        // Arrange
+      it("should return block sort and file sort actions when diagnostics exist", () => {
+        // Arrange - Diagnostic range must intersect with test range (5,0)-(6,0)
         const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 10),
+          new vscode.Range(5, 0, 6, 10),
           ANY_DIAGNOSTIC_MESSAGE,
           vscode.DiagnosticSeverity.Warning
         );
@@ -127,30 +130,55 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic]);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = provider.provideCodeActions(document, range);
 
         // Assert
         expect(actions).to.have.length(ACTION_COUNT);
 
         // First action should be block fix
-        expect(actions![0].title).to.equal("Sort all lines in block (keep-sorted)");
-        expect(actions![0].kind).to.equal(vscode.CodeActionKind.QuickFix);
-        expect(actions![0].diagnostics).to.have.length.greaterThan(0);
-        expect(actions![0].isPreferred).to.equal(true);
+        expect(actions![0]).to.deep.equal({
+          title: "Sort all lines in block (keep-sorted)",
+          kind: vscode.CodeActionKind.QuickFix,
+          diagnostics: [diagnostic],
+          isPreferred: true,
+          command: editCommandHandlers.sortBlock.command,
+        });
 
         // Second action should be fix all
-        expect(actions![1].title).to.equal("Sort all lines in file (keep-sorted)");
-        expect(actions![1].kind).to.equal(vscode.CodeActionKind.SourceFixAll);
-        expect(actions![1].diagnostics).to.have.length.greaterThan(0);
-        expect(actions![1].isPreferred).to.equal(false);
+        expect(actions![1]).to.deep.equal({
+          title: "Sort all lines in file (keep-sorted)",
+          kind: vscode.CodeActionKind.QuickFix,
+          diagnostics: [diagnostic],
+          isPreferred: false,
+          command: editCommandHandlers.sortFile.command,
+        });
       });
-      it("should return actions with multiple diagnostics", async () => {
-        // Arrange - The mixed_blocks.ts file has 3 unsorted blocks
-        // Use a range that covers the whole file to get all diagnostics
+
+      it("should return actions with multiple diagnostics", () => {
+        // Arrange - Explicitly set diagnostics for all three unsorted blocks
+        const diag1 = new vscode.Diagnostic(
+          new vscode.Range(4, 0, 8, 0),
+          "Block 1 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag1.source = KEEP_SORTED_SOURCE;
+        const diag2 = new vscode.Diagnostic(
+          new vscode.Range(16, 0, 20, 0),
+          "Block 2 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag2.source = KEEP_SORTED_SOURCE;
+        const diag3 = new vscode.Diagnostic(
+          new vscode.Range(28, 0, 32, 0),
+          "Block 3 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag3.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diag1, diag2, diag3]);
         const fullRange = new vscode.Range(0, 0, document.lineCount, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, fullRange);
+        const actions = provider.provideCodeActions(document, fullRange);
 
         // Assert - Should get actions with all diagnostics from all blocks
         expect(actions).to.have.length(ACTION_COUNT);
@@ -160,25 +188,43 @@ describe("actions", () => {
         expect(actions![1].diagnostics).to.have.length.greaterThan(0);
       });
 
-      it("should return empty array when diagnostics exist but don't intersect with range", async () => {
+      it("should return empty array when diagnostics exist but don't intersect with range", () => {
         // Arrange - Use a range that doesn't intersect with any keep-sorted block
         const nonIntersectingRange = new vscode.Range(12, 0, 12, 10);
 
         // Act
-        const actions = await provider.provideCodeActions(document, nonIntersectingRange);
+        const actions = provider.provideCodeActions(document, nonIntersectingRange);
 
         // Assert
         expect(actions).to.be.an("array").that.has.lengthOf(0);
       });
 
-      it("should filter diagnostics to only those intersecting with range", async () => {
-        // Arrange - mixed_blocks.ts has 3 unsorted blocks:
-        // Block 1: lines 5-9, Block 2: lines 16-20, Block 3: lines 28-32
+      it("should filter diagnostics to only those intersecting with range", () => {
+        // Arrange - Explicitly set diagnostics for all three unsorted blocks
+        const diag1 = new vscode.Diagnostic(
+          new vscode.Range(4, 0, 8, 0),
+          "Block 1 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag1.source = KEEP_SORTED_SOURCE;
+        const diag2 = new vscode.Diagnostic(
+          new vscode.Range(16, 0, 20, 0),
+          "Block 2 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag2.source = KEEP_SORTED_SOURCE;
+        const diag3 = new vscode.Diagnostic(
+          new vscode.Range(28, 0, 32, 0),
+          "Block 3 unsorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diag3.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diag1, diag2, diag3]);
         // Use a range that only intersects with the first block
         const firstBlockRange = new vscode.Range(5, 0, 9, 0);
 
         // Act
-        const actions = await provider.provideCodeActions(document, firstBlockRange);
+        const actions = provider.provideCodeActions(document, firstBlockRange);
 
         // Assert - Should only get diagnostics for the first block
         expect(actions).to.have.length(ACTION_COUNT);
@@ -190,9 +236,9 @@ describe("actions", () => {
       });
 
       it("should create actions with command", async () => {
-        // Arrange
+        // Arrange - Diagnostic range must intersect with test range (5,0)-(6,0)
         const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 10),
+          new vscode.Range(5, 0, 6, 10),
           ANY_SHORT_MESSAGE,
           vscode.DiagnosticSeverity.Warning
         );
@@ -200,26 +246,26 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic]);
 
         // Act
-        const actions = await provider.provideCodeActions(document, range);
+        const actions = provider.provideCodeActions(document, range);
 
         // Assert
         expect(actions).to.have.length(ACTION_COUNT);
         const blockAction = actions![0];
         const fixAllAction = actions![1];
 
-        // Check block fix action
+        // Check block sort action
         expect(blockAction.title).to.equal("Sort all lines in block (keep-sorted)");
         expect(blockAction.kind).to.equal(vscode.CodeActionKind.QuickFix);
         expect(blockAction.diagnostics).to.have.length.greaterThan(0);
         expect(blockAction.isPreferred).to.equal(true);
 
-        // Check fix all action
+        // Check file sort action
         expect(fixAllAction.title).to.equal("Sort all lines in file (keep-sorted)");
-        expect(fixAllAction.kind).to.equal(vscode.CodeActionKind.SourceFixAll);
+        expect(fixAllAction.kind).to.equal(vscode.CodeActionKind.QuickFix);
         expect(fixAllAction.isPreferred).to.equal(false);
       });
 
-      it("should create actions with edits", async () => {
+      it("should create actions with no edits", () => {
         // Arrange
         // First keep-sorted block is lines 5-9 (0-indexed 4-8) with unsorted content
         const blockRange = new vscode.Range(5, 0, 8, 0);
@@ -232,42 +278,19 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic]);
 
         // Act
-        const actions = await provider.provideCodeActions(document, blockRange);
+        const actions = provider.provideCodeActions(document, blockRange);
 
         // Assert
-        expect(actions).to.have.length(3);
+        expect(actions).to.have.length(ACTION_COUNT);
         const blockAction = actions![0];
-        const fixAllSrcAction = actions![1];
-        const fixFileAction = actions![2];
+        const fileAction = actions![1];
 
-        // Verify both actions have edits
-        expect(blockAction.edit).to.not.equal(undefined);
-        expect(fixAllSrcAction.edit).to.not.equal(undefined);
-        expect(fixFileAction.edit).to.not.equal(undefined);
-
-        // TODO: Fix this test - the edit is created but appears to be empty
-        // This might be due to how the linter interacts with the test document
-        // For now, just verify the edits exist
-
-        // Verify the block fix edit contains entries for the document
-        // const blockEntries = blockAction.edit!.entries();
-        // expect(blockEntries).to.have.length.greaterThan(0);
-
-        // // Verify the first entry is for our document
-        // const [uri, edits] = blockEntries[0];
-        // expect(uri.toString()).to.equal(document.uri.toString());
-        // expect(edits).to.be.an("array").with.length.greaterThan(0);
-
-        // // Verify the edit is a text replacement
-        // const textEdit = edits[0];
-        // void expect(textEdit.range).to.not.be.undefined;
-        // void expect(textEdit.newText).to.equal(`const alpha = "alpha";
-        // const beta = "beta";
-        // const zebra = "zebra";
-        // `);
+        // Verify both actions have no edits
+        expect(blockAction.edit).equals(undefined);
+        expect(fileAction.edit).equals(undefined);
       });
 
-      it("should distinguish between block fix and fix all commands", async () => {
+      it("should distinguish between block sort and file sort commands", () => {
         // Arrange
         const diagnostic = new vscode.Diagnostic(
           new vscode.Range(5, 0, 8, 0),
@@ -278,7 +301,7 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic]);
 
         // Act
-        const actions = await provider.provideCodeActions(document, new vscode.Range(5, 0, 8, 0));
+        const actions = provider.provideCodeActions(document, new vscode.Range(5, 0, 8, 0));
 
         // Assert
         expect(actions).to.have.length(ACTION_COUNT);
@@ -286,23 +309,20 @@ describe("actions", () => {
         const blockAction = actions.find(
           (a) => a.title === "Sort all lines in block (keep-sorted)"
         );
-        const fixAllAction = actions.find(
-          (a) => a.title === "Sort all lines in file (keep-sorted)"
-        );
+        const fileAction = actions.find((a) => a.title === "Sort all lines in file (keep-sorted)");
 
         expect(blockAction).to.not.equal(undefined);
-        expect(fixAllAction).to.not.equal(undefined);
+        expect(fileAction).to.not.equal(undefined);
 
-        // Block fix should be preferred, fix all should not
+        // Block sort should be preferred, file sort should not
         expect(blockAction!.isPreferred).to.equal(true);
-        expect(fixAllAction!.isPreferred).to.equal(false);
-
+        expect(fileAction!.isPreferred).to.equal(false);
         // Different action kinds
         expect(blockAction!.kind).to.equal(vscode.CodeActionKind.QuickFix);
-        expect(fixAllAction!.kind).to.equal(vscode.CodeActionKind.SourceFixAll);
+        expect(fileAction!.kind).to.equal(vscode.CodeActionKind.QuickFix);
       });
 
-      it("should pass diagnostics array to block fix command arguments", async () => {
+      it("should pass diagnostics array to block sort command arguments", () => {
         // Arrange
         const diagnostic1 = new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 10),
@@ -321,7 +341,7 @@ describe("actions", () => {
         diagnostics.set(document.uri, [diagnostic1, diagnostic2]);
 
         // Act - both diagnostics intersect with range (0, 0, 0, 20)
-        const actions = await provider.provideCodeActions(document, new vscode.Range(0, 0, 0, 20));
+        const actions = provider.provideCodeActions(document, new vscode.Range(0, 0, 0, 20));
 
         // Assert
         expect(actions).to.have.length(ACTION_COUNT);
@@ -330,8 +350,6 @@ describe("actions", () => {
         );
 
         expect(blockAction).to.not.equal(undefined);
-        // Actions now have edits directly, no command arguments
-        expect(blockAction!.edit).to.not.equal(undefined);
       });
     });
   });

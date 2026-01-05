@@ -34,7 +34,7 @@ describe("instrumentation", () => {
 
     it("should log document path without range", () => {
       // Act
-      const child = contextualizeLogger(mockDocument);
+      const child = contextualizeLogger(mockDocument.uri);
 
       // Assert
       const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
@@ -49,7 +49,7 @@ describe("instrumentation", () => {
       const range = new vscode.Range(1, 0, 3, 0);
 
       // Act
-      const child = contextualizeLogger(mockDocument, range);
+      const child = contextualizeLogger(mockDocument.uri, range);
 
       // Assert
       const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
@@ -67,7 +67,7 @@ describe("instrumentation", () => {
         .returns(relativePath);
 
       // Act
-      const child = contextualizeLogger(mockDocument);
+      const child = contextualizeLogger(mockDocument.uri);
 
       // Assert
       expect(child.defaultMeta).to.deep.equal({

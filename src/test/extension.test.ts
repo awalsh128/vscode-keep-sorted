@@ -4,7 +4,9 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { TEST_WORKSPACE_DIR } from "./testing";
 import * as workspace from "../workspace";
-import { FixFileCommandHandler, FixWorkspaceCommandHandler } from "../commands";
+import { SortFileCommandHandler } from "../commands";
+import { KeepSorted } from "../keepsorted";
+import { EXT_NAME } from "../instrumentation";
 
 describe("extension", () => {
   const SAMPLE_TS_FILENAME = "sample.ts";
@@ -62,6 +64,10 @@ describe("extension", () => {
     it("should fix document on command", async () => {
       // Arrange
       const document = await getDocument(SAMPLE_TS_FILENAME);
+      const linter = new KeepSorted(process.cwd());
+      const diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
+      const editFactory = new workspace.EditFactory(linter, diagnostics);
+      const commandHandler = new SortFileCommandHandler(diagnostics, editFactory);
 
       // Ensure the document is opened and set as active
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
@@ -69,28 +75,13 @@ describe("extension", () => {
       await waitForDiagnostics(document.uri);
 
       // Act - Execute the fix command
-      await vscode.commands.executeCommand(FixFileCommandHandler.COMMAND.command);
+      await vscode.commands.executeCommand(commandHandler.command.command, document);
 
       // Assert - Verify document content has been changed
 
       expect(document.getText()).to.equal(
         await getDocument(SAMPLE_SORTED_TS_FILENAME).then((doc) => doc.getText())
       );
-    });
-
-    it("should not contain any diagnostics after fix workspace", async () => {
-      // Arrange - nothing to setup
-
-      // Act
-      await vscode.commands.executeCommand(FixWorkspaceCommandHandler.COMMAND.command);
-
-      // Wait for async fix processing
-      await delay(3000);
-
-      // Assert - Verify all documents are fixed
-      for (const uri of await workspace.inScopeUris()) {
-        expect(vscode.languages.getDiagnostics(uri)).to.have.lengthOf(0);
-      }
     });
   });
 });

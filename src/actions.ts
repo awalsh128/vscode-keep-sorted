@@ -1,99 +1,102 @@
 import * as vscode from "vscode";
 import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
 import * as workspace from "./workspace";
-import { LRUCache } from "lru-cache";
+import { CommandHandlers } from "./commands";
 
-/** Provides fix actions for keep-sorted diagnostics. */
-export class ActionProvider implements vscode.CodeActionProvider {
-  static readonly kinds = [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.SourceFixAll];
+/**
+ * Provides code actions (quick fixes and source actions) for keep-sorted diagnostics. Integrates
+ * with VS Code's CodeActionProvider API to surface block, file, and workspace fixes in the editor
+ * lightbulb, context menu, and command palette.
+ *
+ * This class coordinates with the extension's diagnostic collection and command handlers to
+ * generate actionable fixes for detected sorting issues.
+ */
+export class ActionProvider implements vscode.CodeActionProvider, workspace.Registrant {
+  /** The code action kinds this provider supports (quick fix). */
+  static readonly kinds = [vscode.CodeActionKind.QuickFix];
 
-  // Debounce multiple provision requests for the same diagnostics.
-  private readonly cache: LRUCache<string, { void: void }>;
-  private readonly editFactory: workspace.EditFactory;
+  /** Unique identifier for this provider, used for registration and diagnostics. */
+  readonly id = ActionProvider.name;
 
-  constructor(editFactory: workspace.EditFactory) {
-    this.editFactory = editFactory;
-    this.cache = new LRUCache<string, { void: void }>({
-      max: 100,
-      ttl: 1000 * 60 * 5, // 5 minutes
-    });
+  private readonly commandHandlers: CommandHandlers;
+  private readonly diagnostics: vscode.DiagnosticCollection;
+
+  /**
+   * Constructs a new ActionProvider.
+   *
+   * @param diagnostics The diagnostic collection to use for relevant issues.
+   * @param commandHandlers The set of command handlers for block, file, and workspace fixes.
+   */
+  constructor(diagnostics: vscode.DiagnosticCollection, commandHandlers: CommandHandlers) {
+    this.diagnostics = diagnostics;
+    this.commandHandlers = commandHandlers;
   }
 
-  private getSupportCommand(): vscode.Command {
-    return {
-      title: "Keep Sorted documentation",
-      command: "vscode.open",
-      arguments: [vscode.Uri.parse("http://github.com/awalsh128/vscode-keep-sorted#readme")],
-    };
-  }
-
-  private shouldProvide(document: vscode.TextDocument, range: vscode.Range): boolean {
-    const actionLogger = contextualizeLogger(document, range);
-    const diagnostics = relevantDiagnostics(document, range);
+  /**
+   * Determines whether code actions should be provided for the given URI and range. Returns true if
+   * there are relevant diagnostics in the specified range.
+   */
+  private shouldProvide(uri: vscode.Uri, range: vscode.Range): boolean {
+    const diagnostics = relevantDiagnostics(this.diagnostics, uri, range);
     if (diagnostics.length === 0) {
-      actionLogger.debug("No relevant diagnostics found");
+      contextualizeLogger(uri, range).debug("No relevant diagnostics found");
       return false;
     }
-    const cacheKey = JSON.stringify({
-      uri: document.uri.fsPath,
-      ranges: diagnostics.map((d) => d.range),
-    });
-    if (this.cache.has(cacheKey)) {
-      actionLogger.debug("Action provision recently provided, skipping / debouncing.");
-      return false;
-    }
-    this.cache.set(cacheKey, { void: void 0 });
     return true;
   }
 
-  async provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range
-  ): Promise<vscode.CodeAction[]> {
-    if (!this.shouldProvide(document, range)) {
+  /**
+   * Provides code actions (quick fixes and fix all) for the given document and range. Returns an
+   * array of CodeAction objects, or an empty array if no actions are available.
+   *
+   * @param document The document in which to provide actions.
+   * @param range The range to check for diagnostics and provide fixes.
+   */
+  provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {
+    const uri = document.uri;
+    if (!this.shouldProvide(uri, range)) {
       return [];
     }
 
-    const blockEditResult = await this.editFactory.create(document, range);
-    if (!blockEditResult) {
+    const diagnostics = [...relevantDiagnostics(this.diagnostics, document.uri, range)];
+    if (diagnostics.length === 0) {
       return [];
     }
 
-    const actionLogger = contextualizeLogger(document, range);
-    const actions = [];
+    const actions = [
+      this.commandHandlers.sortBlock.asCodeAction(
+        diagnostics,
+        document,
+        range,
+        /*isPreferred=*/ true
+      ),
+      this.commandHandlers.sortFile.asCodeAction(diagnostics, document),
+    ];
 
-    const blockAction = new vscode.CodeAction(
-      "Sort all lines in block (keep-sorted)",
-      vscode.CodeActionKind.QuickFix
+    contextualizeLogger(uri, range).info(
+      `Providing code action(s) for ${uri.fsPath}:\n` +
+        actions
+          .map(
+            (a) =>
+              ` - ${a.title}(${a.diagnostics!.map((d) => workspace.rangeText(d.range)).join(",")})`
+          )
+          .join("\n")
     );
-    blockAction.diagnostics = blockEditResult.diagnostics;
-    blockAction.isPreferred = true;
-    blockAction.edit = blockEditResult.edit;
-    actions.push(blockAction);
-
-    // Also create a fix-file action as SourceFixAll
-    const fixFileEditResult = await this.editFactory.create(document);
-    if (fixFileEditResult) {
-      const title = "Sort all lines in file (keep-sorted)";
-
-      const sourceFixFile = new vscode.CodeAction(title, vscode.CodeActionKind.SourceFixAll);
-      // Use the same diagnostics as the block action (filtered by range)
-      sourceFixFile.diagnostics = blockEditResult.diagnostics;
-      sourceFixFile.isPreferred = false;
-      sourceFixFile.edit = fixFileEditResult.edit;
-      actions.push(sourceFixFile);
-
-      const quickFixFile = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
-      quickFixFile.diagnostics = blockEditResult.diagnostics;
-      quickFixFile.isPreferred = false;
-      quickFixFile.edit = fixFileEditResult.edit;
-      actions.push(quickFixFile);
-    }
-
-    const actionToString = (a: vscode.CodeAction) =>
-      `${a.title}(${a.diagnostics!.map((d) => workspace.rangeText(d.range)).join(",")})`;
-    actionLogger.info(`Providing code action(s):\n ${actions.map(actionToString).join("\n ")}`);
 
     return actions;
+  }
+
+  /**
+   * Registers this provider with VS Code, enabling code actions for all in-scope document schemas.
+   * Returns a disposable for proper cleanup.
+   */
+  async register(): Promise<vscode.Disposable> {
+    return vscode.languages.registerCodeActionsProvider(
+      workspace.IN_SCOPE_SCHEMAS.map((s: string) => ({ scheme: s })),
+      this,
+      {
+        providedCodeActionKinds: ActionProvider.kinds,
+      }
+    );
   }
 }

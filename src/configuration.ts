@@ -1,16 +1,19 @@
 import * as vscode from "vscode";
 import globRegex from "glob-regex";
 import * as path from "path";
-import { logger } from "./instrumentation";
+import { EXT_NAME, logger } from "./instrumentation";
 import { toJson } from "./workspace";
 
 /** Configuration namespace for the Keep Sorted extension. */
-const CONFIGURATION_SECTION = "keep-sorted";
+const CONFIGURATION_SECTION = EXT_NAME;
 
 /** Configuration settings for the Keep Sorted extension. */
 export interface KeepSortedConfiguration {
   /** Whether the extension is enabled */
   readonly enabled: boolean;
+
+  /** Whether autocomplete suggestions are enabled */
+  readonly autoComplete: boolean;
 
   /**
    * Regular expressions for files to ignore such as auto generated files, temporary files, and
@@ -52,10 +55,27 @@ export function getConfig() {
  */
 function loadContext(): Context {
   const config = vscode.workspace.getConfiguration(CONFIGURATION_SECTION);
+
+  function getValue<T>(key: string): T {
+    const meta = config.inspect<T>(key);
+    if (!meta) {
+      throw new Error(
+        `${CONFIGURATION_SECTION} option "${key}" is not a valid configuration setting. This should not happen and is a bug in the extension.`
+      );
+    }
+    if (meta.defaultValue === undefined) {
+      throw new Error(
+        `${CONFIGURATION_SECTION} option "${key}" does not have a default value. This should not happen and is a bug in the extension.`
+      );
+    }
+    return config.get<T>(key, meta.defaultValue);
+  }
+
   const configuration: KeepSortedConfiguration = {
-    enabled: config.get<boolean>("enabled", true),
-    exclude: config.get<string[]>("exclude", []),
-    logFilepath: config.get<string | undefined>("logFilepath", undefined),
+    enabled: getValue<boolean>("enabled"),
+    autoComplete: getValue<boolean>("autoComplete"),
+    exclude: getValue<string[]>("exclude"),
+    logFilepath: getValue<string | undefined>("logFilepath"),
   };
 
   // Use console during module loading to avoid circular dependency
@@ -100,19 +120,25 @@ export function excluded(uri: vscode.Uri): RegExp | null {
  * @returns True if the configuration was reloaded, otherwise false.
  */
 export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent): boolean {
-  if (event.affectsConfiguration(CONFIGURATION_SECTION)) {
-    const previousEnabled = context.config.enabled;
-    const previousLogFilepath = context.config.logFilepath;
-    context = loadContext();
-    if (context.config.enabled !== previousEnabled) {
-      onEnabledChangeEmitter.fire(context.config.enabled);
-    }
-    if (context.config.logFilepath !== previousLogFilepath) {
-      onLogFilepathChangeEmitter.fire(context.config.logFilepath);
-    }
-    return true;
+  if (!event.affectsConfiguration(CONFIGURATION_SECTION)) {
+    return false;
   }
-  return false;
+
+  const previousEnabled = context.config.enabled;
+  const previousAutoComplete = context.config.autoComplete;
+  const previousLogFilepath = context.config.logFilepath;
+
+  context = loadContext();
+  if (context.config.enabled !== previousEnabled) {
+    onEnabledChangeEmitter.fire(context.config.enabled);
+  }
+  if (context.config.autoComplete !== previousAutoComplete) {
+    onAutoCompleteChangeEmitter.fire(context.config.autoComplete);
+  }
+  if (context.config.logFilepath !== previousLogFilepath) {
+    onLogFilepathChangeEmitter.fire(context.config.logFilepath);
+  }
+  return true;
 }
 
 const onEnabledChangeEmitter = new vscode.EventEmitter<boolean>();
@@ -125,3 +151,8 @@ const onLogFilepathChangeEmitter = new vscode.EventEmitter<string | undefined>()
 /** Event triggered when the log filepath changes. */
 export const onLogFilepathChange: vscode.Event<string | undefined> =
   onLogFilepathChangeEmitter.event;
+
+export const onAutoCompleteChangeEmitter = new vscode.EventEmitter<boolean>();
+
+/** Event triggered when the autocomplete state changes. */
+export const onAutoCompleteChange: vscode.Event<boolean> = onAutoCompleteChangeEmitter.event;
