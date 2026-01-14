@@ -1,10 +1,3 @@
-<table width="100%" style="table, tr, td, th { border: none; }">
-  <tr>
-    <td width="48"><img src="logo.png" alt="Logo" width="128" height="128"></td>
-    <td style="padding-left:1em"><h1>VSCode Keep Sorted Extension</h1></td>
-  </tr>
-</table>
-
 [![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/package.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md)
 [![CI](https://github.com/awalsh128/vscode-keep-sorted/workflows/CI/badge.svg)](https://github.com/awalsh128/vscode-keep-sorted/actions)
