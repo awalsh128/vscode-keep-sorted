@@ -5,6 +5,7 @@ import * as sinon from "sinon";
 import * as path from "path";
 import * as vscode from "vscode";
 import { SortBlockCommandHandler, SortFileCommandHandler } from "../commands";
+import * as workspace from "../workspace";
 import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
 import { EXT_NAME } from "../instrumentation";
@@ -147,6 +148,162 @@ describe("commands", () => {
       expect(applyEditStub.calledOnce).to.equal(true);
       const editArg = applyEditStub.firstCall.args[0];
       expect(editArg).to.be.an.instanceOf(vscode.WorkspaceEdit);
+    });
+
+    describe("document scope fallback", () => {
+      let isInScopeStub: sinon.SinonStub;
+      let sandbox: sinon.SinonSandbox;
+      let mockActiveEditor: vscode.TextEditor | undefined;
+      let mockVisibleEditors: vscode.TextEditor[];
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+        isInScopeStub = sandbox.stub(workspace, "isInScope");
+        mockActiveEditor = undefined;
+        mockVisibleEditors = [];
+        sandbox.stub(vscode.window, "activeTextEditor").get(() => mockActiveEditor);
+        sandbox.stub(vscode.window, "visibleTextEditors").get(() => mockVisibleEditors);
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it("should throw when document is not in scope", async () => {
+        // Arrange - document is provided but not in scope, and no fallback editors
+        const document = await vscode.workspace.openTextDocument({
+          content: "const a = 1;\n",
+          language: "typescript",
+        });
+        isInScopeStub.returns(false);
+        mockActiveEditor = undefined;
+        mockVisibleEditors = [];
+
+        // Act & Assert
+        try {
+          await handler.handle(document);
+          expect.fail("Expected an error to be thrown");
+        } catch (err: unknown) {
+          expect((err as Error).message).to.contain(
+            "No in scope document displayed or active text editor found to sort"
+          );
+        }
+      });
+
+      it("should throw when null document is passed", async () => {
+        // Arrange - null document, no fallback editors
+        isInScopeStub.returns(false);
+        mockActiveEditor = undefined;
+        mockVisibleEditors = [];
+
+        // Act & Assert
+        try {
+          await handler.handle(null as unknown as vscode.TextDocument);
+          expect.fail("Expected an error to be thrown");
+        } catch (err: unknown) {
+          expect((err as Error).message).to.contain(
+            "No in scope document displayed or active text editor found to sort"
+          );
+        }
+      });
+
+      it("should fall back to active editor when null document but active editor is in scope", async () => {
+        // Arrange - null document, active editor has in-scope document
+        const activeDoc = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
+        isInScopeStub.callsFake((uri: vscode.Uri) => uri.fsPath === activeDoc.uri.fsPath);
+        mockActiveEditor = { document: activeDoc } as unknown as vscode.TextEditor;
+
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(5, 0, 8, 0),
+          "Lines are not sorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diagnostic.source = EXT_NAME;
+        diagnostics.set(activeDoc.uri, [diagnostic]);
+        applyEditStub.resolves(true);
+
+        // Act
+        await handler.handle(null as unknown as vscode.TextDocument);
+
+        // Assert - should have used the active editor's document
+        expect(applyEditStub.calledOnce).to.equal(true);
+        const editArg = applyEditStub.firstCall.args[0];
+        expect(editArg).to.be.an.instanceOf(vscode.WorkspaceEdit);
+      });
+
+      it("should throw when null document and active editor is not in scope", async () => {
+        // Arrange - null document, active editor exists but not in scope
+        const outOfScopeDoc = await vscode.workspace.openTextDocument({
+          content: "const a = 1;\n",
+          language: "typescript",
+        });
+        isInScopeStub.returns(false);
+        mockActiveEditor = { document: outOfScopeDoc } as unknown as vscode.TextEditor;
+        mockVisibleEditors = [];
+
+        // Act & Assert
+        try {
+          await handler.handle(null as unknown as vscode.TextDocument);
+          expect.fail("Expected an error to be thrown");
+        } catch (err: unknown) {
+          expect((err as Error).message).to.contain(
+            "No in scope document displayed or active text editor found to sort"
+          );
+        }
+      });
+
+      it("should fall back to visible editor when null document, no active editor, but visible editor in scope", async () => {
+        // Arrange - null document, no active editor, one visible editor in scope
+        const visibleDoc = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
+        isInScopeStub.callsFake((uri: vscode.Uri) => uri.fsPath === visibleDoc.uri.fsPath);
+        mockActiveEditor = undefined;
+        mockVisibleEditors = [{ document: visibleDoc } as unknown as vscode.TextEditor];
+
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(5, 0, 8, 0),
+          "Lines are not sorted",
+          vscode.DiagnosticSeverity.Warning
+        );
+        diagnostic.source = EXT_NAME;
+        diagnostics.set(visibleDoc.uri, [diagnostic]);
+        applyEditStub.resolves(true);
+
+        // Act
+        await handler.handle(null as unknown as vscode.TextDocument);
+
+        // Assert - should have used the visible editor's document
+        expect(applyEditStub.calledOnce).to.equal(true);
+        const editArg = applyEditStub.firstCall.args[0];
+        expect(editArg).to.be.an.instanceOf(vscode.WorkspaceEdit);
+      });
+
+      it("should throw when null document, no active editor, and all visible editors not in scope", async () => {
+        // Arrange - null document, no active editor, visible editors all out of scope
+        const outOfScopeDoc1 = await vscode.workspace.openTextDocument({
+          content: "const x = 1;\n",
+          language: "typescript",
+        });
+        const outOfScopeDoc2 = await vscode.workspace.openTextDocument({
+          content: "const y = 2;\n",
+          language: "typescript",
+        });
+        isInScopeStub.returns(false);
+        mockActiveEditor = undefined;
+        mockVisibleEditors = [
+          { document: outOfScopeDoc1 } as unknown as vscode.TextEditor,
+          { document: outOfScopeDoc2 } as unknown as vscode.TextEditor,
+        ];
+
+        // Act & Assert
+        try {
+          await handler.handle(null as unknown as vscode.TextDocument);
+          expect.fail("Expected an error to be thrown");
+        } catch (err: unknown) {
+          expect((err as Error).message).to.contain(
+            "No in scope document displayed or active text editor found to sort"
+          );
+        }
+      });
     });
   });
 

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import { EXT_DISPLAY_NAME, EXT_NAME, logAndGetError, logger } from "./instrumentation";
+import { error } from "console";
 
 /**
  * Abstract base class for all command handlers in Keep Sorted. Encapsulates the registration and
@@ -30,9 +31,19 @@ export abstract class CommandHandler implements workspace.Registrant {
    * keybindings, or programmatically. Returns a disposable for proper cleanup.
    */
   async register(): Promise<vscode.Disposable> {
-    return vscode.commands.registerCommand(this.command.command, async (...args: unknown[]) =>
-      this.handle(...args)
-    );
+    return vscode.commands.registerCommand(this.command.command, async (...args: unknown[]) => {
+      logger.info(
+        `Executing command: ${this.command.command} with args: ${workspace.toJson(args)}`
+      );
+      try {
+        await this.handle(...args);
+      } catch (err: Error | unknown) {
+        logger.error(err);
+        vscode.window.showErrorMessage(
+          `${this.command.title}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    });
   }
 }
 
@@ -97,6 +108,11 @@ export abstract class EditCommandHandler extends CommandHandler {
     this.diagnostics = diagnostics;
   }
 
+  protected abstract createEdit(
+    document: vscode.TextDocument,
+    range?: vscode.Range
+  ): Promise<workspace.CreateEditResult | null>;
+
   /**
    * Creates a VS Code CodeAction for this handler, optionally attaching an edit if one is
    * available. Used by the code action provider to surface quick fixes and source actions in the
@@ -135,7 +151,7 @@ export abstract class EditCommandHandler extends CommandHandler {
    */
   async handle(document: vscode.TextDocument, range?: vscode.Range): Promise<void> {
     try {
-      const editResult = this.editFactory.create(document, range);
+      const editResult = await this.createEdit(document, range);
       if (editResult) {
         logger.debug(
           () =>
@@ -179,9 +195,8 @@ export class SortBlockCommandHandler extends EditCommandHandler {
   protected async createEdit(
     document: vscode.TextDocument,
     range?: vscode.Range
-  ): Promise<workspace.CreateEditResult[]> {
-    const result = this.editFactory.create(document, range);
-    return result ? [result] : [];
+  ): Promise<workspace.CreateEditResult | null> {
+    return this.editFactory.create(document, range);
   }
 }
 
@@ -206,8 +221,35 @@ export class SortFileCommandHandler extends EditCommandHandler {
    * Generates an edit for sorting all keep-sorted blocks in the given file. Returns a single
    * CreateEditResult if a fix is available, otherwise an empty array.
    */
-  protected async createEdit(document: vscode.TextDocument): Promise<workspace.CreateEditResult[]> {
-    const result = this.editFactory.create(document);
-    return result ? [result] : [];
+  protected async createEdit(
+    document: vscode.TextDocument
+  ): Promise<workspace.CreateEditResult | null> {
+    if (document && workspace.isInScope(document.uri)) {
+      return this.editFactory.create(document);
+    }
+    logger.info(
+      `Document ${document?.uri.toString()} is out of scope, falling back to active/visible editor`
+    );
+
+    const activeTextEditor = vscode.window.activeTextEditor;
+    if (activeTextEditor && workspace.isInScope(activeTextEditor.document.uri)) {
+      logger.info(
+        `Found active editor with in-scope document: ${activeTextEditor.document.uri.toString()}`
+      );
+      return this.editFactory.create(activeTextEditor.document);
+    }
+    logger.info(
+      "No active text editor found, falling back to visible text editors " +
+        "and selecting first in-scope document"
+    );
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (workspace.isInScope(editor.document.uri)) {
+        logger.info(
+          `Found visible editor with in-scope document: ${editor.document.uri.toString()}`
+        );
+        return this.editFactory.create(editor.document);
+      }
+    }
+    throw new Error("No in scope document displayed or active text editor found to sort");
   }
 }
