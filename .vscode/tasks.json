@@ -33,7 +33,7 @@
     {
       "label": "Run Test (by name)",
       "type": "shell",
-      "command": "MOCHA_GREP='${input:testName}' npm test",
+      "command": "npm run lint; MOCHA_GREP='${input:testName}' npm test",
       "problemMatcher": [],
       "group": "test",
       "presentation": {

@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import { EXT_DISPLAY_NAME, EXT_NAME, logAndGetError, logger } from "./instrumentation";
-import { error } from "console";
 
 /**
  * Abstract base class for all command handlers in Keep Sorted. Encapsulates the registration and
