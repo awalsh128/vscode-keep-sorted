@@ -22,7 +22,7 @@ function ensureGoVersion(minVersion = "1.23.1") {
     console.log("go version output:", output);
 
     // output example: go version go1.21.13 linux/amd64
-    const m = output.match(/go(?:version)?\s+go([0-9.]+(?:\.[0-9]+)*)/i);
+    const m = output.match(/go version go([\d.]+)/i);
     if (!m) {
       throw new Error("unable to parse go version from: " + output);
     }

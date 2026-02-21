@@ -25,7 +25,7 @@ describe("create-binaries.ts E2E Tests", () => {
     try {
       const out = execSync("go version", { encoding: "utf-8" }).trim();
       // parse something like: go version go1.21.13 linux/amd64
-      const match = out.match(/go(?:version)?\s+go([0-9]+(?:\.[0-9]+)*)/i);
+      const match = out.match(/go version go([\d.]+)/i);
       if (!match) {
         this.skip();
         return;
@@ -305,4 +305,49 @@ describe("create-binaries.ts E2E Tests", () => {
       process.env.PATH = originalPath;
     }
   });
+});
+
+/**
+ * Regression tests for the Go version regex used in create-binaries.ts.
+ *
+ * These do NOT require Go to be installed — they validate the regex against
+ * known `go version` output strings so a malformed pattern is caught early.
+ *
+ * Regression: the original regex /go(?:version)?\s+go([0-9.]+(?:\.[0-9]+)*)\/i
+ * failed to match "go version go1.23.1 linux/amd64".
+ */
+describe("Go version regex (regression)", () => {
+  // Must stay in sync with the regex in scripts/create-binaries.ts
+  const GO_VERSION_RE = /go version go([\d.]+)/i;
+
+  const validOutputs: Array<{ input: string; expected: string }> = [
+    { input: "go version go1.23.1 linux/amd64", expected: "1.23.1" },
+    { input: "go version go1.21.13 linux/amd64", expected: "1.21.13" },
+    { input: "go version go1.22.0 darwin/arm64", expected: "1.22.0" },
+    { input: "go version go1.24.2 windows/amd64", expected: "1.24.2" },
+    { input: "go version go1.23 linux/amd64", expected: "1.23" },
+    { input: "go version go2.0.0 linux/amd64", expected: "2.0.0" },
+  ];
+
+  for (const { input, expected } of validOutputs) {
+    it(`should parse version from: "${input}"`, () => {
+      const m = input.match(GO_VERSION_RE);
+      expect(m, `regex did not match: ${input}`).to.not.be.null;
+      expect(m![1]).to.equal(expected);
+    });
+  }
+
+  const invalidOutputs = [
+    "",
+    "not a go version string",
+    "go1.23.1",
+    "version go1.23.1 linux/amd64",
+  ];
+
+  for (const input of invalidOutputs) {
+    it(`should NOT match malformed input: "${input}"`, () => {
+      const m = input.match(GO_VERSION_RE);
+      expect(m).to.be.null;
+    });
+  }
 });

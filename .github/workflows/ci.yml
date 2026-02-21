@@ -50,6 +50,9 @@ jobs:
       - name: Run TypeScript compilation
         run: npm run compile
 
+      - name: Run script tests (no Go required)
+        run: npx mocha --require tsx --grep "regex" --timeout 10000 scripts/test/create-binaries.test.ts
+
       - name: Run tests
         uses: GabrielBB/xvfb-action@5bcda06da84ba084708898801da79736b88e00a9
         with:
