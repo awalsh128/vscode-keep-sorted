@@ -1,4 +1,5 @@
 # Build outputs
+scripts/bin-build
 out/
 dist/
 *.vsix

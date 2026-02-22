@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import { execSync } from "child_process";
 import { expect } from "chai";
+import { describe, it, before, after } from "mocha";
 
 describe("create-binaries.ts E2E Tests", () => {
   // Construct absolute paths from process.cwd()
@@ -31,7 +32,7 @@ describe("create-binaries.ts E2E Tests", () => {
         return;
       }
       const version = match[1];
-      const parts = version.split('.').map((s) => parseInt(s, 10));
+      const parts = version.split(".").map((s) => parseInt(s, 10));
       const minParts = [1, 23, 1];
       let tooOld = false;
       for (let i = 0; i < minParts.length; i++) {
@@ -310,17 +311,17 @@ describe("create-binaries.ts E2E Tests", () => {
 /**
  * Regression tests for the Go version regex used in create-binaries.ts.
  *
- * These do NOT require Go to be installed — they validate the regex against
- * known `go version` output strings so a malformed pattern is caught early.
+ * These do NOT require Go to be installed — they validate the regex against known `go version`
+ * output strings so a malformed pattern is caught early.
  *
- * Regression: the original regex /go(?:version)?\s+go([0-9.]+(?:\.[0-9]+)*)\/i
- * failed to match "go version go1.23.1 linux/amd64".
+ * Regression: the original regex /go(?:version)?\s+go([0-9.]+(?:.[0-9]+)*)/i failed to match "go
+ * version go1.23.1 linux/amd64".
  */
 describe("Go version regex (regression)", () => {
   // Must stay in sync with the regex in scripts/create-binaries.ts
   const GO_VERSION_RE = /go version go([\d.]+)/i;
 
-  const validOutputs: Array<{ input: string; expected: string }> = [
+  const validOutputs: { input: string; expected: string }[] = [
     { input: "go version go1.23.1 linux/amd64", expected: "1.23.1" },
     { input: "go version go1.21.13 linux/amd64", expected: "1.21.13" },
     { input: "go version go1.22.0 darwin/arm64", expected: "1.22.0" },
@@ -332,7 +333,7 @@ describe("Go version regex (regression)", () => {
   for (const { input, expected } of validOutputs) {
     it(`should parse version from: "${input}"`, () => {
       const m = input.match(GO_VERSION_RE);
-      expect(m, `regex did not match: ${input}`).to.not.be.null;
+      expect(m, `regex did not match: ${input}`).to.not.equal(null);
       expect(m![1]).to.equal(expected);
     });
   }
@@ -347,7 +348,7 @@ describe("Go version regex (regression)", () => {
   for (const input of invalidOutputs) {
     it(`should NOT match malformed input: "${input}"`, () => {
       const m = input.match(GO_VERSION_RE);
-      expect(m).to.be.null;
+      expect(m).to.equal(null);
     });
   }
 });

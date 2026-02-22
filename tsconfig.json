@@ -1,14 +1,4 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2024",
-    "lib": ["ES2024"],
-    "outDir": "out",
-    "sourceMap": true,
-    "strict": true,
-    "rootDir": "src",
-    "skipLibCheck": true,
-    "tsBuildInfoFile": "tsconfig.tsbuildinfo"
-  },
-  "exclude": ["node_modules", ".vscode-test", "scripts", "test-workspace"]
+  "files": [],
+  "references": [{ "path": "./tsconfig.extension.json" }, { "path": "./tsconfig.scripts.json" }]
 }

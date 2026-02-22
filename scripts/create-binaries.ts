@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-import { mkdirSync, chmodSync, readFileSync, writeFileSync } from "fs";
-import { join, dirname } from "path";
+import { mkdirSync, chmodSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
+import { chdir } from "process";
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { fileURLToPath } from "url";
 
 const KEEP_SORTED_VERSION = "v0.7.1";
-const BIN_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "bin");
+const BIN_DIR = join(__dirname, "..", "bin");
+const BIN_BUILD_DIR = join(__dirname, "bin-build");
 
 const PLATFORMS = [
   { goos: "windows", goarch: "amd64", filename: "keep-sorted.exe" },
@@ -46,18 +47,21 @@ function ensureGoVersion(minVersion = "1.23.1") {
   }
 }
 
-function buildBinary(
-  platform: (typeof PLATFORMS)[number]
-): void {
+function buildBinary(platform: (typeof PLATFORMS)[number]): void {
   const outputPath = join(BIN_DIR, platform.filename);
 
   console.log(`Building ${platform.filename} (${platform.goos}/${platform.goarch})...`);
 
   // Build directly to the desired location using GOOS/GOARCH so we don't rely on GOPATH/GOBIN rules
-  execSync(`env CGO_ENABLED=0 GOOS=${platform.goos} GOARCH=${platform.goarch} go build -o "${outputPath}" github.com/google/keep-sorted@${KEEP_SORTED_VERSION}`, {
-    stdio: "inherit",
-    env: { ...process.env },
-  });
+  const buildOutput = execSync(
+    `env CGO_ENABLED=0 GOOS=${platform.goos} GOARCH=${platform.goarch}
+    go build -o "${outputPath}"`,
+    {
+      env: { ...process.env },
+      encoding: "utf-8",
+    }
+  );
+  writeFileSync(join(BIN_BUILD_DIR, `build-${platform.filename}.log`), buildOutput);
 
   if (platform.goos !== "windows") {
     chmodSync(outputPath, 0o755);
@@ -72,6 +76,7 @@ function buildBinary(
   console.log(`✅ Built ${platform.filename} (SHA256: ${hash})`);
 }
 
+rmSync(BIN_BUILD_DIR, { recursive: true, force: true });
 mkdirSync(BIN_DIR, { recursive: true });
 
 // Ensure the runner has a sufficiently new Go toolchain
@@ -81,7 +86,17 @@ ensureGoVersion("1.23.1");
 const goPath = execSync("go env GOPATH", { encoding: "utf-8" }).trim();
 const hostGoos = execSync("go env GOOS", { encoding: "utf-8" }).trim();
 const hostGoarch = execSync("go env GOARCH", { encoding: "utf-8" }).trim();
-console.log("GOPATH:", goPath, "host:", hostGoos + '/' + hostGoarch);
+console.log("GOPATH:", goPath, "host:", hostGoos + "/" + hostGoarch);
+
+console.log(`Cloning github.com/google/keep-sorted@${KEEP_SORTED_VERSION} for build...`);
+execSync(
+  `git clone -b ${KEEP_SORTED_VERSION} https://github.com/google/keep-sorted "${BIN_BUILD_DIR}"`,
+  {
+    stdio: "inherit",
+  }
+);
+
+chdir(BIN_BUILD_DIR);
 
 // Build all platforms
 for (const platform of PLATFORMS) {
