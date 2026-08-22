@@ -320,6 +320,9 @@ Use `Ctrl+Shift+P` / `Cmd+Shift+P` and search for:
 - **"Keep Sorted: Sort Current File"** - Sort all keep-sorted blocks in the active file
 - **"Keep Sorted: Show Documentation"** - Open the extension documentation
 
+If you invoke the command by identifier (for example from a keybinding or automation), use
+`keep-sorted.fixFile`.
+
 #### 3. Problems Panel
 
 1. Open the Problems panel (`Ctrl+Shift+M` / `Cmd+Shift+M`)

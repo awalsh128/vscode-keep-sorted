@@ -23,6 +23,11 @@ export async function activate(context: vscode.ExtensionContext) {
   const editFactory = new workspace.EditFactory(linter, diagnostics);
   const editCommandHandlers = {
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
+    fixFile: new SortFileCommandHandler(diagnostics, editFactory, {
+      title: "Keep Sorted: Sort Current File",
+      command: `${EXT_NAME}.fixFile`,
+      tooltip: "Sort all lines in file",
+    }),
   };
   const showDocsCommandHandler = new ShowDocsCommandHandler();
   const actionProvider = new ActionProvider(diagnostics, editCommandHandlers);

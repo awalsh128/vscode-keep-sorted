@@ -56,7 +56,7 @@ code actions to maintain sorted content.
   - `commands`, `actions`, `completion`, `configuration`, `workspace`, `instrumentation`
   - VS Code API: `vscode`, `ExtensionContext`
 - **Key Responsibilities**:
-  - Register command handlers (sortFile, sortSelection)
+  - Register command handlers (`keep-sorted.sortFile` alias and `keep-sorted.fixFile`)
   - Setup document change listeners (onDidOpenTextDocument, onDidChangeTextDocument)
   - Setup configuration change listeners
   - Manage extension subscriptions for proper cleanup
@@ -353,7 +353,7 @@ const lazyLogger = contextualizeLogger(uri, range);
 
 ### VS Code Extension Manifest
 
-- **Commands**: `keep-sorted.sortFile`
+- **Commands**: `keep-sorted.fixFile` (command palette) and `keep-sorted.sortFile` (legacy alias)
 - **Code Actions**: Diagnostic-based for unsorted blocks
 - **Completion**: Inline suggestions for keep-sorted options
 - **Configuration**: Settings namespace `keep-sorted`
