@@ -142,6 +142,11 @@
     "js-yaml": "^4.1.0",
     "lru-cache": "^11.2.2"
   },
+  "bundledDependencies": [
+    "glob-regex",
+    "js-yaml",
+    "lru-cache"
+  ],
   "overrides": {
     "diff": "^8.0.3",
     "minimatch": ">=10.2.1"
