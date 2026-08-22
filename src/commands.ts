@@ -171,13 +171,17 @@ export abstract class EditCommandHandler extends CommandHandler {
  * and context menu actions at the file level.
  */
 export class SortFileCommandHandler extends EditCommandHandler {
-  constructor(diagnostics: vscode.DiagnosticCollection, editFactory: workspace.EditFactory) {
+  constructor(
+    diagnostics: vscode.DiagnosticCollection,
+    editFactory: workspace.EditFactory,
+    command: vscode.Command = {
+      title: `${EXT_DISPLAY_NAME}: Sort Current File`,
+      command: `${EXT_NAME}.sortFile`,
+      tooltip: `Sort all lines in file`,
+    }
+  ) {
     super(
-      {
-        title: `${EXT_DISPLAY_NAME}: Sort Current File`,
-        command: `${EXT_NAME}.sortFile`,
-        tooltip: `Sort all lines in file`,
-      },
+      command,
       diagnostics,
       editFactory
     );

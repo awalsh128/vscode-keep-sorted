@@ -3,18 +3,16 @@ import { expect } from "chai";
 import * as vscode from "vscode";
 import * as path from "path";
 import { TEST_WORKSPACE_DIR } from "./testing";
-import * as workspace from "../workspace";
-import { SortFileCommandHandler } from "../commands";
-import { KeepSorted } from "../keepsorted";
-import { EXT_NAME } from "../instrumentation";
 
 describe("extension", () => {
+  const EXTENSION_ID = "awalsh128.keep-sorted";
+  const FIX_FILE_COMMAND = "keep-sorted.fixFile";
   const SAMPLE_TS_FILENAME = "sample.ts";
   const SAMPLE_SORTED_TS_FILENAME = "sample_sorted.ts";
 
   it("should complete activation successfully", async () => {
     // Arrange
-    const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
+    const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
 
     // Act & Assert
     await expect(extension.activate()).to.not.be.rejected;
@@ -63,32 +61,38 @@ describe("extension", () => {
 
     it("should fix document on command", async () => {
       // Arrange
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       const document = await getDocument(SAMPLE_TS_FILENAME);
-      const linter = new KeepSorted(process.cwd());
-      const diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
-      const editFactory = new workspace.EditFactory(linter, diagnostics);
-      const commandHandler = new SortFileCommandHandler(diagnostics, editFactory);
-
-      // Ensure the document is opened and set as active
+      await extension.activate();
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
-
       await waitForDiagnostics(document.uri);
 
       // Act - Execute the fix command
-      await vscode.commands.executeCommand(commandHandler.command.command, document);
+      await vscode.commands.executeCommand(FIX_FILE_COMMAND, document);
 
       // Assert - Verify document content has been changed
-
       expect(document.getText()).to.equal(
         await getDocument(SAMPLE_SORTED_TS_FILENAME).then((doc) => doc.getText())
       );
+    });
+
+    it("should register the fix file command", async () => {
+      // Arrange
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
+      await extension.activate();
+
+      // Act
+      const commands = await vscode.commands.getCommands(true);
+
+      // Assert
+      expect(commands).to.include(FIX_FILE_COMMAND);
     });
   });
 
   describe("deactivation behavior", () => {
     it("should properly deactivate extension", async () => {
       // Arrange
-      const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       await extension.activate();
       expect(extension.isActive).to.equal(true);
 
@@ -103,7 +107,7 @@ describe("extension", () => {
 
     it("should clean up subscriptions on deactivation", async () => {
       // Arrange
-      const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       const initialLength = vscode.languages.getDiagnostics().length;
 
       // Act
@@ -121,7 +125,7 @@ describe("extension", () => {
 
     it("should handle multiple activation/deactivation cycles", async () => {
       // Arrange
-      const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
 
       // Act - Cycle through activate multiple times
       for (let i = 0; i < 3; i++) {
@@ -136,7 +140,7 @@ describe("extension", () => {
 
     it("should preserve diagnostics collection state", async () => {
       // Arrange
-      const extension = vscode.extensions.getExtension("awalsh128.keep-sorted")!;
+      const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       const document = await getDocument();
 
       // Act

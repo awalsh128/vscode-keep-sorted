@@ -43,7 +43,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "keep-sorted.sortFile",
+        "command": "keep-sorted.fixFile",
         "title": "Keep Sorted: Sort Current File"
       }
     ],
