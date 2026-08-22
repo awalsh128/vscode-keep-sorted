@@ -321,7 +321,8 @@ Use `Ctrl+Shift+P` / `Cmd+Shift+P` and search for:
 - **"Keep Sorted: Show Documentation"** - Open the extension documentation
 
 If you invoke the command by identifier (for example from a keybinding or automation), use
-`keep-sorted.fixFile`.
+`keep-sorted.fixFile`. The older `keep-sorted.sortFile` identifier remains available as a legacy
+alias for existing automation.
 
 #### 3. Problems Panel
 

@@ -43,7 +43,7 @@ describe("commands", () => {
       expect(action.diagnostics).to.deep.equal(diagnostics);
       expect(action.isPreferred).to.equal(false);
       expect(action.command?.title).to.equal("Keep Sorted: Sort Current File");
-      expect(action.command?.command).to.equal("keep-sorted.sortFile");
+      expect(action.command?.command).to.equal("keep-sorted.fixFile");
       expect(action.command?.tooltip).to.equal("Sort all lines in file");
       expect(action.command?.arguments).to.have.lengthOf(1);
       expect(action.command?.arguments?.[0]).to.equal(document);

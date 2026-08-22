@@ -176,7 +176,7 @@ export class SortFileCommandHandler extends EditCommandHandler {
     editFactory: workspace.EditFactory,
     command: vscode.Command = {
       title: `${EXT_DISPLAY_NAME}: Sort Current File`,
-      command: `${EXT_NAME}.sortFile`,
+      command: `${EXT_NAME}.fixFile`,
       tooltip: `Sort all lines in file`,
     }
   ) {
