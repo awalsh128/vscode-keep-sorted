@@ -4,7 +4,7 @@ import sinonChai from "sinon-chai";
 import * as sinon from "sinon";
 import * as path from "path";
 import * as vscode from "vscode";
-import { SortBlockCommandHandler, SortFileCommandHandler } from "../commands";
+import { SortFileCommandHandler } from "../commands";
 import * as workspace from "../workspace";
 import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
@@ -18,35 +18,15 @@ const MIXED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "mixed_blocks.ts");
 
 describe("commands", () => {
   describe("asCodeAction", () => {
-    let blockHandler: SortBlockCommandHandler;
     let fileHandler: SortFileCommandHandler;
     let document: vscode.TextDocument;
 
     beforeEach(async () => {
-      blockHandler = new SortBlockCommandHandler(diagnostics, editFactory);
       fileHandler = new SortFileCommandHandler(diagnostics, editFactory);
       document = await vscode.workspace.openTextDocument({
         content: "const a = 1;\nconst b = 2;\n",
         language: "typescript",
       });
-    });
-
-    it("should create a CodeAction for SortBlockCommandHandler with correct properties", () => {
-      const range = new vscode.Range(0, 0, 1, 0);
-      const diagnostics = [
-        new vscode.Diagnostic(range, "Unsorted", vscode.DiagnosticSeverity.Warning),
-      ];
-      const action = blockHandler.asCodeAction(diagnostics, document, range, /*isPreferred=*/ true);
-      expect(action.title).to.equal("Sort all lines in block (keep-sorted)");
-      expect(action.kind).to.deep.equal(vscode.CodeActionKind.QuickFix);
-      expect(action.diagnostics).to.deep.equal(diagnostics);
-      expect(action.isPreferred).to.equal(true);
-      expect(action.command?.title).to.equal("Keep Sorted: Sort Block");
-      expect(action.command?.command).to.equal("keep-sorted.sortBlock");
-      expect(action.command?.tooltip).to.equal("Sort all lines in block");
-      expect(action.command?.arguments).to.have.lengthOf(2);
-      expect(action.command?.arguments?.[0]).to.equal(document);
-      expect(action.command?.arguments?.[1]).to.equal(range);
     });
 
     it("should create a CodeAction for SortFileCommandHandler with correct properties", () => {

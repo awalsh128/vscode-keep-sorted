@@ -16,11 +16,10 @@ consistent ordering of imports, exports, configuration entries, and other list-l
 - 🔍 **Automatic Detection**: Recognizes `// keep-sorted start` and `// keep-sorted end` blocks in
   any file type
 - 📊 **Real-time Diagnostics**: Shows warnings with squiggly underlines for unsorted content
-- 💡 **Quick Fix Actions**: Click the lightbulb or use `Ctrl+.` / `Cmd+.` to sort blocks instantly
+- 💡 **Quick Fix Actions**: Click the lightbulb or use `Ctrl+.` / `Cmd+.` to sort all keep-sorted
+  blocks in the current file
 - 🗂️ **Multiple Sort Options**:
-  - Sort individual blocks (QuickFix)
-  - Sort entire file (SourceFixAll)
-  - Sort entire workspace
+  - Sort entire file (QuickFix)
 - 🌍 **Language Agnostic**: Works with any programming language or file type
 - 🚀 **Command Palette Integration**: Access sorting commands via `Ctrl+Shift+P` / `Cmd+Shift+P`
 - ⚡ **Performance Optimized**: Uses native binaries for fast sorting operations
@@ -312,16 +311,14 @@ When the extension detects unsorted content:
 
 1. A warning squiggle appears under the unsorted block
 2. Click the lightbulb 💡 icon or press `Ctrl+.` / `Cmd+.`
-3. Choose from available actions:
-   - **"Sort all lines in block (keep-sorted)"** - Sorts just the selected block
-   - **"Sort all lines in file (keep-sorted)"** - Sorts all keep-sorted blocks in the file
+3. Choose **"Sort all lines in file (keep-sorted)"** - Sorts all keep-sorted blocks in the file
 
 #### 2. Command Palette
 
 Use `Ctrl+Shift+P` / `Cmd+Shift+P` and search for:
 
-- **"Keep Sorted: Fix Current File"** - Sort all keep-sorted blocks in the active file
-- **"Keep Sorted: Fix Entire Workspace"** - Sort all keep-sorted blocks across all workspace files
+- **"Keep Sorted: Sort Current File"** - Sort all keep-sorted blocks in the active file
+- **"Keep Sorted: Show Documentation"** - Open the extension documentation
 
 #### 3. Problems Panel
 

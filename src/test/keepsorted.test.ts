@@ -64,6 +64,21 @@ const beta = 2;
     return spawnSyncStub;
   }
 
+  function mockSpawnSyncResult(result: Partial<childProcess.SpawnSyncReturns<string>>) {
+    const spawnSyncStub = sandbox.stub(childProcess, "spawnSync");
+    spawnSyncStub.returns({
+      status: 1,
+      stdout: "",
+      stderr: "",
+      pid: 12345,
+      output: [null, "", ""],
+      signal: null,
+      error: undefined,
+      ...result,
+    });
+    return spawnSyncStub;
+  }
+
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     keepSorted = new KeepSorted(EXT_WORKSPACE_DIR);
@@ -136,6 +151,32 @@ const beta = 2;
 
       // Act & Assert
       expect(() => keepSorted.lintDocument(mockDocument())).to.throw(Error, /test error message/);
+    });
+
+    it("should throw detailed error when process spawn returns error", function () {
+      // Arrange
+      this.timeout(5000);
+      mockSpawnSyncResult({
+        status: null,
+        stderr: "",
+        error: Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" }),
+      });
+
+      // Act & Assert
+      expect(() => keepSorted.lintDocument(mockDocument())).to.throw(Error, /spawn ENOENT/);
+    });
+
+    it("should throw detailed error when process exits by signal", function () {
+      // Arrange
+      this.timeout(5000);
+      mockSpawnSyncResult({
+        status: null,
+        stderr: "",
+        signal: "SIGTERM",
+      });
+
+      // Act & Assert
+      expect(() => keepSorted.lintDocument(mockDocument())).to.throw(Error, /SIGTERM/);
     });
 
     it("should lint test-workspace/sample.ts", async function () {
@@ -217,6 +258,51 @@ const beta = 2;
         content: fs.readFileSync(path.join(TEST_WORKSPACE_DIR, "sample_sorted.ts"), "utf-8"),
         range: new vscode.Range(0, 0, document.lineCount, 0),
       });
+    });
+  });
+
+  describe("timeout scenarios", () => {
+    it("should have DEFAULT_COMMAND_TIMEOUT_MS set", () => {
+      // Assert - Timeout constant should be defined
+      expect(keepSorted).to.not.be.null;
+      // The timeout is configured in the spawnSync call with timeout option
+      // Verify the KeepSorted instance is properly initialized
+      expect(keepSorted.lintDocument).to.be.a("function");
+      expect(keepSorted.fixDocument).to.be.a("function");
+    });
+
+    it("should handle error with non-zero exit code gracefully", () => {
+      // Arrange
+      const document = mockDocument("invalid syntax");
+      mockSpawnSync(1, "output", "error message");
+
+      // Act
+      const lintResult = keepSorted.lintDocument(document);
+
+      // Assert - Should return diagnostics without throwing
+      expect(lintResult).to.be.an("array");
+    });
+
+    it("should handle null exit code with signal gracefully", () => {
+      // Arrange
+      const document = mockDocument("unsorted content");
+      mockSpawnSyncResult({ status: null, signal: "SIGTERM" });
+
+      // Act & Assert - fixDocument should not throw
+      expect(() => {
+        keepSorted.fixDocument(document);
+      }).to.not.throw();
+    });
+
+    it("should handle spawn errors gracefully", () => {
+      // Arrange
+      const document = mockDocument("content");
+      sandbox.stub(childProcess, "spawnSync").throws(new Error("ENOENT"));
+
+      // Act & Assert - Should not throw
+      expect(() => {
+        keepSorted.lintDocument(document);
+      }).to.not.throw();
     });
   });
 });

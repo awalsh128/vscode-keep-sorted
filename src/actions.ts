@@ -5,8 +5,8 @@ import { CommandHandlers } from "./commands";
 
 /**
  * Provides code actions (quick fixes and source actions) for keep-sorted diagnostics. Integrates
- * with VS Code's CodeActionProvider API to surface block, file, and workspace fixes in the editor
- * lightbulb, context menu, and command palette.
+ * with VS Code's CodeActionProvider API to surface file-level fixes in the editor lightbulb,
+ * context menu, and command palette.
  *
  * This class coordinates with the extension's diagnostic collection and command handlers to
  * generate actionable fixes for detected sorting issues.
@@ -25,7 +25,7 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
    * Constructs a new ActionProvider.
    *
    * @param diagnostics The diagnostic collection to use for relevant issues.
-   * @param commandHandlers The set of command handlers for block, file, and workspace fixes.
+   * @param commandHandlers The set of command handlers for available fixes.
    */
   constructor(diagnostics: vscode.DiagnosticCollection, commandHandlers: CommandHandlers) {
     this.diagnostics = diagnostics;
@@ -63,15 +63,7 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
       return [];
     }
 
-    const actions = [
-      this.commandHandlers.sortBlock.asCodeAction(
-        diagnostics,
-        document,
-        range,
-        /*isPreferred=*/ true
-      ),
-      this.commandHandlers.sortFile.asCodeAction(diagnostics, document),
-    ];
+    const actions = [this.commandHandlers.sortFile.asCodeAction(diagnostics, document)];
 
     contextualizeLogger(uri, range).info(
       `Providing code action(s) for ${uri.fsPath}:\n` +

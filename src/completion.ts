@@ -9,11 +9,17 @@ import {
   KeepSortedOptionCategory,
 } from "./keepsortedopt";
 
+/** Information about the word being typed at a given position. */
+interface WordInfo {
+  word: string;
+  range: vscode.Range;
+}
+
 /** Provides autocomplete suggestions for keep-sorted options. */
 export class KeepSortedCompletionProvider
   implements vscode.CompletionItemProvider, workspace.Registrant
 {
-  private directiveKeywords = new Set(["start", "keep", "sorted", "keep-sorted"]);
+  private directiveKeywords = new Set<string>(["start", "keep", "sorted", "keep-sorted"]);
 
   readonly id = "KeepSortedCompletionProvider";
 
@@ -22,7 +28,7 @@ export class KeepSortedCompletionProvider
     position: vscode.Position,
     _token: vscode.CancellationToken,
     _context: vscode.CompletionContext
-  ): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+  ): vscode.CompletionItem[] | vscode.CompletionList | undefined {
     // Only provide completions on keep-sorted start lines, after the "start" keyword
     if (!isValidCompletionPosition(document, position)) {
       return undefined;
@@ -47,7 +53,7 @@ export class KeepSortedCompletionProvider
       document.lineAt(position.line).text,
       wordInfo
     );
-    const existingOptionKeys = new Set(
+    const existingOptionKeys = new Set<string>(
       [...directive.getValidOptions()].map(({ option: options }) => options.key)
     );
     for (const [key, option] of KEEP_SORTED_OPTS) {
@@ -84,8 +90,11 @@ export class KeepSortedCompletionProvider
 
   /** Registers the completion provider for in-scope document schemas. */
   async register(): Promise<vscode.Disposable> {
+    const selector: vscode.DocumentSelector = workspace.IN_SCOPE_SCHEMAS.map(
+      (scheme: string): vscode.DocumentFilter => ({ scheme })
+    );
     return vscode.languages.registerCompletionItemProvider(
-      workspace.IN_SCOPE_SCHEMAS.map((s: string) => ({ scheme: s })),
+      selector,
       this,
       /* triggerCharacters= */ " "
     );
@@ -114,7 +123,7 @@ export class KeepSortedCompletionProvider
   private getWordAtPosition(
     document: vscode.TextDocument,
     position: vscode.Position
-  ): { word: string; range: vscode.Range } | undefined {
+  ): WordInfo | undefined {
     const lineText = document.lineAt(position.line).text;
     const column = position.character;
 
@@ -145,10 +154,7 @@ export class KeepSortedCompletionProvider
    *
    * @returns A boolean indicating whether to filter completions based on the word.
    */
-  private shouldFilterByWord(
-    lineText: string,
-    wordInfo: { word: string; range: vscode.Range } | undefined
-  ): boolean {
+  private shouldFilterByWord(lineText: string, wordInfo: WordInfo | undefined): boolean {
     const isDirectiveKeyword = wordInfo && this.directiveKeywords.has(wordInfo.word.toLowerCase());
     const isOptionValue = wordInfo && lineText.charAt(wordInfo.range.start.character - 1) === "=";
     return (wordInfo && wordInfo.word.length > 0 && !isDirectiveKeyword && !isOptionValue) ?? false;

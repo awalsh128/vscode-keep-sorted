@@ -3,6 +3,7 @@ import * as winston from "winston";
 import * as workspace from "./workspace";
 import * as tb from "triple-beam";
 import * as path from "path";
+import { performance } from "node:perf_hooks";
 /* eslint-disable @typescript-eslint/no-require-imports */
 import TransportStream = require("winston-transport");
 import type { TransformableInfo } from "logform";
@@ -179,8 +180,8 @@ export function logAndGetError(logger: winston.Logger, error: Error | string | u
     if (error instanceof Error) {
       return error;
     }
-    if (error instanceof String) {
-      return new Error(error.toString());
+    if (typeof error === "string") {
+      return new Error(error);
     }
     return new Error(workspace.toJson(error));
   };

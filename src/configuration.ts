@@ -85,9 +85,15 @@ function loadContext(): Context {
   const regexs = configuration.exclude.map((p) => {
     try {
       return new RegExp(p);
-    } catch {
-      // Fall back to glob-regex for glob-style patterns
-      return globRegex(p);
+    } catch (regexErr) {
+      try {
+        // Fall back to glob-regex for glob-style patterns
+        return globRegex(p);
+      } catch (globErr) {
+        logger.warn(`Invalid exclusion pattern "${p}": RegExp: ${regexErr}, Glob: ${globErr}`);
+        // Return a pattern that matches nothing
+        return /(?!.*)/;
+      }
     }
   });
 

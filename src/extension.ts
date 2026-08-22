@@ -1,10 +1,6 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
-import {
-  SortBlockCommandHandler,
-  SortFileCommandHandler,
-  ShowDocsCommandHandler,
-} from "./commands";
+import { SortFileCommandHandler, ShowDocsCommandHandler } from "./commands";
 import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
@@ -26,7 +22,6 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(diagnostics);
   const editFactory = new workspace.EditFactory(linter, diagnostics);
   const editCommandHandlers = {
-    sortBlock: new SortBlockCommandHandler(diagnostics, editFactory),
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
   };
   const showDocsCommandHandler = new ShowDocsCommandHandler();
@@ -117,7 +112,11 @@ export async function activate(context: vscode.ExtensionContext) {
   const documents = await workspace.inScopeDocuments();
   logger.info(`Found ${documents.length} workspace documents for possible linting on activation`);
   // Don't block activation on linting
-  await Promise.all(documents.map(lint));
+  const lintResults = await Promise.allSettled(documents.map(lint));
+  const lintFailures = lintResults.filter((r) => r.status === "rejected");
+  if (lintFailures.length > 0) {
+    logger.warn(`${lintFailures.length} document(s) failed linting on activation`);
+  }
 
   logger.info(`Extension ${EXT_NAME} activated.`);
 }

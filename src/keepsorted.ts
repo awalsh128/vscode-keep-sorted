@@ -10,6 +10,19 @@ import {
 } from "./instrumentation";
 import * as crypto from "crypto";
 
+/** Default process timeout for keep-sorted CLI execution. */
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+
+function outputToString(value: string | Buffer | null | undefined): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8");
+  }
+  return "";
+}
+
 /** Hash contents and return last 8 characters of the hash for brevity. */
 function hash(value: string): string {
   return crypto
@@ -316,21 +329,70 @@ export class KeepSorted {
     const result = spawnSync(this.binaryPath, args, {
       input: stdin,
       encoding: "utf8",
+      timeout: DEFAULT_COMMAND_TIMEOUT_MS,
     });
 
-    const code = result.status ?? 1;
-    const stdout = result.stdout ?? "";
-    const stderr = result.stderr ?? "";
+    const code = result.status;
+    const signal = result.signal ?? undefined;
+    const stdout = outputToString(result.stdout);
+    const stderr = outputToString(result.stderr);
 
-    spawnLogger.debug(`${command} exited (time: ${benchmark.getDeltaAsText()}, code: ${code})`);
-    if (code !== 0 && code !== 1) {
-      spawnLogger.error(`${command} error output: ${stderr}`);
-    }
+    const commandError = (
+      exitCode: number,
+      errorStderr: string,
+      errorSignal?: NodeJS.Signals
+    ): Error => {
+      const signalText = errorSignal ? ` (signal: ${errorSignal})` : "";
+      return new Error(
+        `Command failed: ${this.binaryPath} ${args.join(" ")}\n` +
+          `  stdout: ${stdout}\n` +
+          `  stderr: ${errorStderr}\n` +
+          `  exit code: ${exitCode}${signalText}`
+      );
+    };
 
     if (result.error) {
-      const errorMessage = `Failed to spawn ${command}: ${result.error.message} (time: ${benchmark.getDeltaAsText()})`;
-      spawnLogger.error(errorMessage);
-      throw new Error(errorMessage);
+      const signalExitCode = signal ? 128 : 1;
+      const spawnError = commandError(
+        code ?? signalExitCode,
+        stderr || result.error.message,
+        signal
+      );
+      throw logAndGetError(
+        spawnLogger,
+        `${command} failed to spawn: ${spawnError.message} (time: ${benchmark.getDeltaAsText()})`
+      );
+    }
+
+    if (signal) {
+      const spawnError = commandError(
+        code ?? 128,
+        stderr || `Terminated by signal ${signal}`,
+        signal
+      );
+      throw logAndGetError(
+        spawnLogger,
+        `${command} terminated by signal ${signal}: ${spawnError.message}`
+      );
+    }
+
+    if (typeof code !== "number") {
+      const spawnError = commandError(
+        signal ? 128 : 1,
+        stderr || "Process exited without status",
+        signal
+      );
+      throw logAndGetError(
+        spawnLogger,
+        `${command} exited without status: ${spawnError.message} (time: ${benchmark.getDeltaAsText()})`
+      );
+    }
+
+    spawnLogger.debug(
+      `${command} exited (time: ${benchmark.getDeltaAsText()}, code: ${code}${signal ? `, signal: ${signal}` : ""})`
+    );
+    if (code !== 0 && code !== 1) {
+      spawnLogger.error(`${command} error output: ${stderr}`);
     }
 
     return { code, stdout, stderr };

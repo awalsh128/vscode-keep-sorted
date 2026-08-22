@@ -237,7 +237,7 @@ describe("configuration", () => {
       expect(() => handleConfigurationChange(mockEvent)).to.not.throw();
     });
 
-    it("should throw for malformed patterns that are neither valid regex nor glob", () => {
+    it("should handle malformed patterns gracefully with warning log", () => {
       // Arrange
       configStub.inspect.withArgs("enabled").returns({ defaultValue: true });
       configStub.inspect.withArgs("autoComplete").returns({ defaultValue: true });
@@ -253,12 +253,13 @@ describe("configuration", () => {
         return defaultVal;
       });
 
-      // Act & Assert - malformed patterns that don't parse as regex or glob should throw
+      // Act & Assert - malformed patterns should not throw but should log warning
       const mockEvent = {
         affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
       } as vscode.ConfigurationChangeEvent;
 
-      expect(() => handleConfigurationChange(mockEvent)).to.throw();
+      // Should not throw - malformed patterns are handled gracefully
+      expect(() => handleConfigurationChange(mockEvent)).to.not.throw();
     });
   });
 

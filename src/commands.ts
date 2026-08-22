@@ -50,13 +50,9 @@ export abstract class CommandHandler implements workspace.Registrant {
  * Groups all command handler instances used by the extension's code actions and UI. Provides a
  * strongly-typed contract for accessing the available fix operations.
  *
- * - `fixBlock`: Handles sorting a single keep-sorted block within a selection or range.
- * - `fixFile`: Handles sorting all keep-sorted blocks in the current file.
- * - `fixWorkspace`: Handles sorting all keep-sorted blocks across all in-scope workspace files.
+ * - `sortFile`: Handles sorting all keep-sorted blocks in the current file.
  */
 export interface CommandHandlers {
-  /** Handler for sorting a single keep-sorted block in a selection or range. */
-  readonly sortBlock: SortBlockCommandHandler;
   /** Handler for sorting all keep-sorted blocks in the current file. */
   readonly sortFile: SortFileCommandHandler;
 }
@@ -171,35 +167,6 @@ export abstract class EditCommandHandler extends CommandHandler {
 }
 
 /**
- * Command handler for sorting a single keep-sorted block within a selection or range. Used for
- * quick fixes and context menu actions targeting a specific block.
- */
-export class SortBlockCommandHandler extends EditCommandHandler {
-  constructor(diagnostics: vscode.DiagnosticCollection, editFactory: workspace.EditFactory) {
-    super(
-      {
-        title: `${EXT_DISPLAY_NAME}: Sort Block`,
-        command: `${EXT_NAME}.sortBlock`,
-        tooltip: `Sort all lines in block`,
-      },
-      diagnostics,
-      editFactory
-    );
-  }
-
-  /**
-   * Generates an edit for sorting a single keep-sorted block in the given range. Returns a single
-   * CreateEditResult if a fix is available, otherwise an empty array.
-   */
-  protected async createEdit(
-    document: vscode.TextDocument,
-    range?: vscode.Range
-  ): Promise<workspace.CreateEditResult | null> {
-    return this.editFactory.create(document, range);
-  }
-}
-
-/**
  * Command handler for sorting all keep-sorted blocks in the current file. Used for source actions
  * and context menu actions at the file level.
  */
@@ -223,7 +190,7 @@ export class SortFileCommandHandler extends EditCommandHandler {
   protected async createEdit(
     document: vscode.TextDocument
   ): Promise<workspace.CreateEditResult | null> {
-    if (document && workspace.isInScope(document.uri)) {
+    if (document && document.uri && workspace.isInScope(document.uri)) {
       return this.editFactory.create(document);
     }
     logger.info(
@@ -231,7 +198,11 @@ export class SortFileCommandHandler extends EditCommandHandler {
     );
 
     const activeTextEditor = vscode.window.activeTextEditor;
-    if (activeTextEditor && workspace.isInScope(activeTextEditor.document.uri)) {
+    if (
+      activeTextEditor &&
+      !activeTextEditor.document.isClosed &&
+      workspace.isInScope(activeTextEditor.document.uri)
+    ) {
       logger.info(
         `Found active editor with in-scope document: ${activeTextEditor.document.uri.toString()}`
       );
