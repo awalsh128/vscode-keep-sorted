@@ -1,7 +1,6 @@
-[![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/package.json)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md)
-[![CI](https://github.com/awalsh128/vscode-keep-sorted/workflows/CI/badge.svg)](https://github.com/awalsh128/vscode-keep-sorted/actions)
-[![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
+[![CI](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg)](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/awalsh128.keep-sorted)](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
 
 **Sort anything from imports to lists in any language.**
