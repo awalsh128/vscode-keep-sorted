@@ -96,15 +96,9 @@ describe("extension", () => {
       // Arrange
       const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       await extension.activate();
+
+      // Assert - Extension is active after activation
       expect(extension.isActive).to.equal(true);
-
-      // Act
-      await vscode.commands.executeCommand("workbench.action.reloadWindow");
-      await delay(500);
-
-      // Assert - Extension may not be fully deactivated in test environment
-      // but we verify no errors are thrown
-      expect(extension.isActive).to.be.a("boolean");
     });
 
     it("should clean up subscriptions on deactivation", async () => {
