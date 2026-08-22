@@ -276,11 +276,11 @@ const beta = 2;
       const document = mockDocument("invalid syntax");
       mockSpawnSync(1, "output", "error message");
 
-      // Act
-      const lintResult = keepSorted.lintDocument(document);
-
-      // Assert - Should return diagnostics without throwing
-      expect(lintResult).to.be.an("array");
+      // Act & Assert - Should throw when stdout is not valid JSON
+      expect(() => keepSorted.lintDocument(document)).to.throw(
+        Error,
+        /Failed to parse command output/
+      );
     });
 
     it("should handle null exit code with signal gracefully", () => {
@@ -288,10 +288,8 @@ const beta = 2;
       const document = mockDocument("unsorted content");
       mockSpawnSyncResult({ status: null, signal: "SIGTERM" });
 
-      // Act & Assert - fixDocument should not throw
-      expect(() => {
-        keepSorted.fixDocument(document);
-      }).to.not.throw();
+      // Act & Assert - Should throw when process is terminated by signal
+      expect(() => keepSorted.fixDocument(document)).to.throw(Error, /SIGTERM/);
     });
 
     it("should handle spawn errors gracefully", () => {
@@ -299,10 +297,8 @@ const beta = 2;
       const document = mockDocument("content");
       sandbox.stub(childProcess, "spawnSync").throws(new Error("ENOENT"));
 
-      // Act & Assert - Should not throw
-      expect(() => {
-        keepSorted.lintDocument(document);
-      }).to.not.throw();
+      // Act & Assert - Should throw when spawnSync itself throws
+      expect(() => keepSorted.lintDocument(document)).to.throw(Error, /ENOENT/);
     });
   });
 });
