@@ -7,6 +7,7 @@ import { TEST_WORKSPACE_DIR } from "./testing";
 describe("extension", () => {
   const EXTENSION_ID = "awalsh128.keep-sorted";
   const FIX_FILE_COMMAND = "keep-sorted.fixFile";
+  const SORT_FILE_COMMAND = "keep-sorted.sortFile";
   const SAMPLE_TS_FILENAME = "sample.ts";
   const SAMPLE_SORTED_TS_FILENAME = "sample_sorted.ts";
 
@@ -76,7 +77,7 @@ describe("extension", () => {
       );
     });
 
-    it("should register the fix file command", async () => {
+    it("should register the fix and legacy sort file commands", async () => {
       // Arrange
       const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       await extension.activate();
@@ -86,6 +87,7 @@ describe("extension", () => {
 
       // Assert
       expect(commands).to.include(FIX_FILE_COMMAND);
+      expect(commands).to.include(SORT_FILE_COMMAND);
     });
   });
 

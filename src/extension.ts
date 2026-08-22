@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import { SortFileCommandHandler, ShowDocsCommandHandler } from "./commands";
-import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
+import {
+  logger,
+  EXT_DISPLAY_NAME,
+  EXT_NAME,
+  contextualizeLogger,
+  setFileLogging,
+} from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
 import { KeepSortedCompletionProvider } from "./completion";
@@ -23,9 +29,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const editFactory = new workspace.EditFactory(linter, diagnostics);
   const editCommandHandlers = {
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
-    fixFile: new SortFileCommandHandler(diagnostics, editFactory, {
-      title: "Keep Sorted: Sort Current File",
-      command: `${EXT_NAME}.fixFile`,
+    legacySortFile: new SortFileCommandHandler(diagnostics, editFactory, {
+      title: `${EXT_DISPLAY_NAME}: Sort Current File (Legacy Command)`,
+      command: `${EXT_NAME}.sortFile`,
       tooltip: "Sort all lines in file",
     }),
   };
