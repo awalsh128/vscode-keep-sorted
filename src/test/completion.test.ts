@@ -302,7 +302,7 @@ describe("completion", () => {
             // Assert - Verify registration with proper selector
             sinon.assert.called(registerStub);
             const [selector, providerInstance] = registerStub.firstCall.args;
-            expect(selector).to.be.an("array").that.is.not.empty; // Selector targets specific document schemes
+            expect(selector).to.be.an("array").that.has.length.greaterThan(0); // Selector targets specific document schemes
             expect(providerInstance).to.equal(provider);
           } finally {
             // Cleanup
