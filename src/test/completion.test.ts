@@ -295,17 +295,19 @@ describe("completion", () => {
           const registerStub = sinon.stub(vscode.languages, "registerCompletionItemProvider");
           registerStub.returns({ dispose: sinon.stub() } as unknown as vscode.Disposable);
 
-          // Act
-          await provider.register();
+          try {
+            // Act
+            await provider.register();
 
-          // Assert - Verify registration with proper selector
-          sinon.assert.called(registerStub);
-          const [selector, providerInstance] = registerStub.firstCall.args;
-          expect(selector).to.equal(null); // Null selector means all document types
-          expect(providerInstance).to.equal(provider);
-
-          // Cleanup
-          registerStub.restore();
+            // Assert - Verify registration with proper selector
+            sinon.assert.called(registerStub);
+            const [selector, providerInstance] = registerStub.firstCall.args;
+            expect(selector).to.be.an("array").that.is.not.empty; // Selector targets specific document schemes
+            expect(providerInstance).to.equal(provider);
+          } finally {
+            // Cleanup
+            registerStub.restore();
+          }
         });
 
         it("should be disposable when returned from register", async () => {
@@ -314,15 +316,17 @@ describe("completion", () => {
           const registerStub = sinon.stub(vscode.languages, "registerCompletionItemProvider");
           registerStub.returns(fakeDisposable as unknown as vscode.Disposable);
 
-          // Act
-          const disposable = await provider.register();
-          disposable.dispose();
+          try {
+            // Act
+            const disposable = await provider.register();
+            disposable.dispose();
 
-          // Assert
-          sinon.assert.called(fakeDisposable.dispose);
-
-          // Cleanup
-          registerStub.restore();
+            // Assert
+            sinon.assert.called(fakeDisposable.dispose);
+          } finally {
+            // Cleanup
+            registerStub.restore();
+          }
         });
       });
     });
