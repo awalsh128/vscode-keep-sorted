@@ -264,7 +264,7 @@ const beta = 2;
   describe("timeout scenarios", () => {
     it("should have DEFAULT_COMMAND_TIMEOUT_MS set", () => {
       // Assert - Timeout constant should be defined
-      expect(keepSorted).to.not.be.null;
+      expect(keepSorted).to.not.equal(null);
       // The timeout is configured in the spawnSync call with timeout option
       // Verify the KeepSorted instance is properly initialized
       expect(keepSorted.lintDocument).to.be.a("function");
