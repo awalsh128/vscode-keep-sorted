@@ -58,14 +58,10 @@ function buildBinary(platform: (typeof PLATFORMS)[number]): void {
   console.log(`Building ${platform.filename} (${platform.goos}/${platform.goarch})...`);
 
   // Build directly to the desired location using GOOS/GOARCH so we don't rely on GOPATH/GOBIN rules
-  const buildOutput = execFileSync(
-    "go",
-    ["build", "-o", outputPath],
-    {
-      env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
-      encoding: "utf-8",
-    }
-  );
+  const buildOutput = execFileSync("go", ["build", "-o", outputPath], {
+    env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
+    encoding: "utf-8",
+  });
   writeFileSync(join(BIN_BUILD_DIR, `build-${platform.filename}.log`), buildOutput);
 
   // Normalize new and existing outputs regardless of umask, including the tracked .exe.

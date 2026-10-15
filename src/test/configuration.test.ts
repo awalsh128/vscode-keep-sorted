@@ -37,6 +37,8 @@ describe("configuration", () => {
   type Property = JSONSchema7 & {
     default: unknown;
     examples?: unknown[];
+    markdownDescription?: string;
+    order?: number;
   };
   type Properties = Record<string, Property>;
   type Value = boolean | number | string | Value[] | undefined;
@@ -55,6 +57,43 @@ describe("configuration", () => {
       expect(packageJson.contributes?.configuration?.properties).to.be.an("object");
     });
 
+    it("should keep editor-owned save settings outside the extension configuration", (): void => {
+      // Arrange
+      const properties = packageJson.contributes.configuration.properties as Properties;
+
+      // Act
+      const keys = Object.keys(properties);
+
+      // Assert
+      expect(keys).to.have.members([
+        "keep-sorted.enabled",
+        "keep-sorted.autoComplete",
+        "keep-sorted.exclude",
+        "keep-sorted.logFilepath",
+      ]);
+      expect(packageJson.contributes.configurationDefaults).to.equal(undefined);
+    });
+
+    [
+      { key: "enabled", defaultValue: true, order: 1, guidance: "source.fixAll.keepSorted" },
+      { key: "autoComplete", defaultValue: true, order: 2, guidance: "documentation tooltips" },
+      { key: "exclude", defaultValue: [], order: 3, guidance: "regular expressions first" },
+      { key: "logFilepath", defaultValue: "", order: 4, guidance: "first workspace folder" },
+    ].forEach(({ key, defaultValue, order, guidance }): void => {
+      it(`should expose current defaults and guidance for ${key}`, (): void => {
+        // Arrange
+        const properties = packageJson.contributes.configuration.properties as Properties;
+
+        // Act
+        const property = properties[`keep-sorted.${key}`];
+
+        // Assert
+        expect(property.default).to.deep.equal(defaultValue);
+        expect(property.order).to.equal(order);
+        expect(property.markdownDescription).to.include(guidance);
+      });
+    });
+
     PROPERTIES.forEach(([key, p]) => {
       it("should have correct structure", () => {
         expect(key).to.be.a("string").and.to.have.length.greaterThan(0);
@@ -65,7 +104,8 @@ describe("configuration", () => {
         expect(p).to.be.an("object");
         expect(p).to.have.property("type");
         expect(p).to.have.property("default");
-        expect(p).to.have.property("description");
+        expect(p).to.have.property("markdownDescription");
+        expect(p.markdownDescription).to.be.a("string").with.length.greaterThan(0);
 
         if (p.type !== "boolean") {
           expect(p)
@@ -91,7 +131,7 @@ describe("configuration", () => {
     PROPERTIES_WITH_REQUIRED_EXAMPLES.forEach(([key, p]) => {
       it(`key ${key} should have populated values`, () => {
         expect(p).to.be.an("object");
-        expect(p.description).to.have.length.greaterThan(0);
+        expect(p.markdownDescription).to.have.length.greaterThan(0);
         expect(p.type).to.be.oneOf(ValueTypeOfs);
         // For arrays, typeof [] is "object", so handle separately
         const actualType = Array.isArray(p.default) ? "array" : typeof p.default;

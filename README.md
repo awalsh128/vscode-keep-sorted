@@ -76,7 +76,8 @@ diagnostics but does not sort. `editor.formatOnSave` is not required.
 
 ### Sorting Options
 
-Add options after `start`; autocomplete suggests available names and values. For example:
+Add options after `start`; autocomplete suggests option names with documentation tooltips and
+inserts an editable default value. For example:
 
 ```python
 items = [
@@ -95,12 +96,15 @@ examples.
 
 ## Settings
 
-| Setting                    | Default | Description                                       |
-| -------------------------- | ------- | ------------------------------------------------- |
-| `keep-sorted.enabled`      | `true`  | Enable or disable sorting and document listeners. |
-| `keep-sorted.autoComplete` | `true`  | Enable option suggestions on start-marker lines.  |
-| `keep-sorted.exclude`      | `[]`    | Glob or regex patterns for files to skip.         |
-| `keep-sorted.logFilepath`  | `""`    | Optional file logging; empty disables it.         |
+| Setting                    | Default | Description                                                              |
+| -------------------------- | ------- | ------------------------------------------------------------------------ |
+| `keep-sorted.enabled`      | `true`  | Enable diagnostics, sorting commands, and code actions.                  |
+| `keep-sorted.autoComplete` | `true`  | Suggest options after `start`, with editable defaults and documentation. |
+| `keep-sorted.exclude`      | `[]`    | Exclude files from diagnostics and sorting; regex first, glob fallback.  |
+| `keep-sorted.logFilepath`  | `""`    | Add file logging alongside Output; empty disables file logging.          |
+
+Sort-on-save is configured separately through VS Code's `editor.codeActionsOnSave`, as shown above;
+it is not enabled by default or controlled by an additional `keep-sorted` setting.
 
 Example exclusions:
 
@@ -110,8 +114,11 @@ Example exclusions:
 }
 ```
 
-Exclusions are checked against workspace-relative paths, absolute paths, and file names. Relative
-log paths are resolved against the first workspace folder.
+Exclusions are checked against workspace-relative paths, absolute paths, and file names. Patterns
+are interpreted as regex first, falling back to glob matching when the regex is invalid.
+
+Log paths are joined to the first workspace folder when one is open; otherwise, the configured path
+is normalized and used directly. Prefer a workspace-relative path such as `logs/keep-sorted.log`.
 
 ## Troubleshooting
 

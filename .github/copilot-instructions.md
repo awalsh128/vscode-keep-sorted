@@ -5,6 +5,10 @@ documentation review applies before completing every task: keep the README accur
 and concise, or explain why no update is needed. Use the `docs-reviewer` agent for review when
 available; otherwise perform the checklist directly.
 
+Apply the shared Configuration Synchronization policy whenever settings change: keep the manifest,
+runtime settings, regression tests, and README aligned. Editor-owned save actions are not extension
+configuration properties.
+
 ## MANDATORY COMPLIANCE REQUIRED
 
 All AI assistants and developers working on vscode-keep-sorted MUST follow the comprehensive

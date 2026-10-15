@@ -68,6 +68,10 @@ Verify README claims against current code, remove stale or redundant content, va
 examples and links, and explain when no README update is needed. This policy is shared by Copilot
 and Claude through their repository entry points.
 
+For settings changes, also apply the **Configuration Synchronization** policy in AGENTS.md: update
+manifest metadata, runtime configuration, regression tests, and user documentation together as
+needed. Do not redefine editor-owned settings or enable optional save actions through defaults.
+
 Update `README.md` when you:
 
 - Add/remove features or commands - DOCUMENT OR REJECTED

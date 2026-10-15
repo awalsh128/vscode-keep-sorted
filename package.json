@@ -57,12 +57,14 @@
         "keep-sorted.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable or disable the keep-sorted extension"
+          "order": 1,
+          "markdownDescription": "Enable Keep Sorted diagnostics, sorting commands, and code actions. To sort on save, configure `#editor.codeActionsOnSave#` with `\"source.fixAll.keepSorted\": \"explicit\"` (manual saves) or `\"always\"` (also focus/window-change Auto Save, not after-delay Auto Save). `#editor.formatOnSave#` alone does not enable sorting."
         },
         "keep-sorted.autoComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Enable or disable autocomplete suggestions for keep-sorted options when typing after the 'start' keyword."
+          "order": 2,
+          "markdownDescription": "Suggest keep-sorted option names and values, with documentation tooltips, after `start` on a `keep-sorted start` line."
         },
         "keep-sorted.exclude": {
           "type": "array",
@@ -70,7 +72,8 @@
             "type": "string"
           },
           "default": [],
-          "description": "Array of glob or regex patterns to exclude files from being processed by the extension (relative to the workspace root).",
+          "order": 3,
+          "markdownDescription": "Exclude files from diagnostics and sorting. Patterns are interpreted as regular expressions first, with glob matching used when a pattern is not a valid regex. Each pattern is checked against the workspace-relative path, absolute path, and file name.",
           "examples": [
             [
               "**/node_modules/**",
@@ -82,11 +85,12 @@
         "keep-sorted.logFilepath": {
           "type": "string",
           "default": "",
-          "description": "File path for logging output. If specified, logs will be written to the specified location. If empty or undefined, file logging is disabled. If a relative path is provided, it will be resolved relative to the workspace root.",
+          "order": 4,
+          "markdownDescription": "Write extension logs to a file in addition to the Keep Sorted Output channel. Empty disables file logging. Paths are joined to the first workspace folder when one is open; without a workspace, the configured path is used directly. Use a workspace-relative path such as `logs/keep-sorted.log`.",
           "examples": [
             "",
             "keep-sorted.log",
-            "/var/log/keep-sorted.log"
+            "logs/keep-sorted.log"
           ]
         }
       }

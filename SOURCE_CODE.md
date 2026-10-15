@@ -44,14 +44,14 @@ code actions to maintain sorted content.
 
 ### Bundled Binary Generation
 
-[scripts/create-binaries.ts](scripts/create-binaries.ts) cross-compiles upstream keep-sorted
-v0.7.1 using explicit `GOOS`, `GOARCH`, and `CGO_ENABLED=0` environment values. Both the source
-and compiled JavaScript entry points resolve outputs to the repository's `bin/` directory.
-Each binary is assigned mode `0755`, including the Windows executable, before its SHA256 is
-written. The script also assigns checksums mode `0644`. The binary workflow transfers a tar
-archive to preserve these modes after artifact download without a separate chmod step.
-Regression tests check exact modes under a restrictive umask, archive permission preservation,
-checksum contents, and target executable headers.
+[scripts/create-binaries.ts](scripts/create-binaries.ts) cross-compiles upstream keep-sorted v0.7.1
+using explicit `GOOS`, `GOARCH`, and `CGO_ENABLED=0` environment values. Both the source and
+compiled JavaScript entry points resolve outputs to the repository's `bin/` directory. Each binary
+is assigned mode `0755`, including the Windows executable, before its SHA256 is written. The script
+also assigns checksums mode `0644`. The binary workflow transfers a tar archive to preserve these
+modes after artifact download without a separate chmod step. Regression tests check exact modes
+under a restrictive umask, archive permission preservation, checksum contents, and target executable
+headers.
 
 ### Agent Configuration
 
@@ -169,6 +169,10 @@ avoiding startup timing failures without a fixed delay.
   - `autoComplete`: boolean (default: true)
   - `exclude`: string[] (glob/regex patterns)
   - `logFilepath`: string (optional file logging path)
+- **Settings UI metadata**: The manifest uses ordered `markdownDescription` fields to explain
+  save-action setup, autocomplete tooltips, regex-first exclusions, and logging paths. The
+  configuration tests guard metadata/defaults and keep editor-owned save settings out of the
+  extension's configuration properties. AGENTS.md defines the shared synchronization policy.
 - **Error Handling** (FIXED):
   - Handles both invalid RegExp patterns AND glob patterns gracefully
   - Logs warnings for malformed patterns

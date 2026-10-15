@@ -25,6 +25,19 @@ summary; do not make cosmetic edits just to satisfy the checklist.
 - Validate changed JSON snippets, command IDs, settings, and local links. Check sorting examples
   with the bundled binary when applicable. Report checks actually run and any unverified claims.
 
+## Configuration Synchronization
+
+When settings or their behavior change, update `contributes.configuration` in
+[package.json](package.json), [src/configuration.ts](src/configuration.ts), their regression tests,
+and the README together as needed. Verify types, defaults, examples, Settings UI descriptions, and
+path-matching/resolution semantics against the implementation; do not add speculative settings. Use
+`markdownDescription` for formatted setting help and setting links, and retain stable ordering.
+
+Sort-on-save uses VS Code's `editor.codeActionsOnSave` entry `source.fixAll.keepSorted`, not an
+extension-owned boolean. Do not redefine editor-owned settings under `contributes.configuration` or
+silently opt users in through `configurationDefaults`. Document `"explicit"`, `"always"`, and
+`"never"` semantics, including the after-delay Auto Save limitation, using official VS Code sources.
+
 ## Validation
 
 Follow the testing requirements in [AI_GUIDELINES.md](AI_GUIDELINES.md). Code changes require

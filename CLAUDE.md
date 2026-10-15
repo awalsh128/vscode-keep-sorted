@@ -5,6 +5,10 @@
 Read [AI_GUIDELINES.md](AI_GUIDELINES.md) before editing code. Apply the required documentation
 review from the shared instructions before completing every task.
 
+Apply the shared Configuration Synchronization policy whenever settings change, including the
+manifest's Settings UI metadata. Keep editor-owned save-action settings separate from extension
+configuration.
+
 ## Project Subagents
 
 Project subagent definitions live in [.claude/agents](.claude/agents); Claude Code discovers them
