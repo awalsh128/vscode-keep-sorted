@@ -428,6 +428,10 @@ const lazyLogger = contextualizeLogger(uri, range);
 - **Chai**: Assertion library (testing only)
 - **Mocha**: Test runner (testing only)
 - **VS Code API**: Extension host communication
+- **@vscode/test-cli**: Loads the development test configuration; version 0.0.15 or newer avoids the
+  older chokidar/braces dependency chain and requires Node.js 22+.
+- **@vscode/vsce**: Local extension packaging tooling. Open VSX publishing is handled by the release
+  workflow; the unused local `ovsx` dependency is not installed.
 
 ---
 
