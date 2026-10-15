@@ -1,7 +1,8 @@
-import { describe, it } from "mocha";
-import { expect } from "chai";
-import * as vscode from "vscode";
+import { randomUUID } from "crypto";
 import * as path from "path";
+import { expect } from "chai";
+import { describe, it, beforeEach, afterEach } from "mocha";
+import * as vscode from "vscode";
 import { TEST_WORKSPACE_DIR } from "./testing";
 
 describe("extension", () => {
@@ -88,6 +89,209 @@ describe("extension", () => {
       // Assert
       expect(commands).to.include(FIX_FILE_COMMAND);
       expect(commands).to.include(SORT_FILE_COMMAND);
+    });
+  });
+
+  describe("sorting regressions", () => {
+    let fixtureUri: vscode.Uri;
+    const unsortedContent = [
+      "Outside blocks: zebra, apple",
+      "# keep-sorted start",
+      "zebra",
+      "apple",
+      "# keep-sorted end",
+      "Between blocks: zebra, apple",
+      "# keep-sorted start",
+      "delta",
+      "charlie",
+      "# keep-sorted end",
+      "",
+    ].join("\n");
+    const sortedContent = [
+      "Outside blocks: zebra, apple",
+      "# keep-sorted start",
+      "apple",
+      "zebra",
+      "# keep-sorted end",
+      "Between blocks: zebra, apple",
+      "# keep-sorted start",
+      "charlie",
+      "delta",
+      "# keep-sorted end",
+      "",
+    ].join("\n");
+    let document: vscode.TextDocument;
+    let originalCodeActions: Record<string, string | boolean> | undefined;
+    let originalEnabled: boolean | undefined;
+
+    const waitForSaveParticipants = async (): Promise<void> => {
+      let requestedOnSave = false;
+      const requests = new Set<string>();
+      const kind = vscode.CodeActionKind.SourceFixAll.append("keepSorted");
+      const probe = vscode.languages.registerCodeActionsProvider(
+        { scheme: "file", pattern: fixtureUri.fsPath },
+        {
+          provideCodeActions(
+            _document: vscode.TextDocument,
+            _range: vscode.Range,
+            context: vscode.CodeActionContext
+          ): vscode.CodeAction[] {
+            requests.add(`${context.only?.value}:${context.triggerKind}`);
+            requestedOnSave ||=
+              context.only?.contains(kind) === true &&
+              context.triggerKind === vscode.CodeActionTriggerKind.Automatic;
+            return [];
+          },
+        },
+        { providedCodeActionKinds: [kind] }
+      );
+      try {
+        // VS Code installs save participants after extension-host tests can start.
+        const deadline = Date.now() + 5000;
+        while (!requestedOnSave && Date.now() < deadline) {
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(fixtureUri, new vscode.Position(0, 0), "\n");
+          await vscode.workspace.applyEdit(edit);
+          await document.save();
+          if (!requestedOnSave) {
+            await delay(100);
+          }
+        }
+        const settings = vscode.workspace
+          .getConfiguration("editor", fixtureUri)
+          .get("codeActionsOnSave");
+        const message =
+          `Save requests: ${[...requests].join(", ")}; ` + `settings: ${JSON.stringify(settings)}`;
+        expect(requestedOnSave, message).to.equal(true);
+      } finally {
+        probe.dispose();
+      }
+    };
+
+    beforeEach(async (): Promise<void> => {
+      // Unique URIs prevent dirty editor buffers from being reused across tests.
+      fixtureUri = vscode.Uri.file(path.join(TEST_WORKSPACE_DIR, `sort-${randomUUID()}.txt`));
+      await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
+      const editorConfig = vscode.workspace.getConfiguration("editor", fixtureUri);
+      originalCodeActions =
+        editorConfig.inspect<Record<string, string | boolean>>("codeActionsOnSave")?.workspaceValue;
+      const extensionConfig = vscode.workspace.getConfiguration("keep-sorted");
+      originalEnabled = extensionConfig.inspect<boolean>("enabled")?.workspaceValue;
+      await extensionConfig.update("enabled", true, vscode.ConfigurationTarget.Workspace);
+      await editorConfig.update(
+        "codeActionsOnSave",
+        { "source.fixAll.keepSorted": "explicit" },
+        vscode.ConfigurationTarget.Workspace
+      );
+      await vscode.workspace.fs.writeFile(fixtureUri, Buffer.from("Save readiness probe\n"));
+      document = await vscode.workspace.openTextDocument(fixtureUri);
+      await vscode.window.showTextDocument(document);
+      await waitForSaveParticipants();
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(fixtureUri, new vscode.Range(0, 0, document.lineCount, 0), unsortedContent);
+      expect(await vscode.workspace.applyEdit(edit)).to.equal(true);
+      await waitForDiagnostics(fixtureUri);
+    });
+
+    afterEach(async (): Promise<void> => {
+      await document.save();
+      await vscode.workspace
+        .getConfiguration("editor", fixtureUri)
+        .update("codeActionsOnSave", originalCodeActions, vscode.ConfigurationTarget.Workspace);
+      await vscode.workspace
+        .getConfiguration("keep-sorted")
+        .update("enabled", originalEnabled, vscode.ConfigurationTarget.Workspace);
+    });
+
+    [FIX_FILE_COMMAND, SORT_FILE_COMMAND].forEach((command: string): void => {
+      [
+        {
+          name: "document",
+          args: (document: vscode.TextDocument): vscode.TextDocument[] => [document],
+        },
+        { name: "command palette", args: (): vscode.TextDocument[] => [] },
+      ].forEach((invocation): void => {
+        const title = `should sort all blocks via ${command} from ${invocation.name}`;
+        it(title, async (): Promise<void> => {
+          // Arrange
+          const args = invocation.args(document);
+
+          // Act
+          await vscode.commands.executeCommand(command, ...args);
+
+          // Assert
+          expect(document.getText()).to.equal(sortedContent);
+          expect(vscode.languages.getDiagnostics(fixtureUri)).to.have.lengthOf(0);
+        });
+      });
+
+      it(`should be idempotent via ${command}`, async (): Promise<void> => {
+        // Arrange
+        await vscode.commands.executeCommand(command, document);
+        expect(document.getText()).to.equal(sortedContent);
+        const sortedVersion = document.version;
+
+        // Act
+        await vscode.commands.executeCommand(command, document);
+
+        // Assert
+        expect(document.getText()).to.equal(sortedContent);
+        expect(document.version).to.equal(sortedVersion);
+        expect(vscode.languages.getDiagnostics(fixtureUri)).to.have.lengthOf(0);
+      });
+    });
+
+    const makeDocumentDirty = async (): Promise<void> => {
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(fixtureUri, new vscode.Position(document.lineCount - 1, 0), "\n");
+      expect(await vscode.workspace.applyEdit(edit)).to.equal(true);
+      expect(document.isDirty).to.equal(true);
+    };
+
+    it("should sort all blocks on save and persist the result to disk", async (): Promise<void> => {
+      // Arrange
+      await makeDocumentDirty();
+      const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        fixtureUri,
+        new vscode.Range(0, 0, document.lineCount, 0),
+        "source.fixAll.keepSorted"
+      );
+      expect(actions).to.have.lengthOf(1);
+
+      // Act
+      await vscode.commands.executeCommand("workbench.action.files.save");
+
+      // Assert
+      expect(document.getText()).to.equal(sortedContent + "\n");
+      expect(Buffer.from(await vscode.workspace.fs.readFile(fixtureUri)).toString("utf8")).to.equal(
+        sortedContent + "\n"
+      );
+      expect(document.isDirty).to.equal(false);
+      expect(vscode.languages.getDiagnostics(fixtureUri)).to.have.lengthOf(0);
+    });
+
+    it("should only lint on save when the save action is disabled", async (): Promise<void> => {
+      // Arrange
+      await vscode.workspace
+        .getConfiguration("editor", fixtureUri)
+        .update(
+          "codeActionsOnSave",
+          { "source.fixAll.keepSorted": "never" },
+          vscode.ConfigurationTarget.Workspace
+        );
+      await makeDocumentDirty();
+
+      // Act
+      await vscode.commands.executeCommand("workbench.action.files.save");
+
+      // Assert
+      expect(document.getText()).to.equal(unsortedContent + "\n");
+      expect(Buffer.from(await vscode.workspace.fs.readFile(fixtureUri)).toString("utf8")).to.equal(
+        unsortedContent + "\n"
+      );
+      expect(document.isDirty).to.equal(false);
+      expect(vscode.languages.getDiagnostics(fixtureUri)).to.have.length.greaterThan(0);
     });
   });
 

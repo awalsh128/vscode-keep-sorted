@@ -122,6 +122,7 @@
     "@types/vscode": "^1.100.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^4.0.0",
     "chai": "^6.2.2",
     "chai-as-promised": "^8.0.2",
     "eslint": "^10.0.1",
@@ -129,6 +130,7 @@
     "logform": "^2.7.0",
     "mocha": "^11.7.5",
     "mocha-explorer-launcher-scripts": "^0.4.0",
+    "ovsx": "^1.2.0",
     "prettier-plugin-jsdoc": "^1.3.3",
     "rimraf": "^6.1.0",
     "sinon": "^21.0.0",
@@ -156,5 +158,10 @@
     "esbuild": ">=0.28.2",
     "minimatch": ">=10.2.1",
     "serialize-javascript": ">=7.0.5"
-  }
+  },
+  "bundleDependencies": [
+    "glob-regex",
+    "js-yaml",
+    "lru-cache"
+  ]
 }

@@ -1,5 +1,10 @@
 # GitHub Copilot Instructions
 
+Read and follow [AGENTS.md](../AGENTS.md), the shared repository instructions. Its required
+documentation review applies before completing every task: keep the README accurate to current code
+and concise, or explain why no update is needed. Use the `docs-reviewer` agent for review when
+available; otherwise perform the checklist directly.
+
 ## MANDATORY COMPLIANCE REQUIRED
 
 All AI assistants and developers working on vscode-keep-sorted MUST follow the comprehensive

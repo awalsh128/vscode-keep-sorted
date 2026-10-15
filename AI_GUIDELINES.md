@@ -63,6 +63,11 @@ Update `docs/SOURCE_CODE.md` when you:
 
 #### README.md Updates - MANDATORY
 
+Before completing every task, apply the **Required Documentation Review** in [AGENTS.md](AGENTS.md).
+Verify README claims against current code, remove stale or redundant content, validate affected
+examples and links, and explain when no README update is needed. This policy is shared by Copilot
+and Claude through their repository entry points.
+
 Update `README.md` when you:
 
 - Add/remove features or commands - DOCUMENT OR REJECTED

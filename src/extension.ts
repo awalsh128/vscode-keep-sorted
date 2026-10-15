@@ -117,7 +117,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  extSubsHandler.registerAllEnabled();
+  await extSubsHandler.registerAllEnabled();
 
   // Initial linting of all documents upon activation
   const documents = await workspace.inScopeDocuments();

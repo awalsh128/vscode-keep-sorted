@@ -48,6 +48,22 @@ describe("commands", () => {
       expect(action.command?.arguments).to.have.lengthOf(1);
       expect(action.command?.arguments?.[0]).to.equal(document);
     });
+
+    it("should create a CodeAction with the requested kind", () => {
+      const diagnostics = [
+        new vscode.Diagnostic(
+          new vscode.Range(0, 0, 1, 0),
+          "Unsorted",
+          vscode.DiagnosticSeverity.Warning
+        ),
+      ];
+      const kind = vscode.CodeActionKind.SourceFixAll.append("keepSorted");
+
+      const action = fileHandler.asCodeAction(diagnostics, document, undefined, true, kind);
+
+      expect(action.kind).to.deep.equal(kind);
+      expect(action.isPreferred).to.equal(true);
+    });
   });
 
   let linter: KeepSorted;

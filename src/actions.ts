@@ -1,7 +1,9 @@
+// keep-sorted start
 import * as vscode from "vscode";
 import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
 import * as workspace from "./workspace";
 import { CommandHandlers } from "./commands";
+// keep-sorted end
 
 /**
  * Provides code actions (quick fixes and source actions) for keep-sorted diagnostics. Integrates
@@ -12,8 +14,11 @@ import { CommandHandlers } from "./commands";
  * generate actionable fixes for detected sorting issues.
  */
 export class ActionProvider implements vscode.CodeActionProvider, workspace.Registrant {
-  /** The code action kinds this provider supports (quick fix). */
-  static readonly kinds = [vscode.CodeActionKind.QuickFix];
+  /** Code action kind used by editor.codeActionsOnSave source.fixAll.keepSorted. */
+  static readonly fixAllKind = vscode.CodeActionKind.SourceFixAll.append("keepSorted");
+
+  /** The code action kinds this provider supports. */
+  static readonly kinds = [vscode.CodeActionKind.QuickFix, ActionProvider.fixAllKind];
 
   /** Unique identifier for this provider, used for registration and diagnostics. */
   readonly id = ActionProvider.name;
@@ -52,7 +57,11 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
    * @param document The document in which to provide actions.
    * @param range The range to check for diagnostics and provide fixes.
    */
-  provideCodeActions(document: vscode.TextDocument, range: vscode.Range): vscode.CodeAction[] {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    context?: vscode.CodeActionContext
+  ): vscode.CodeAction[] {
     const uri = document.uri;
     if (!this.shouldProvide(uri, range)) {
       return [];
@@ -63,7 +72,21 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
       return [];
     }
 
-    const actions = [this.commandHandlers.sortFile.asCodeAction(diagnostics, document)];
+    const actions: vscode.CodeAction[] = [];
+    if (this.shouldIncludeAction(context, vscode.CodeActionKind.QuickFix)) {
+      actions.push(this.commandHandlers.sortFile.asCodeAction(diagnostics, document));
+    }
+    if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
+      actions.push(
+        this.commandHandlers.sortFile.asCodeAction(
+          diagnostics,
+          document,
+          undefined,
+          true,
+          ActionProvider.fixAllKind
+        )
+      );
+    }
 
     contextualizeLogger(uri, range).info(
       `Providing code action(s) for ${uri.fsPath}:\n` +
@@ -76,6 +99,16 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
     );
 
     return actions;
+  }
+
+  private shouldIncludeAction(
+    context: vscode.CodeActionContext | undefined,
+    kind: vscode.CodeActionKind
+  ): boolean {
+    if (!context?.only) {
+      return kind === vscode.CodeActionKind.QuickFix;
+    }
+    return context.only.contains(kind) || kind.contains(context.only);
   }
 
   /**

@@ -40,6 +40,17 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "Build, Package & Install Extension",
+      "type": "shell",
+      "command": "npm run compile && npx --yes @vscode/vsce package --no-dependencies && code --install-extension keep-sorted-1.0.0.vsix --force && code --open-url vscode://command/workbench.action.reloadWindow",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ],
   "inputs": [

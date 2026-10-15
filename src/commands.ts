@@ -124,12 +124,10 @@ export abstract class EditCommandHandler extends CommandHandler {
     diagnostics: vscode.Diagnostic[],
     document: vscode.TextDocument,
     range?: vscode.Range,
-    isPreferred = false
+    isPreferred = false,
+    kind = vscode.CodeActionKind.QuickFix
   ): vscode.CodeAction {
-    const action = new vscode.CodeAction(
-      `${this.command.tooltip} (${EXT_NAME})`,
-      vscode.CodeActionKind.QuickFix
-    );
+    const action = new vscode.CodeAction(`${this.command.tooltip} (${EXT_NAME})`, kind);
     action.diagnostics = diagnostics;
     action.isPreferred = isPreferred;
     action.command = this.command;

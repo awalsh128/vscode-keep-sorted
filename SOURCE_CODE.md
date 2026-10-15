@@ -42,6 +42,18 @@ code actions to maintain sorted content.
 
 ## File Structure
 
+### Agent Configuration
+
+- [AGENTS.md](AGENTS.md): Shared agent policy, including the required concise, code-verified README
+  review before task completion.
+- [.github/copilot-instructions.md](.github/copilot-instructions.md): Copilot entry point that
+  references the shared policy and development guidelines.
+- [CLAUDE.md](CLAUDE.md): Claude Code entry point; imports the shared policy with `@AGENTS.md`.
+- [.github/agents/docs-reviewer.agent.md](.github/agents/docs-reviewer.agent.md) and
+  [.claude/agents/docs-reviewer.md](.claude/agents/docs-reviewer.md): Read-only documentation
+  reviewers in each tool's native discovery layout. The main agent applies findings and validates
+  changes. No separate Claude settings file or expanded permissions are required.
+
 ### Core Files
 
 #### **extension.ts** — Extension Lifecycle & Activation
@@ -97,6 +109,21 @@ code actions to maintain sorted content.
   - Filters diagnostics by range intersection
   - Creates file-level sort action for affected document
 - **Integration**: Connected via VS Code's codeActionProvider extension point
+- **Sort on Save**: `ActionProvider` also advertises `source.fixAll.keepSorted` and returns a
+  preferred file-level action when VS Code requests that kind. The action executes
+  `keep-sorted.fixFile`; the save participant applies the changes before writing the file.
+
+### Sorting Regression Coverage
+
+[src/test/extension.test.ts](src/test/extension.test.ts) runs both `keep-sorted.fixFile` and the
+legacy `keep-sorted.sortFile` command in the real extension host, with an explicit document and with
+no arguments (Command Palette behavior). Tests check all blocks, unchanged surrounding text, cleared
+diagnostics, and idempotence. Save tests invoke the editor Save command and verify both document and
+disk contents with `source.fixAll.keepSorted` set to `"explicit"` or `"never"`.
+
+Each regression uses a unique fixture URI and restores workspace settings. A temporary no-op
+source-action provider probes VS Code's save-participant readiness before the fixture is populated,
+avoiding startup timing failures without a fixed delay.
 
 ---
 

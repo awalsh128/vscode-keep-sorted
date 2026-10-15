@@ -72,7 +72,10 @@ describe("actions", () => {
         const kinds = ActionProvider.kinds;
 
         // Assert
-        expect(kinds).members([vscode.CodeActionKind.QuickFix]);
+        expect(kinds).deep.members([
+          vscode.CodeActionKind.QuickFix,
+          vscode.CodeActionKind.SourceFixAll.append("keepSorted"),
+        ]);
       });
     });
 
@@ -142,6 +145,32 @@ describe("actions", () => {
           isPreferred: false,
           command: editCommandHandlers.sortFile.command,
         });
+      });
+
+      it("should return source fix all action when requested", () => {
+        // Arrange - Diagnostic range must intersect with test range (5,0)-(6,0)
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(5, 0, 6, 10),
+          ANY_DIAGNOSTIC_MESSAGE,
+          vscode.DiagnosticSeverity.Warning
+        );
+        diagnostic.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diagnostic]);
+
+        // Act
+        const actions = provider.provideCodeActions(document, range, {
+          diagnostics: [diagnostic],
+          only: vscode.CodeActionKind.SourceFixAll.append("keepSorted"),
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        expect(actions).to.have.length(ACTION_COUNT);
+        expect(actions![0].kind).to.deep.equal(
+          vscode.CodeActionKind.SourceFixAll.append("keepSorted")
+        );
+        expect(actions![0].isPreferred).to.equal(true);
+        expect(actions![0].command?.command).to.equal("keep-sorted.fixFile");
       });
 
       it("should return actions with multiple diagnostics", () => {
