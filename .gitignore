@@ -7,6 +7,8 @@ dist/
 
 # Test outputs
 bin/mock-keep-sorted
+/bin-backup/
+/bin.backup-*/
 src/test/logs
 tests.log
 

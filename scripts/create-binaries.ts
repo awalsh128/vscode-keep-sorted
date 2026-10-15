@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 
-import { mkdirSync, chmodSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, chmodSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { chdir } from "process";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { createHash } from "crypto";
 
 const KEEP_SORTED_VERSION = "v0.7.1";
-const BIN_DIR = join(__dirname, "..", "bin");
-const BIN_BUILD_DIR = join(__dirname, "bin-build");
+// The source runs under scripts/, while tsc emits the entry point under out/scripts/.
+const PROJECT_ROOT = join(
+  __dirname,
+  existsSync(join(__dirname, "..", "package.json")) ? ".." : "../.."
+);
+const BIN_DIR = join(PROJECT_ROOT, "bin");
+const BIN_BUILD_DIR = join(PROJECT_ROOT, "scripts", "bin-build");
 
 const PLATFORMS = [
   { goos: "windows", goarch: "amd64", filename: "keep-sorted.exe" },
@@ -53,25 +58,25 @@ function buildBinary(platform: (typeof PLATFORMS)[number]): void {
   console.log(`Building ${platform.filename} (${platform.goos}/${platform.goarch})...`);
 
   // Build directly to the desired location using GOOS/GOARCH so we don't rely on GOPATH/GOBIN rules
-  const buildOutput = execSync(
-    `env CGO_ENABLED=0 GOOS=${platform.goos} GOARCH=${platform.goarch}
-    go build -o "${outputPath}"`,
+  const buildOutput = execFileSync(
+    "go",
+    ["build", "-o", outputPath],
     {
-      env: { ...process.env },
+      env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
       encoding: "utf-8",
     }
   );
   writeFileSync(join(BIN_BUILD_DIR, `build-${platform.filename}.log`), buildOutput);
 
-  if (platform.goos !== "windows") {
-    chmodSync(outputPath, 0o755);
-  }
+  // Normalize new and existing outputs regardless of umask, including the tracked .exe.
+  chmodSync(outputPath, 0o755);
 
   // Generate SHA256 hash
   const fileBuffer = readFileSync(outputPath);
   const hash = createHash("sha256").update(fileBuffer).digest("hex");
   const hashFilePath = `${outputPath}.sha256`;
   writeFileSync(hashFilePath, hash);
+  chmodSync(hashFilePath, 0o644);
 
   console.log(`✅ Built ${platform.filename} (SHA256: ${hash})`);
 }

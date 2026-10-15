@@ -13,7 +13,11 @@ project.
 
 - Verifies Go toolchain version (requires Go 1.23.1+)
 - Builds binaries for Windows, macOS (Intel/ARM), and Linux
+- Passes `GOOS`, `GOARCH`, and `CGO_ENABLED=0` directly to Go for static cross-compilation
+- Sets every binary to mode `0755` on Unix hosts, including the Windows executable, regardless
+  of existing permissions or the build process's umask
 - Generates SHA256 checksums for each binary
+- Sets checksum files to mode `0644` (non-executable)
 - Outputs all binaries to the `bin/` directory
 
 **Usage:**
@@ -21,6 +25,10 @@ project.
 ```bash
 npx tsx scripts/create-binaries.ts
 ```
+
+After compilation, the equivalent entry point is `node out/scripts/create-binaries.js`.
+Both write to the repository's `bin/` directory. The script owns all permission changes;
+the binary workflow transfers a tar archive to preserve those modes across artifact downloads.
 
 ### `sync-labels.ts`
 
@@ -52,5 +60,5 @@ Both scripts have corresponding test files in the `test/` subdirectory:
 Run tests with:
 
 ```bash
-npm test
+npm run test:scripts
 ```

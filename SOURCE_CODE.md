@@ -42,6 +42,17 @@ code actions to maintain sorted content.
 
 ## File Structure
 
+### Bundled Binary Generation
+
+[scripts/create-binaries.ts](scripts/create-binaries.ts) cross-compiles upstream keep-sorted
+v0.7.1 using explicit `GOOS`, `GOARCH`, and `CGO_ENABLED=0` environment values. Both the source
+and compiled JavaScript entry points resolve outputs to the repository's `bin/` directory.
+Each binary is assigned mode `0755`, including the Windows executable, before its SHA256 is
+written. The script also assigns checksums mode `0644`. The binary workflow transfers a tar
+archive to preserve these modes after artifact download without a separate chmod step.
+Regression tests check exact modes under a restrictive umask, archive permission preservation,
+checksum contents, and target executable headers.
+
 ### Agent Configuration
 
 - [AGENTS.md](AGENTS.md): Shared agent policy, including the required concise, code-verified README

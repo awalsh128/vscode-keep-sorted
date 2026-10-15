@@ -1,7 +1,8 @@
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
+import { createHash } from "crypto";
 import { expect } from "chai";
 import { describe, it, before, after } from "mocha";
 
@@ -119,34 +120,94 @@ describe("create-binaries.ts E2E Tests", () => {
     }
   });
 
-  it("should set correct file permissions on Unix binaries", function () {
-    this.timeout(120000); // 2 minutes for Go builds
-
-    // Skip on Windows
-    if (process.platform === "win32") {
-      this.skip();
-    }
-
-    // Run the script
-    execSync(`npx tsx "${scriptPath}"`, {
-      cwd: projectRoot,
-      stdio: "pipe",
-      encoding: "utf-8",
+  describe("binary permissions and cross-compilation regressions", () => {
+    before(function (): void {
+      this.timeout(120000);
+      if (process.platform === "win32") {
+        this.skip();
+        return;
+      }
+      // Reproduce lost executable bits and a restrictive build environment.
+      execSync(`npx tsx "${scriptPath}"`, { cwd: projectRoot, stdio: "pipe" });
+      expectedBinaries.forEach((name): void => {
+        fs.chmodSync(path.join(binDir, name), 0o644);
+        fs.chmodSync(path.join(binDir, `${name}.sha256`), 0o755);
+      });
+      execSync(`umask 077 && npx tsx "${scriptPath}"`, {
+        cwd: projectRoot,
+        stdio: "pipe",
+        encoding: "utf-8",
+      });
+      // Match CI artifact transport: only the tar file's mode may be reset by GitHub.
+      const archive = path.join(testBinDir, "binaries.tar");
+      execFileSync("tar", ["-cf", archive, "bin/"], { cwd: projectRoot });
+      execFileSync("tar", ["-xpf", archive], { cwd: testBinDir });
     });
 
-    // Check permissions on non-Windows binaries
-    const unixBinaries = expectedBinaries.filter((name) => !name.endsWith(".exe"));
+    expectedBinaries.forEach((name): void => {
+      it(`should restore exact 0755 permissions for ${name}`, (): void => {
+        // Arrange
+        const binaryPath = path.join(binDir, name);
 
-    for (const binaryName of unixBinaries) {
-      const binaryPath = path.join(binDir, binaryName);
-      const stats = fs.statSync(binaryPath);
+        // Act
+        const mode = fs.statSync(binaryPath).mode & 0o777;
 
-      // Check if executable bit is set (0o755 means rwxr-xr-x)
-      const mode = stats.mode & 0o777;
-      const isExecutable = (mode & 0o111) !== 0;
+        // Assert
+        expect(mode).to.equal(0o755);
+      });
 
-      expect(isExecutable, `${binaryName} should be executable`).to.equal(true);
-    }
+      it(`should preserve ${name} permissions through archive transport`, (): void => {
+        // Arrange
+        const extractedPath = path.join(testBinDir, "bin", name);
+
+        // Act
+        const mode = fs.statSync(extractedPath).mode & 0o777;
+
+        // Assert
+        expect(mode).to.equal(0o755);
+      });
+
+      it(`should set non-executable checksum permissions for ${name}`, (): void => {
+        // Arrange
+        const checksumPath = path.join(binDir, `${name}.sha256`);
+
+        // Act
+        const mode = fs.statSync(checksumPath).mode & 0o777;
+
+        // Assert
+        expect(mode).to.equal(0o644);
+      });
+
+      it(`should write a matching SHA256 checksum for ${name}`, (): void => {
+        // Arrange
+        const binaryPath = path.join(binDir, name);
+        const expectedHash = fs.readFileSync(`${binaryPath}.sha256`, "utf8").trim();
+
+        // Act
+        const actualHash = createHash("sha256").update(fs.readFileSync(binaryPath)).digest("hex");
+
+        // Assert
+        expect(actualHash).to.equal(expectedHash);
+      });
+    });
+
+    [
+      { name: "keep-sorted.exe", magic: "4d5a", offset: 0, bytes: 2 },
+      { name: "keep-sorted-darwin-amd64", magic: "cffaedfe07000001", offset: 0, bytes: 8 },
+      { name: "keep-sorted-darwin-arm64", magic: "cffaedfe0c000001", offset: 0, bytes: 8 },
+      { name: "keep-sorted-linux-amd64", magic: "7f454c46", offset: 0, bytes: 4 },
+    ].forEach(({ name, magic, offset, bytes }): void => {
+      it(`should produce the target executable format for ${name}`, (): void => {
+        // Arrange
+        const binary = fs.readFileSync(path.join(binDir, name));
+
+        // Act
+        const header = binary.subarray(offset, offset + bytes).toString("hex");
+
+        // Assert
+        expect(header).to.equal(magic);
+      });
+    });
   });
 
   it("should use keep-sorted version v0.7.1", function () {
@@ -182,9 +243,6 @@ describe("create-binaries.ts E2E Tests", () => {
       const binaryPath = path.join(binDir, name);
       return fs.statSync(binaryPath).mtimeMs;
     });
-
-    // Wait a bit to ensure timestamps would be different
-    execSync("sleep 1", { stdio: "ignore" });
 
     // Run the script second time
     execSync(`npx tsx "${scriptPath}"`, {
