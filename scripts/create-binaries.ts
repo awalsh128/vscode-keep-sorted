@@ -6,7 +6,7 @@ import { chdir } from "process";
 import { execFileSync, execSync } from "child_process";
 import { createHash } from "crypto";
 
-const KEEP_SORTED_VERSION = "v0.7.1";
+const KEEP_SORTED_VERSION = "v0.10.0";
 // The source runs under scripts/, while tsc emits the entry point under out/scripts/.
 const PROJECT_ROOT = join(
   __dirname,

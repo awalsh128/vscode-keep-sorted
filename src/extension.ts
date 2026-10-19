@@ -1,16 +1,11 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
-import { SortFileCommandHandler, ShowDocsCommandHandler } from "./commands";
-import {
-  logger,
-  EXT_DISPLAY_NAME,
-  EXT_NAME,
-  contextualizeLogger,
-  setFileLogging,
-} from "./instrumentation";
+import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
+import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
 import { KeepSortedCompletionProvider } from "./completion";
+import { KeepSortedHoverProvider } from "./hover";
 import {
   getConfig,
   handleConfigurationChange,
@@ -29,15 +24,11 @@ export async function activate(context: vscode.ExtensionContext) {
   const editFactory = new workspace.EditFactory(linter, diagnostics);
   const editCommandHandlers = {
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
-    legacySortFile: new SortFileCommandHandler(diagnostics, editFactory, {
-      title: `${EXT_DISPLAY_NAME}: Sort Current File (Legacy Command)`,
-      command: `${EXT_NAME}.sortFile`,
-      tooltip: "Sort all lines in file",
-    }),
+    sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
   };
-  const showDocsCommandHandler = new ShowDocsCommandHandler();
   const actionProvider = new ActionProvider(diagnostics, editCommandHandlers);
   const completionProvider = new KeepSortedCompletionProvider();
+  const hoverProvider = new KeepSortedHoverProvider();
 
   const extSubsHandler = new workspace.ExtensionSubscriptionsHandler(context.subscriptions);
 
@@ -50,10 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   function lint(document: vscode.TextDocument): void {
     try {
-      const results = linter.lintDocument(document);
-      if (results) {
-        diagnostics.set(document.uri, results);
-      }
+      editFactory.refreshDiagnostics(document);
     } catch (err: Error | unknown) {
       const errorMessage = err instanceof Error ? err.message : workspace.toJson(err);
       contextualizeLogger(document.uri).error(`Linting failed with:\n${errorMessage}`);
@@ -64,13 +52,15 @@ export async function activate(context: vscode.ExtensionContext) {
   extSubsHandler.addRegistrant(actionProvider);
 
   // Register completion provider for keep-sorted options autocomplete
-  extSubsHandler.addRegistrant(completionProvider);
+  extSubsHandler.addRegistrant(completionProvider, getConfig().autoComplete);
+
+  // Register hover provider for keep-sorted option documentation
+  extSubsHandler.addRegistrant(hoverProvider);
 
   // Register command handlers
   Object.values(editCommandHandlers).forEach((handler) => {
     extSubsHandler.addRegistrant(handler);
   });
-  context.subscriptions.push(await showDocsCommandHandler.register());
 
   // Document listeners
   [
@@ -95,14 +85,17 @@ export async function activate(context: vscode.ExtensionContext) {
   // and listening
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(handleConfigurationChange));
   context.subscriptions.push(
-    onEnabledChange((enabled: boolean) => {
+    onEnabledChange(async (enabled: boolean) => {
       logger.info(`Extension enabled state is now: ${enabled}`);
       if (enabled) {
         logger.debug(`Extension enabled - registering event subscriptions.`);
-        extSubsHandler.registerAllEnabled();
+        await extSubsHandler.registerAllEnabled();
+        // Open documents were not linted while disabled
+        vscode.workspace.textDocuments.forEach(maybeLint);
       } else {
         logger.debug(`Extension disabled - disposing event subscriptions.`);
         extSubsHandler.unregisterAll();
+        diagnostics.clear();
       }
     })
   );
@@ -117,6 +110,10 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  if (!getConfig().enabled) {
+    logger.info(`Extension ${EXT_NAME} activated in disabled state.`);
+    return;
+  }
   await extSubsHandler.registerAllEnabled();
 
   // Initial linting of all documents upon activation

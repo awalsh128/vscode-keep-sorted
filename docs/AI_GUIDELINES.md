@@ -63,10 +63,10 @@ Update `docs/SOURCE_CODE.md` when you:
 
 #### README.md Updates - MANDATORY
 
-Before completing every task, apply the **Required Documentation Review** in [AGENTS.md](AGENTS.md).
-Verify README claims against current code, remove stale or redundant content, validate affected
-examples and links, and explain when no README update is needed. This policy is shared by Copilot
-and Claude through their repository entry points.
+Before completing every task, apply the **Required Documentation Review** in
+[AGENTS.md](../AGENTS.md). Verify README claims against current code, remove stale or redundant
+content, validate affected examples and links, and explain when no README update is needed. This
+policy is shared by Copilot and Claude through their repository entry points.
 
 For settings changes, also apply the **Configuration Synchronization** policy in AGENTS.md: update
 manifest metadata, runtime configuration, regression tests, and user documentation together as

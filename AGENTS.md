@@ -1,7 +1,8 @@
 # Repository Agent Instructions
 
-Read [AI_GUIDELINES.md](AI_GUIDELINES.md) before making changes. Preserve unrelated working-tree
-edits. The documentation policy below applies to every task, not just documentation requests.
+Read [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md) before making changes. Preserve unrelated
+working-tree edits. The documentation policy below applies to every task, not just documentation
+requests.
 
 ## Required Documentation Review
 
@@ -21,7 +22,8 @@ summary; do not make cosmetic edits just to satisfy the checklist.
   editor-owned settings against official VS Code documentation when their semantics matter.
 - Link to upstream sorting options rather than copying a large example catalog. Keep development and
   publishing details in [CONTRIBUTING.md](CONTRIBUTING.md) or
-  [scripts/README.md](scripts/README.md), and architecture in [SOURCE_CODE.md](SOURCE_CODE.md).
+  [scripts/README.md](scripts/README.md), and architecture in
+  [docs/SOURCE_CODE.md](docs/SOURCE_CODE.md).
 - Validate changed JSON snippets, command IDs, settings, and local links. Check sorting examples
   with the bundled binary when applicable. Report checks actually run and any unverified claims.
 
@@ -40,10 +42,10 @@ silently opt users in through `configurationDefaults`. Document `"explicit"`, `"
 
 ## Validation
 
-Follow the testing requirements in [AI_GUIDELINES.md](AI_GUIDELINES.md). Code changes require
-`npm test`, `npm run lint`, and `npm run compile`; run `npm run test:scripts` when scripts change.
-For documentation-only changes, validate examples, links, and configuration syntax; do not claim
-that runtime tests were run unless they were.
+Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Code changes
+require `npm test`, `npm run lint`, and `npm run compile`; run `npm run test:scripts` when scripts
+change. For documentation-only changes, validate examples, links, and configuration syntax; do not
+claim that runtime tests were run unless they were.
 
 ## Agent Layout
 

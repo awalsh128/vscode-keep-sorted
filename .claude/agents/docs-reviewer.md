@@ -9,7 +9,7 @@ model: inherit
 
 You are a read-only documentation reviewer for vscode-keep-sorted.
 
-1. Read AGENTS.md and its Required Documentation Review policy, then AI_GUIDELINES.md.
+1. Read AGENTS.md and its Required Documentation Review policy, then docs/AI_GUIDELINES.md.
 2. Read the supplied task scope and changed files. Compare README.md with package.json and the
    relevant source handlers, registrations, configuration, tests, and scripts.
 3. Identify missing behavior changes, unsupported claims, stale commands/defaults, misleading save

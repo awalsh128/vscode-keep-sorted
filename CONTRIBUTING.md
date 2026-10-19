@@ -7,7 +7,8 @@ document provides guidelines for contributing to the project.
 
 Before contributing, ensure you have:
 
-- [Node.js](https://nodejs.org/) (version 18 or higher)
+- [Node.js](https://nodejs.org/) (22.13.0+ on the Node 22 line; Node.js 24 is recommended and used
+  by CI)
 - [Visual Studio Code](https://code.visualstudio.com/)
 - [Go](https://golang.org/) (version 1.23.1 or higher) - required for building binaries
 
@@ -42,7 +43,7 @@ Before contributing, ensure you have:
 ### Code Standards
 
 This project follows strict development guidelines. **All contributions must comply with the
-requirements in [AI_GUIDELINES.md](AI_GUIDELINES.md)**.
+requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
 
 #### Key Requirements:
 
@@ -69,17 +70,27 @@ requirements in [AI_GUIDELINES.md](AI_GUIDELINES.md)**.
    npm run lint      # Check for linting errors
    npm run compile   # Check for TypeScript errors
    npm test          # Run all tests (must pass)
+   npm run test:scripts # Also run when changing scripts
    ```
 
 5. **Update documentation** if needed:
    - Update `README.md` for user-facing changes
-   - Update `SOURCE_CODE.md` for code structure changes
+   - Update `docs/SOURCE_CODE.md` for code structure changes
 
 ### Testing
 
+For manual testing, run `npm run dev`. It compiles the local code and opens a separate VS Code
+Extension Development Host on the test workspace, without installing a VSIX or running tests.
+Downloads stable VS Code to `~/.cache/vscode-keep-sorted` (or `$XDG_CACHE_HOME`) when not already
+cached. Its profile and extensions are isolated from your normal editor under `.vscode-test/`. Close
+the window to finish the command. The test workspace enables the extension; enable the save action
+separately when testing sort-on-save.
+
 - Tests are written using **Mocha + Chai + Sinon**
 - Test files go in `src/test/` with `.test.ts` extension
-- Run tests with: `npm test`
+- Run tests with: `npm test`. Each run uses a fresh temporary VS Code profile. The first
+  sort-on-save test may wait up to 90 seconds while VS Code finishes installing save participants in
+  an unfocused window.
 - Use VS Code's test runner for debugging tests
 
 ### Building Binaries
@@ -112,7 +123,7 @@ This downloads and builds binaries for all supported platforms.
 ## Getting Help
 
 - Check the [README.md](README.md) for usage information
-- Review [AI_GUIDELINES.md](AI_GUIDELINES.md) for detailed development requirements
+- Review [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md) for detailed development requirements
 - Open an issue if you need clarification on requirements
 - Look at existing tests for examples
 

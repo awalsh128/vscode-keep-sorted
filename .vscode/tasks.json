@@ -51,6 +51,21 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "Run Local Extension",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ],
   "inputs": [

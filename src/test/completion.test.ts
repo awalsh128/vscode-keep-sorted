@@ -10,7 +10,7 @@ use(sinonChai);
 
 // Test constants
 const KEEP_SORTED_START_LINE = "// keep-sorted start";
-const KEEP_SORTED_START_WITH_OPTIONS = "// keep-sorted start case=no";
+const KEEP_SORTED_START_WITH_OPTIONS = "// keep-sorted start case=no ";
 const REGULAR_CODE_LINE = "const foo = 'bar';";
 const KEEP_SORTED_END_LINE = "// keep-sorted end";
 
@@ -25,6 +25,9 @@ describe("completion", () => {
         "block",
         "sticky_comments",
         "sticky_prefixes",
+        "group_start_regex",
+        "group_end_regex",
+        "order",
         "case",
         "numeric",
         "prefix_order",
@@ -49,7 +52,14 @@ describe("completion", () => {
           expect(option.key.length).to.be.greaterThan(0);
           expect(option.description).to.be.a("string");
           expect(option.description.length).to.be.greaterThan(0);
-          expect(option.valueType).to.be.oneOf(["bool", "int", "list", "map", "regex"]);
+          expect(option.valueType).to.be.oneOf([
+            "bool",
+            "intOrBool",
+            "intList",
+            "list",
+            "regexList",
+            "enum",
+          ]);
           if (option.examples) {
             expect(option.examples).to.be.an("array");
             expect(option.examples.length).to.be.greaterThan(0);
@@ -195,6 +205,96 @@ describe("completion", () => {
         expect(items!.length).to.equal(KEEP_SORTED_OPTS.size - 1);
       });
 
+      [
+        { name: "inside a list value", line: "// keep-sorted start ignore_prefixes=[a, " },
+        { name: "for a free-form option", line: "// keep-sorted start ignore_prefixes=co" },
+        { name: "for an unknown option", line: "// keep-sorted start bogus=" },
+      ].forEach(({ name, line }) => {
+        it(`should return undefined when typing an option value ${name}`, () => {
+          // Act
+          const result = getCompletionsAtEndOfLine(line);
+
+          // Assert
+          expect(result).to.equal(undefined);
+        });
+      });
+
+      describe("value suggestions", () => {
+        [
+          { line: "// keep-sorted start numeric=", expected: ["yes", "no"] },
+          { line: "// keep-sorted start newline_separated=", expected: ["yes", "no"] },
+          { line: "// keep-sorted start order=", expected: ["asc", "desc"] },
+          {
+            line: "// keep-sorted start remove_duplicates=",
+            expected: ["yes", "no", "keep_first_comment", "merge_comments"],
+          },
+        ].forEach(({ line, expected }) => {
+          it(`should suggest ${expected.join(", ")} after '${line.split(" ").pop()}'`, () => {
+            // Act
+            const items = getCompletionsAtEndOfLine(line);
+
+            // Assert
+            expect(items!.map((item) => item.label)).to.deep.equal(expected);
+            items!.forEach((item) => {
+              expect(item.kind).to.equal(vscode.CompletionItemKind.EnumMember);
+            });
+          });
+        });
+
+        it("should mark the default value", () => {
+          // Act
+          const items = getCompletionsAtEndOfLine("// keep-sorted start order=");
+
+          // Assert
+          expect(items!.find((item) => item.label === "asc")!.detail).to.include("(default)");
+          expect(items!.find((item) => item.label === "desc")!.detail).not.to.include("default");
+        });
+
+        it("should replace the whole value, including text after the cursor", () => {
+          // Arrange - cursor between "y" and "es" in "numeric=yes"
+          const line = "// keep-sorted start numeric=yes case=no";
+          const column = line.indexOf("=yes") + 2;
+
+          // Act
+          const items = getCompletionsAt(line, column);
+
+          // Assert
+          const range = items![0].range as vscode.Range;
+          expect(range.start.character).to.equal(line.indexOf("=yes") + 1);
+          expect(range.end.character).to.equal(line.indexOf(" case"));
+        });
+      });
+
+      describe("conflicting options", () => {
+        [
+          { existing: "by_regex=\\w+", hidden: "ignore_prefixes" },
+          { existing: "ignore_prefixes=a", hidden: "by_regex" },
+          { existing: "group_start_regex=^x", hidden: "group_end_regex" },
+          { existing: "group_end_regex=^x", hidden: "group_start_regex" },
+        ].forEach(({ existing, hidden }) => {
+          it(`should not suggest ${hidden} alongside ${existing}`, () => {
+            // Act
+            const items = getCompletionsAtEndOfLine(`// keep-sorted start ${existing} `);
+
+            // Assert
+            expect(items!.map((item) => item.label)).not.to.include(hidden);
+          });
+        });
+      });
+
+      it("should suggest options after a closed list value", () => {
+        // Act
+        const items = getCompletionsAtEndOfLine("// keep-sorted start ignore_prefixes=[a, b] gr");
+
+        // Assert
+        expect(items!.map((item) => item.label)).to.deep.equal([
+          "group",
+          "group_prefixes",
+          "group_start_regex",
+          "group_end_regex",
+        ]);
+      });
+
       describe("completion item properties", () => {
         let items: vscode.CompletionItem[];
 
@@ -233,24 +333,25 @@ describe("completion", () => {
           items = getCompletionsAtEndOfLine(KEEP_SORTED_START_LINE)!;
         });
 
-        it("should provide correct insert text for bool options", () => {
-          // Act
-          const numericItem = items.find((item) => item.label === "numeric");
+        [
+          // Non-default values come first because writing the default has no effect
+          { key: "numeric", snippet: "numeric=${1|yes,no|}" },
+          { key: "case", snippet: "case=${1|no,yes|}" },
+          { key: "order", snippet: "order=${1|desc,asc|}" },
+          {
+            key: "remove_duplicates",
+            snippet: "remove_duplicates=${1|no,keep_first_comment,merge_comments,yes|}",
+          },
+          { key: "skip_lines", snippet: "skip_lines=$1" },
+          { key: "group_prefixes", snippet: "group_prefixes=$1" },
+        ].forEach(({ key, snippet }) => {
+          it(`should insert '${snippet}' for ${key}`, () => {
+            // Act
+            const item = items.find((item) => item.label === key);
 
-          // Assert
-          expect(numericItem).to.not.equal(undefined);
-          const snippet = numericItem!.insertText as vscode.SnippetString;
-          expect(snippet.value).to.include("numeric=");
-        });
-
-        it("should provide correct insert text for int options", () => {
-          // Act
-          const skipLinesItem = items.find((item) => item.label === "skip_lines");
-
-          // Assert
-          expect(skipLinesItem).to.not.equal(undefined);
-          const snippet = skipLinesItem!.insertText as vscode.SnippetString;
-          expect(snippet.value).to.include("skip_lines=");
+            // Assert
+            expect((item!.insertText as vscode.SnippetString).value).to.equal(snippet);
+          });
         });
       });
 
@@ -304,6 +405,24 @@ describe("completion", () => {
             const [selector, providerInstance] = registerStub.firstCall.args;
             expect(selector).to.be.an("array").that.has.length.greaterThan(0); // Selector targets specific document schemes
             expect(providerInstance).to.equal(provider);
+          } finally {
+            // Cleanup
+            registerStub.restore();
+          }
+        });
+
+        it("should trigger on option name characters because comments disable quick suggestions", async () => {
+          // Arrange
+          const registerStub = sinon.stub(vscode.languages, "registerCompletionItemProvider");
+          registerStub.returns({ dispose: sinon.stub() } as unknown as vscode.Disposable);
+
+          try {
+            // Act
+            await provider.register();
+
+            // Assert
+            const triggerCharacters = registerStub.firstCall.args.slice(2);
+            expect(triggerCharacters).to.include.members([" ", "=", "_", "a", "z", "A", "Z"]);
           } finally {
             // Cleanup
             registerStub.restore();

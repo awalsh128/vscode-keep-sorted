@@ -9,6 +9,28 @@ import {
   KeepSortedOptionCategory,
 } from "./keepsortedopt";
 
+/**
+ * Characters that open suggestions while typing. VS Code disables quick suggestions inside comments
+ * by default and directives are always comments, so option-name and value characters must be
+ * explicit triggers. Positions outside a directive's option list return immediately.
+ */
+const TRIGGER_CHARACTERS = [
+  " ",
+  "=",
+  "_",
+  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+];
+
+/** The option value being typed at the cursor. */
+interface ValueAtCursor {
+  /** Option key before `=` */
+  key: string;
+  /** Range of the whole value, so accepting a suggestion replaces any text after the cursor */
+  range: vscode.Range;
+  /** Whether the cursor is inside a YAML list such as `[a, b]` */
+  inList: boolean;
+}
+
 /** Information about the word being typed at a given position. */
 interface WordInfo {
   word: string;
@@ -34,7 +56,13 @@ export class KeepSortedCompletionProvider
       return undefined;
     }
 
-    const directive = Directive.create(document.lineAt(position.line).text);
+    const lineText = document.lineAt(position.line).text;
+    const value = this.getValueAtCursor(lineText, position);
+    if (value) {
+      return value.inList ? undefined : this.provideValueItems(value);
+    }
+
+    const directive = Directive.create(lineText);
     if (!directive) {
       return [];
     }
@@ -49,16 +77,14 @@ export class KeepSortedCompletionProvider
 
     const items: vscode.CompletionItem[] = [];
 
-    const shouldFilterByWord = this.shouldFilterByWord(
-      document.lineAt(position.line).text,
-      wordInfo
-    );
-    const existingOptionKeys = new Set<string>(
-      [...directive.getValidOptions()].map(({ option: options }) => options.key)
+    const shouldFilterByWord = this.shouldFilterByWord(wordInfo);
+    const existingOptions = validOpts.map(({ option }) => option);
+    const excludedKeys = new Set<string>(
+      existingOptions.flatMap((option) => [option.key, ...(option.conflicts ?? [])])
     );
     for (const [key, option] of KEEP_SORTED_OPTS) {
-      // Skip options already on the line
-      if (existingOptionKeys.has(key)) {
+      // Skip options already on the line and options keep-sorted would ignore alongside them
+      if (excludedKeys.has(key)) {
         continue;
       }
 
@@ -75,8 +101,7 @@ export class KeepSortedCompletionProvider
       item.detail = `${EXT_NAME} option (${option.valueType})`;
       item.documentation = new vscode.MarkdownString(option.documentation);
 
-      // Insert text with = and placeholder value
-      item.insertText = new vscode.SnippetString(`${key}=\${1:${option.defaultValue}}`);
+      item.insertText = this.getOptionSnippet(option);
 
       // Set sort order to keep options in logical groups
       item.sortText = this.getSortText(option);
@@ -93,11 +118,67 @@ export class KeepSortedCompletionProvider
     const selector: vscode.DocumentSelector = workspace.IN_SCOPE_SCHEMAS.map(
       (scheme: string): vscode.DocumentFilter => ({ scheme })
     );
-    return vscode.languages.registerCompletionItemProvider(
-      selector,
-      this,
-      /* triggerCharacters= */ " "
+    return vscode.languages.registerCompletionItemProvider(selector, this, ...TRIGGER_CHARACTERS);
+  }
+
+  /**
+   * Inserts `key=` followed by a choice of known values, listing non-default values first because
+   * writing an option's default has no effect. Free-form values get an empty tab stop.
+   */
+  private getOptionSnippet(option: KeepSortedOption): vscode.SnippetString {
+    const snippet = new vscode.SnippetString(`${option.key}=`);
+    if (!option.values) {
+      return snippet.appendTabstop(1);
+    }
+    const choices = [...option.values].sort(
+      (a, b) => Number(a === option.defaultValue) - Number(b === option.defaultValue)
     );
+    return snippet.appendChoice(choices, 1);
+  }
+
+  /** Suggests the known values of the option being typed. */
+  private provideValueItems(value: ValueAtCursor): vscode.CompletionItem[] | undefined {
+    const option = KEEP_SORTED_OPTS.get(value.key);
+    if (!option?.values) {
+      return undefined;
+    }
+    return option.values.map((optionValue, i) => {
+      const item = new vscode.CompletionItem(optionValue, vscode.CompletionItemKind.EnumMember);
+      item.detail =
+        `${EXT_NAME} ${option.key} value` +
+        (optionValue === option.defaultValue ? " (default)" : "");
+      item.documentation = new vscode.MarkdownString(option.documentation);
+      item.range = value.range;
+      item.sortText = String(i).padStart(2, "0");
+      return item;
+    });
+  }
+
+  /** Finds the option value being typed, such as after `=` or inside `[...]`. */
+  private getValueAtCursor(lineText: string, position: vscode.Position): ValueAtCursor | undefined {
+    const textBeforeCursor = lineText.substring(0, position.character);
+    const token = textBeforeCursor.split(/\s/).pop() ?? "";
+    const openLists =
+      (textBeforeCursor.match(/\[/g) ?? []).length - (textBeforeCursor.match(/\]/g) ?? []).length;
+    const equalsIndex = token.indexOf("=");
+    if (openLists > 0) {
+      return { key: "", range: new vscode.Range(position, position), inList: true };
+    }
+    if (equalsIndex === -1) {
+      return undefined;
+    }
+    const start = position.character - token.length + equalsIndex + 1;
+    const rest = lineText.substring(position.character).match(/^\S*/)![0];
+    return {
+      key: token.substring(0, equalsIndex),
+      range: new vscode.Range(
+        position.line,
+        start,
+        position.line,
+        position.character + rest.length
+      ),
+      inList: false,
+    };
   }
 
   /** Get sort text to group options logically. */
@@ -146,17 +227,15 @@ export class KeepSortedCompletionProvider
   /**
    * Determines whether to filter completions based on the currently typed word.
    *
-   * - Ignore words that are part of the directive itself (e.g., "start", "keep", "sorted")
-   * - Ignore words that are option values (preceded by '=' on the line)
+   * Ignores words that are part of the directive itself (e.g., "start", "keep", "sorted"). Option
+   * values never reach this check because completions are skipped for them.
    *
-   * @param lineText The text of the current line.
    * @param wordInfo Information about the word being typed, including the word and its range.
    *
    * @returns A boolean indicating whether to filter completions based on the word.
    */
-  private shouldFilterByWord(lineText: string, wordInfo: WordInfo | undefined): boolean {
+  private shouldFilterByWord(wordInfo: WordInfo | undefined): boolean {
     const isDirectiveKeyword = wordInfo && this.directiveKeywords.has(wordInfo.word.toLowerCase());
-    const isOptionValue = wordInfo && lineText.charAt(wordInfo.range.start.character - 1) === "=";
-    return (wordInfo && wordInfo.word.length > 0 && !isDirectiveKeyword && !isOptionValue) ?? false;
+    return (wordInfo && wordInfo.word.length > 0 && !isDirectiveKeyword) ?? false;
   }
 }

@@ -14,3 +14,5 @@ test-workspace/
 *.log
 .DS_Store
 Thumbs.db
+images/logo.svg
+images/demo.webm

@@ -28,7 +28,6 @@ const alpha = 1;
 const beta = 2;
 // keep-sorted end
 `;
-  const range = new vscode.Range(0, 0, 5, 0);
 
   let keepSorted: KeepSorted;
   let sandbox: sinon.SinonSandbox;
@@ -212,10 +211,7 @@ const beta = 2;
       mockSpawnSync(2, "", errorMessage);
 
       // Act & Assert
-      expect(() => keepSorted.fixDocument(mockDocument(), range)).to.throw(
-        Error,
-        /test error message/
-      );
+      expect(() => keepSorted.fixDocument(mockDocument())).to.throw(Error, /test error message/);
     });
 
     it("should fix unsorted content using real binary", async function () {
@@ -223,23 +219,22 @@ const beta = 2;
       this.timeout(5000);
 
       // Act
-      const result = await keepSorted.fixDocument(mockDocument(unsortedTextBlock), range);
+      const result = await keepSorted.fixDocument(mockDocument(unsortedTextBlock));
 
       // Assert
       expect(result).to.not.equal(null);
       expect(result?.content).to.equal(sortedText);
     });
 
-    it("should return same content when already sorted", async function () {
+    it("should return null when already sorted", async function () {
       // Arrange
       this.timeout(5000);
 
-      // Act - The binary returns exit code 0 with the same content for already-sorted blocks
-      const result = keepSorted.fixDocument(mockDocument(sortedTextBlock), range);
+      // Act
+      const result = keepSorted.fixDocument(mockDocument(sortedTextBlock));
 
-      // Assert - Content is returned unchanged (binary doesn't distinguish "already sorted")
-      expect(result).to.not.equal(null);
-      expect(result?.content).to.equal(sortedTextBlock);
+      // Assert
+      expect(result).to.equal(null);
     });
 
     it("should fix test-workspace/sample.ts", async function () {
@@ -250,10 +245,7 @@ const beta = 2;
       const document = await vscode.workspace.openTextDocument(sampleUri);
 
       // Fix the entire document
-      const result = keepSorted.fixDocument(
-        document,
-        new vscode.Range(0, 0, document.lineCount, 0)
-      );
+      const result = keepSorted.fixDocument(document);
       expect(result).to.deep.equal({
         content: fs.readFileSync(path.join(TEST_WORKSPACE_DIR, "sample_sorted.ts"), "utf-8"),
         range: new vscode.Range(0, 0, document.lineCount, 0),

@@ -9,7 +9,7 @@ tools: [read, search]
 You are a read-only documentation reviewer for vscode-keep-sorted.
 
 1. Read [AGENTS.md](../../AGENTS.md) and its Required Documentation Review policy, then
-   [AI_GUIDELINES.md](../../AI_GUIDELINES.md).
+   [docs/AI_GUIDELINES.md](../../docs/AI_GUIDELINES.md).
 2. Read the supplied task scope and changed files. Compare [README.md](../../README.md) with
    [package.json](../../package.json) and relevant source handlers, registrations, configuration,
    tests, and scripts.

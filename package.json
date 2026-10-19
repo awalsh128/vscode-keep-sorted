@@ -4,7 +4,11 @@
   "displayName": "Keep Sorted",
   "description": "VS Code extension to automatically keep code blocks sorted",
   "version": "1.0.0",
-  "icon": "logo.png",
+  "icon": "images/logo.png",
+  "galleryBanner": {
+    "color": "#134e4a",
+    "theme": "dark"
+  },
   "publisher": "awalsh128",
   "author": {
     "name": "awalsh128"
@@ -20,6 +24,23 @@
   },
   "engines": {
     "vscode": "^1.100.0"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": false,
+    "trailingComma": "es5",
+    "bracketSpacing": true,
+    "arrowParens": "always",
+    "proseWrap": "always",
+    "plugins": [
+      "prettier-plugin-jsdoc"
+    ],
+    "jsdocPreferCodeFences": true,
+    "jsdocSeparateReturnsFromParam": true,
+    "jsdocSeparateTagGroups": true
   },
   "keywords": [
     "sort",
@@ -47,10 +68,22 @@
         "title": "Keep Sorted: Sort Current File"
       },
       {
-        "command": "keep-sorted.sortFile",
-        "title": "Keep Sorted: Sort Current File (Legacy Command)"
+        "command": "keep-sorted.fixWorkspace",
+        "title": "Keep Sorted: Sort All Files with Problems"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "keep-sorted.fixFile",
+          "when": "config.keep-sorted.enabled"
+        },
+        {
+          "command": "keep-sorted.fixWorkspace",
+          "when": "config.keep-sorted.enabled"
+        }
+      ]
+    },
     "configuration": {
       "title": "Keep Sorted",
       "properties": {
@@ -101,6 +134,7 @@
     "compile": "npm run clean && tsc -b --clean && tsc -b",
     "lint": "eslint",
     "watch": "tsc -b -w",
+    "dev": "npm run compile && tsx scripts/dev.ts",
     "test": "npm run compile && rimraf ./src/test/logs/ && node ./out/test/runTest.js",
     "test:runner": "npm run compile && node ./out/test/runTest.js",
     "test:scripts": "npm run compile && mocha out/scripts/test/**/*.test.js",

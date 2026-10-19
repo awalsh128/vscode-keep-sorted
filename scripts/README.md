@@ -4,6 +4,19 @@ This directory contains utility scripts for the vscode-keep-sorted project.
 
 ## Scripts
 
+### `dev.ts`
+
+Run `npm run dev` to compile and open the local extension in a separate Extension Development Host
+on `test-workspace/`. Uses stable VS Code from `@vscode/test-electron`, downloaded if needed to
+`$XDG_CACHE_HOME/vscode-keep-sorted` (default `~/.cache/vscode-keep-sorted`), with an isolated
+profile and extensions directory under `.vscode-test/`. VS Code must live outside the repository: it
+applies themes found inside the extension folder in place of `workbench.colorTheme`, so a copy under
+`.vscode-test/` would make the window use a built-in dark theme. No tests run and no VSIX is
+installed. The terminal command exits when the development window closes. The test workspace enables
+the extension; sort-on-save remains opt-in. Each launch applies `DEV_PROFILE_SETTINGS` from
+`dev.ts`, including `workbench.colorTheme`, because VS Code has no command-line theme option. Use a
+built-in theme: the window runs with `--disable-extensions`, so Marketplace themes are unavailable.
+
 ### `create-binaries.ts`
 
 Downloads and builds the `keep-sorted` CLI binaries for multiple platforms from the upstream Go
@@ -52,10 +65,11 @@ npx tsx scripts/sync-labels.ts
 
 ## Testing
 
-Both scripts have corresponding test files in the `test/` subdirectory:
+Scripts have corresponding test files in the `test/` subdirectory:
 
 - `test/create-binaries.test.ts`
 - `test/sync-labels.test.ts`
+- `test/dev.test.ts`
 
 Run tests with:
 

@@ -52,6 +52,22 @@ describe("configuration", () => {
       [key.replace(`${KEEP_SORTED_CONFIG_NAMESPACE}.`, ""), p.default] as [string, Value]
   );
 
+  describe("package.json commands", () => {
+    it("should hide every contributed command from the palette while the extension is disabled", () => {
+      // Commands are only registered while keep-sorted.enabled is true
+      const commands = (packageJson.contributes.commands as { command: string }[]).map(
+        ({ command }) => command
+      );
+      const palette = packageJson.contributes.menus.commandPalette as {
+        command: string;
+        when: string;
+      }[];
+
+      expect(palette.map(({ command }) => command)).to.have.members(commands);
+      palette.forEach(({ when }) => expect(when).to.equal("config.keep-sorted.enabled"));
+    });
+  });
+
   describe("package.json keep-sorted configuration", () => {
     it("should have existing properties", () => {
       expect(packageJson.contributes?.configuration?.properties).to.be.an("object");
