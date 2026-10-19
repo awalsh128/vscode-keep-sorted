@@ -7,8 +7,8 @@ import { CommandHandlers } from "./commands";
 
 /**
  * Provides code actions (quick fixes and source actions) for keep-sorted diagnostics. Integrates
- * with VS Code's CodeActionProvider API to surface file-level fixes in the editor lightbulb,
- * context menu, and command palette.
+ * with VS Code's CodeActionProvider API to surface file and workspace fixes in the editor
+ * lightbulb, context menu, and command palette.
  *
  * This class coordinates with the extension's diagnostic collection and command handlers to
  * generate actionable fixes for detected sorting issues.
@@ -75,13 +75,17 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
     const actions: vscode.CodeAction[] = [];
     if (this.shouldIncludeAction(context, vscode.CodeActionKind.QuickFix)) {
       actions.push(this.commandHandlers.sortFile.asCodeAction(diagnostics, document));
+      // Only offer the workspace fix when it does more than the file fix.
+      const { sortWorkspace } = this.commandHandlers;
+      if (sortWorkspace.affectedUris().some((other) => other.toString() !== uri.toString())) {
+        actions.push(sortWorkspace.asCodeAction(diagnostics));
+      }
     }
     if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
       actions.push(
         this.commandHandlers.sortFile.asCodeAction(
           diagnostics,
           document,
-          undefined,
           true,
           ActionProvider.fixAllKind
         )

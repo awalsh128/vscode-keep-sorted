@@ -1,5 +1,10 @@
 {
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.exclude": {
+    ".vscode-test": true,
+    "node_modules": true,
+    "out": true
+  },
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit",
     "source.fixAll.keepSorted": "explicit"

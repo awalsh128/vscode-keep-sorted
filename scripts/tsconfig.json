@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "../out/scripts",
+    "rootDir": ".",
+    "composite": true,
+    "tsBuildInfoFile": "../out/.tsbuildinfo.scripts"
+  },
+  "include": ["**/*"],
+  "exclude": ["bin-build"]
+}

@@ -1,6 +1,12 @@
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
-import { EXT_DISPLAY_NAME, EXT_NAME, logAndGetError, logger } from "./instrumentation";
+import {
+  EXT_DISPLAY_NAME,
+  EXT_NAME,
+  contextualizeLogger,
+  logAndGetError,
+  logger,
+} from "./instrumentation";
 
 /**
  * Abstract base class for all command handlers in Keep Sorted. Encapsulates the registration and
@@ -51,37 +57,13 @@ export abstract class CommandHandler implements workspace.Registrant {
  * strongly-typed contract for accessing the available fix operations.
  *
  * - `sortFile`: Handles sorting all keep-sorted blocks in the current file.
+ * - `sortWorkspace`: Handles sorting every file that has keep-sorted diagnostics.
  */
 export interface CommandHandlers {
   /** Handler for sorting all keep-sorted blocks in the current file. */
   readonly sortFile: SortFileCommandHandler;
-}
-
-/**
- * Command handler for opening the Keep Sorted extension documentation in a browser. Provides users
- * with quick access to usage instructions, configuration, and troubleshooting resources.
- */
-export class ShowDocsCommandHandler extends CommandHandler {
-  constructor() {
-    super({
-      title: `${EXT_DISPLAY_NAME}: Show Documentation`,
-      command: `${EXT_NAME}.showDocumentation`,
-      tooltip: "Open the Keep Sorted extension documentation in a browser",
-    });
-  }
-
-  /**
-   * Opens the extension documentation URL in the user's default browser using VS Code's open
-   * command. Handles errors gracefully and logs them for diagnostics.
-   */
-  async handle(): Promise<void> {
-    try {
-      const uri = vscode.Uri.parse("https://github.com/awalsh128/vscode-keep-sorted#readme");
-      await vscode.commands.executeCommand("vscode.open", uri);
-    } catch (err: Error | unknown) {
-      logAndGetError(logger, err);
-    }
-  }
+  /** Handler for sorting every file that has keep-sorted diagnostics. */
+  readonly sortWorkspace: SortWorkspaceCommandHandler;
 }
 
 /**
@@ -104,8 +86,7 @@ export abstract class EditCommandHandler extends CommandHandler {
   }
 
   protected abstract createEdit(
-    document: vscode.TextDocument,
-    range?: vscode.Range
+    document: vscode.TextDocument
   ): Promise<workspace.CreateEditResult | null>;
 
   /**
@@ -115,7 +96,6 @@ export abstract class EditCommandHandler extends CommandHandler {
    *
    * @param diagnostics Diagnostics relevant to the action.
    * @param document The document to operate on.
-   * @param range The range to operate on (if applicable).
    * @param isPreferred Whether this action should be marked as preferred in the UI.
    *
    * @returns A CodeAction with edit or command attached.
@@ -123,28 +103,25 @@ export abstract class EditCommandHandler extends CommandHandler {
   asCodeAction(
     diagnostics: vscode.Diagnostic[],
     document: vscode.TextDocument,
-    range?: vscode.Range,
     isPreferred = false,
     kind = vscode.CodeActionKind.QuickFix
   ): vscode.CodeAction {
     const action = new vscode.CodeAction(`${this.command.tooltip} (${EXT_NAME})`, kind);
     action.diagnostics = diagnostics;
     action.isPreferred = isPreferred;
-    action.command = this.command;
-    action.command.arguments = range ? [document, range] : [document];
+    action.command = { ...this.command, arguments: [document] };
     return action;
   }
 
   /**
-   * Executes the edit command: generates edits, applies them, and clears fixed diagnostics. Handles
-   * errors and logs edit operations for diagnostics and debugging.
+   * Generates and applies edits, then refreshes file diagnostics. Handles errors and logs edit
+   * operations for diagnostics and debugging.
    *
    * @param document The document to fix.
-   * @param range The range to fix (if applicable).
    */
-  async handle(document: vscode.TextDocument, range?: vscode.Range): Promise<void> {
+  async handle(document: vscode.TextDocument): Promise<void> {
     try {
-      const editResult = await this.createEdit(document, range);
+      const editResult = await this.createEdit(document);
       if (editResult) {
         logger.debug(
           () =>
@@ -155,8 +132,12 @@ export abstract class EditCommandHandler extends CommandHandler {
               diagnostics: editResult.diagnostics,
             })
         );
-        this.diagnostics.delete(editResult.documentUri);
-        await vscode.workspace.applyEdit(editResult.edit);
+        const applied = await vscode.workspace.applyEdit(editResult.edit);
+        if (!applied) {
+          throw new Error("Could not apply sorting edits; file diagnostics were retained.");
+        }
+        const updatedDocument = await vscode.workspace.openTextDocument(editResult.documentUri);
+        this.editFactory.refreshDiagnostics(updatedDocument);
       }
     } catch (err: Error | unknown) {
       throw logAndGetError(logger, err);
@@ -178,11 +159,7 @@ export class SortFileCommandHandler extends EditCommandHandler {
       tooltip: `Sort all lines in file`,
     }
   ) {
-    super(
-      command,
-      diagnostics,
-      editFactory
-    );
+    super(command, diagnostics, editFactory);
   }
 
   /**
@@ -223,5 +200,100 @@ export class SortFileCommandHandler extends EditCommandHandler {
       }
     }
     throw new Error("No in scope document displayed or active text editor found to sort");
+  }
+}
+
+/**
+ * Command handler for sorting every file that has keep-sorted diagnostics. The diagnostic
+ * collection only holds unsorted-block findings, so this applies the file-level fix to each
+ * affected file in a single workspace edit.
+ */
+export class SortWorkspaceCommandHandler extends CommandHandler {
+  private readonly diagnostics: vscode.DiagnosticCollection;
+  private readonly editFactory: workspace.EditFactory;
+
+  constructor(
+    diagnostics: vscode.DiagnosticCollection,
+    editFactory: workspace.EditFactory,
+    command: vscode.Command = {
+      title: `${EXT_DISPLAY_NAME}: Sort All Files with Problems`,
+      command: `${EXT_NAME}.fixWorkspace`,
+      tooltip: "Sort all files with problems",
+    }
+  ) {
+    super(command);
+    this.diagnostics = diagnostics;
+    this.editFactory = editFactory;
+  }
+
+  /**
+   * Creates a quick fix that sorts every affected file.
+   *
+   * @param diagnostics Diagnostics in the current document that the action addresses.
+   */
+  asCodeAction(diagnostics: vscode.Diagnostic[]): vscode.CodeAction {
+    const action = new vscode.CodeAction(
+      `${this.command.tooltip} (${EXT_NAME})`,
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = diagnostics;
+    action.command = { ...this.command, arguments: [] };
+    return action;
+  }
+
+  /** Returns the in-scope files that currently have keep-sorted diagnostics. */
+  affectedUris(): vscode.Uri[] {
+    const uris: vscode.Uri[] = [];
+    this.diagnostics.forEach((uri, fileDiagnostics) => {
+      if (fileDiagnostics.length > 0 && workspace.isInScope(uri)) {
+        uris.push(uri);
+      }
+    });
+    return uris;
+  }
+
+  /**
+   * Sorts all affected files in one workspace edit, then refreshes their diagnostics. Files that
+   * fail to sort are skipped and reported so the remaining files are still fixed.
+   */
+  async handle(): Promise<void> {
+    const edit = new vscode.WorkspaceEdit();
+    const documents: vscode.TextDocument[] = [];
+    const failedUris: vscode.Uri[] = [];
+    for (const uri of this.affectedUris()) {
+      try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        const editResult = this.editFactory.create(document);
+        if (editResult) {
+          for (const [entryUri, textEdits] of editResult.edit.entries()) {
+            edit.set(entryUri, textEdits);
+          }
+          documents.push(document);
+        }
+      } catch (err: Error | unknown) {
+        logAndGetError(contextualizeLogger(uri), err);
+        failedUris.push(uri);
+      }
+    }
+
+    if (documents.length === 0) {
+      if (failedUris.length > 0) {
+        throw new Error(`Could not sort ${failedUris.length} file(s).`);
+      }
+      vscode.window.showInformationMessage(`${EXT_DISPLAY_NAME}: No files need sorting.`);
+      return;
+    }
+    logger.info(`Sorting ${documents.length} file(s) with keep-sorted diagnostics`);
+    if (!(await vscode.workspace.applyEdit(edit))) {
+      throw new Error("Could not apply sorting edits; file diagnostics were retained.");
+    }
+    // TextDocument instances are live, so they already reflect the applied edit.
+    documents.forEach((document) => this.editFactory.refreshDiagnostics(document));
+    if (failedUris.length > 0) {
+      vscode.window.showWarningMessage(
+        `${EXT_DISPLAY_NAME}: Sorted ${documents.length} file(s); ` +
+          `${failedUris.length} could not be sorted.`
+      );
+    }
   }
 }

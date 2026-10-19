@@ -1,15 +1,26 @@
-# Keep Sorted
+<p align="center">
+  <img src="images/logo.png" alt="Keep Sorted logo" width="128" height="128">
+</p>
 
-[![CI](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg)](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.md)
+<h1 align="center">VSCode Keep Sorted</h1>
 
-A VS Code extension that uses [Google's keep-sorted](https://github.com/google/keep-sorted) to sort
-marked blocks in any language. Content outside the markers is left unchanged.
+<p align="center">
+  Keep marked blocks sorted in any language with
+  <a href="https://github.com/google/keep-sorted">Google's keep-sorted</a>.
+</p>
+
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted?label=Marketplace" alt="Marketplace version"></a>
+  <a href="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml"><img src="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0 license"></a>
+</p>
+
+Content outside the `keep-sorted start` and `keep-sorted end` markers is left unchanged.
 
 - Warnings for unsorted blocks as you open, edit, and save files.
-- Quick fixes and a command to sort all marked blocks in the current file.
+- Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
 - Optional sorting on save through a source fix-all action.
-- Autocomplete for options on `keep-sorted start` lines with documentation tooltips.
+- Autocomplete and hover documentation for options on `keep-sorted start` lines.
 
 [Demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2)
 
@@ -18,7 +29,7 @@ marked blocks in any language. Content outside the markers is left unchanged.
 Install
 [Keep Sorted from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted).
 Requires VS Code 1.100.0 or newer. Native binaries are bundled for Windows x64, Linux x64, and macOS
-Intel/Apple Silicon; no separate keep-sorted installation is needed.
+Intel/Apple Silicon (keep-sorted v0.10.0); no separate keep-sorted installation is needed.
 
 ## Usage
 
@@ -52,8 +63,16 @@ items = [
 ]
 ```
 
-For keybindings or automation, use command ID `keep-sorted.fixFile`. The legacy ID
-`keep-sorted.sortFile` remains supported.
+To sort every file with Keep Sorted problems at once, run **Keep Sorted: Sort All Files with
+Problems**, or choose **Sort all files with problems (keep-sorted)** from a quick fix when other
+files also have warnings. This covers workspace files scanned at startup (respecting `files.exclude`
+and `keep-sorted.exclude`) plus files opened or edited since. All changes are applied as one edit;
+review them, then use **File → Save All**.
+
+For keybindings or automation, use command IDs `keep-sorted.fixFile` and `keep-sorted.fixWorkspace`.
+The former `keep-sorted.sortFile` alias has been removed; update existing keybindings to
+`keep-sorted.fixFile`. Sorting rechecks diagnostics for each sorted file, so resolved Keep Sorted
+warnings disappear from Problems while any remaining issues stay visible.
 
 ### Sort on Save
 
@@ -78,8 +97,10 @@ diagnostics but does not sort. `editor.formatOnSave` is not required.
 
 ### Sorting Options
 
-Add options after `start`; autocomplete suggests option names with documentation tooltips and
-inserts an editable default value. For example:
+Add options after `start`; autocomplete suggests option names with documentation tooltips, then
+known values such as `yes`/`no` or `order=asc|desc` after `=`. Options that conflict with ones
+already on the line, such as `by_regex` and `ignore_prefixes`, are not suggested. Hover over an
+option to see its documentation. For example:
 
 ```python
 items = [
@@ -98,12 +119,12 @@ examples.
 
 ## Settings
 
-| Setting                    | Default | Description                                                              |
-| -------------------------- | ------- | ------------------------------------------------------------------------ |
-| `keep-sorted.enabled`      | `true`  | Enable diagnostics, sorting commands, and code actions.                  |
-| `keep-sorted.autoComplete` | `true`  | Suggest options after `start`, with editable defaults and documentation. |
-| `keep-sorted.exclude`      | `[]`    | Exclude files from diagnostics and sorting; regex first, glob fallback.  |
-| `keep-sorted.logFilepath`  | `""`    | Add file logging alongside Output; empty disables file logging.          |
+| Setting                    | Default | Description                                                             |
+| -------------------------- | ------- | ----------------------------------------------------------------------- |
+| `keep-sorted.enabled`      | `true`  | Enable diagnostics, sorting commands, and code actions.                 |
+| `keep-sorted.autoComplete` | `true`  | Suggest option names and values after `start`, with documentation.      |
+| `keep-sorted.exclude`      | `[]`    | Exclude files from diagnostics and sorting; regex first, glob fallback. |
+| `keep-sorted.logFilepath`  | `""`    | Add file logging alongside Output; empty disables file logging.         |
 
 Sort-on-save is configured separately through VS Code's `editor.codeActionsOnSave`, as shown above;
 it is not enabled by default or controlled by an additional `keep-sorted` setting.

@@ -22,22 +22,22 @@ jobs:
       checks: write
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: ci
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
 
       - name: Publish to Open VSX Registry
         id: openvsx-publish
-        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
+        uses: HaaLeo/publish-vscode-extension@1b8df468b849f76a143b8c18bf0ffa2075398d12 # v2, Node 24
         with:
           pat: ${{ secrets.OPEN_VSX_TOKEN }}
           dryRun: ${{ github.event.inputs.dry_run }}
 
       - name: Publish to Visual Studio Marketplace
         id: vsmarketplace-publish
-        uses: HaaLeo/publish-vscode-extension@ca5561daa085dee804bf9f37fe0165785a9b14db
+        uses: HaaLeo/publish-vscode-extension@1b8df468b849f76a143b8c18bf0ffa2075398d12 # v2, Node 24
         with:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
           registryUrl: https://marketplace.visualstudio.com
@@ -45,10 +45,13 @@ jobs:
           dryRun: ${{ github.event.inputs.dry_run }}
 
       - name: Setup Environment
-        run: node -e "console.log('PACKAGE_VERSION=' + require('./package.json').version + '\nPACKAGE_NAME=' + require('./package.json').name + '-' + require('./package.json').version)" >> $GITHUB_ENV
+        run:
+          node -e "console.log('PACKAGE_VERSION=' + require('./package.json').version +
+          '\nPACKAGE_NAME=' + require('./package.json').name + '-' +
+          require('./package.json').version)" >> $GITHUB_ENV
 
       - name: Publish artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6, Node 24
         with:
           name: ${{ env.PACKAGE_NAME }}.vsix
           path: ./${{ env.PACKAGE_NAME }}.vsix

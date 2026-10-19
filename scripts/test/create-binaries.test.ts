@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { execFileSync, execSync } from "child_process";
+import { execFileSync, execSync, spawnSync } from "child_process";
 import { createHash } from "crypto";
 import { expect } from "chai";
 import { describe, it, before, after } from "mocha";
@@ -210,7 +210,7 @@ describe("create-binaries.ts E2E Tests", () => {
     });
   });
 
-  it("should use keep-sorted version v0.7.1", function () {
+  it("should use keep-sorted version v0.10.0", function () {
     this.timeout(120000); // 2 minutes for Go builds
 
     // Run the script
@@ -220,11 +220,16 @@ describe("create-binaries.ts E2E Tests", () => {
       encoding: "utf-8",
     });
 
-    // Verify binaries were built (version is defined in script, not printed)
-    // We verify the script runs successfully which means version is valid
     for (const binaryName of expectedBinaries) {
       const binaryPath = path.join(binDir, binaryName);
       expect(fs.existsSync(binaryPath), `${binaryName} should exist`).to.equal(true);
+    }
+    // Only the host binary can report its version; Go stamps it from the cloned tag.
+    if (process.platform === "linux" && process.arch === "x64") {
+      const version = execSync(`"${path.join(binDir, "keep-sorted-linux-amd64")}" --version`, {
+        encoding: "utf-8",
+      });
+      expect(version).to.match(/^v0\.10\.0\b/);
     }
   });
 
@@ -294,28 +299,11 @@ describe("create-binaries.ts E2E Tests", () => {
 
     const binaryPath = path.join(binDir, binaryName);
 
-    // Try to execute the binary with --help flag
-    try {
-      const output = execSync(`"${binaryPath}" --help`, {
-        encoding: "utf-8",
-        stdio: "pipe",
-      });
-
-      // Verify it produces some output
-      expect(output.length).to.be.greaterThan(0);
-
-      // Verify it's the keep-sorted binary (output should mention sorting)
-      expect(output.toLowerCase()).to.match(/sort|keep-sorted/);
-    } catch (error: unknown) {
-      // Even if --help returns non-zero exit code, check if it produced output
-      const err = error as { stdout?: string; stderr?: string };
-      if (err.stdout || err.stderr) {
-        const output = err.stdout || err.stderr || "";
-        expect(output.length).to.be.greaterThan(0);
-      } else {
-        throw error;
-      }
-    }
+    // Since v0.10.0, --help writes usage to stderr, so check both streams
+    const result = spawnSync(binaryPath, ["--help"], { encoding: "utf-8" });
+    expect(result.error).to.equal(undefined);
+    const output = `${result.stdout}${result.stderr}`;
+    expect(output.toLowerCase()).to.match(/sort|keep-sorted/);
   });
 
   it("should print progress messages during build", function () {

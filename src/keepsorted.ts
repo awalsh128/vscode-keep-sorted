@@ -63,17 +63,6 @@ class KeepSortedRange {
     this.end = end;
   }
 
-  static fromVscode(range: vscode.Range): KeepSortedRange {
-    const startOneBased = range.start.line + 1;
-    let endOneBased = range.end.line;
-    // If the provided end value appears to be zero-based and is less than the start,
-    // normalize it to the start to ensure the CLI receives a valid inclusive range.
-    if (endOneBased < startOneBased) {
-      endOneBased = startOneBased;
-    }
-    return new KeepSortedRange(startOneBased, endOneBased);
-  }
-
   toString(): string {
     return `${this.start}:${this.end}`;
   }
@@ -160,24 +149,15 @@ export class KeepSorted {
     return fixes[0].replacements[0].new_content;
   }
 
-  /** Fixes the specified range in the document and returns the fixed content. */
-  fixDocument(
-    document: vscode.TextDocument,
-    range?: vscode.Range
-  ): { content: string; range: vscode.Range } | null {
+  /**
+   * Fixes all keep-sorted blocks in the document and returns the fixed content with the range it
+   * replaces, or null if the document has no findings.
+   */
+  fixDocument(document: vscode.TextDocument): { content: string; range: vscode.Range } | null {
     const uri = document.uri;
-    const documentText = document.getText();
-    const findings = this.getFindings(uri, documentText, range);
+    const findings = this.getFindings(uri, document.getText());
     if (findings.length === 0) {
-      // If linting the specified range returns no findings, attempt a whole-file fix as a
-      // fallback. This handles cases where the CLI's range parsing may differ between
-      // in-memory document representations and the on-disk file.
-      const fixed = this.fixFileText(document);
-      if (fixed === null) {
-        // No findings to fix in either range or full-file
-        throw new Error("No findings to fix");
-      }
-      return { content: fixed, range: new vscode.Range(0, 0, document.lineCount, 0) };
+      return null;
     }
     const singleReplacement = this.getSingleReplacement(findings);
     if (singleReplacement) {
@@ -263,16 +243,13 @@ export class KeepSorted {
     throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
   }
 
-  private getFindings(
-    documentUri: vscode.Uri,
-    documentText: string,
-    range?: vscode.Range
-  ): KeepSortedFinding[] {
+  private getFindings(documentUri: vscode.Uri, documentText: string): KeepSortedFinding[] {
     const kpLogger = contextualizeLogger(documentUri);
-    const args = range
-      ? ["--mode", "lint", "--lines", `${KeepSortedRange.fromVscode(range)}`, "-"]
-      : ["--mode", "lint", "-"];
-    const { code, stdout, stderr } = this.spawnCommand(args, documentUri, documentText);
+    const { code, stdout, stderr } = this.spawnCommand(
+      ["--mode", "lint", "-"],
+      documentUri,
+      documentText
+    );
     if (code === 0) {
       // No issues found
       return [];

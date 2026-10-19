@@ -4,7 +4,7 @@ import sinonChai from "sinon-chai";
 import * as sinon from "sinon";
 import * as path from "path";
 import * as vscode from "vscode";
-import { SortFileCommandHandler } from "../commands";
+import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
 import * as workspace from "../workspace";
 import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
@@ -59,7 +59,7 @@ describe("commands", () => {
       ];
       const kind = vscode.CodeActionKind.SourceFixAll.append("keepSorted");
 
-      const action = fileHandler.asCodeAction(diagnostics, document, undefined, true, kind);
+      const action = fileHandler.asCodeAction(diagnostics, document, true, kind);
 
       expect(action.kind).to.deep.equal(kind);
       expect(action.isPreferred).to.equal(true);
@@ -90,6 +90,55 @@ describe("commands", () => {
 
     beforeEach(() => {
       handler = new SortFileCommandHandler(diagnostics, editFactory);
+    });
+
+    it("should recheck the edited document and retain only current findings", async (): Promise<void> => {
+      // Arrange
+      const document = await vscode.workspace.openTextDocument({ content: "buffer" });
+      const stale = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "Stale sorting warning");
+      const remaining = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "Remaining issue");
+      diagnostics.set(document.uri, [stale]);
+      const lint = sinon.stub(linter, "lintDocument").returns([remaining]);
+      const create = sinon.stub(editFactory, "create").returns({
+        documentUri: document.uri,
+        edit: new vscode.WorkspaceEdit(),
+        diagnostics: [stale],
+      });
+      applyEditStub.resolves(true);
+
+      try {
+        // Act
+        await handler.handle(document);
+
+        // Assert
+        expect(lint.calledOnceWithExactly(document)).to.equal(true);
+        expect(diagnostics.get(document.uri)).to.deep.equal([remaining]);
+        expect(applyEditStub.calledBefore(lint)).to.equal(true);
+      } finally {
+        create.restore();
+        lint.restore();
+      }
+    });
+
+    it("should retain diagnostics when the workspace rejects the edit", async (): Promise<void> => {
+      // Arrange
+      const document = await vscode.workspace.openTextDocument({ content: "buffer" });
+      const finding = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "Unsorted");
+      diagnostics.set(document.uri, [finding]);
+      const create = sinon.stub(editFactory, "create").returns({
+        documentUri: document.uri,
+        edit: new vscode.WorkspaceEdit(),
+        diagnostics: [finding],
+      });
+      applyEditStub.resolves(false);
+
+      try {
+        // Act & Assert
+        await expect(handler.handle(document)).to.be.rejectedWith("Could not apply sorting edits");
+        expect(diagnostics.get(document.uri)).to.deep.equal([finding]);
+      } finally {
+        create.restore();
+      }
     });
 
     it("should do something when no active editor", async () => {
@@ -300,6 +349,152 @@ describe("commands", () => {
           );
         }
       });
+    });
+  });
+
+  describe("SortWorkspaceCommandHandler", () => {
+    let handler: SortWorkspaceCommandHandler;
+    let sandbox: sinon.SinonSandbox;
+    let first: vscode.TextDocument;
+    let second: vscode.TextDocument;
+
+    const finding = (): vscode.Diagnostic =>
+      new vscode.Diagnostic(new vscode.Range(0, 0, 1, 0), "Lines are not sorted");
+    const editResultFor = (document: vscode.TextDocument): workspace.CreateEditResult => {
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(document.uri, new vscode.Range(0, 0, 1, 0), "sorted\n");
+      return { documentUri: document.uri, edit, diagnostics: [] };
+    };
+
+    beforeEach(async (): Promise<void> => {
+      sandbox = sinon.createSandbox();
+      handler = new SortWorkspaceCommandHandler(diagnostics, editFactory);
+      first = await vscode.workspace.openTextDocument({ content: "first\n" });
+      second = await vscode.workspace.openTextDocument({ content: "second\n" });
+    });
+
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    it("should create a quick fix for the workspace command", (): void => {
+      // Arrange
+      const fileDiagnostics = [finding()];
+
+      // Act
+      const action = handler.asCodeAction(fileDiagnostics);
+
+      // Assert
+      expect(action.title).to.equal("Sort all files with problems (keep-sorted)");
+      expect(action.kind).to.deep.equal(vscode.CodeActionKind.QuickFix);
+      expect(action.diagnostics).to.deep.equal(fileDiagnostics);
+      expect(action.command?.command).to.equal("keep-sorted.fixWorkspace");
+      expect(action.command?.arguments).to.deep.equal([]);
+      expect(handler.command.arguments).to.equal(undefined);
+    });
+
+    it("should only report files that have diagnostics", (): void => {
+      // Arrange
+      diagnostics.set(first.uri, [finding()]);
+      diagnostics.set(second.uri, []);
+
+      // Act
+      const uris = handler.affectedUris().map((uri) => uri.toString());
+
+      // Assert
+      expect(uris).to.deep.equal([first.uri.toString()]);
+    });
+
+    it("should sort all affected files in one edit and refresh their diagnostics", async (): Promise<void> => {
+      // Arrange
+      diagnostics.set(first.uri, [finding()]);
+      diagnostics.set(second.uri, [finding()]);
+      sandbox.stub(editFactory, "create").callsFake(editResultFor);
+      const refresh = sandbox.stub(editFactory, "refreshDiagnostics");
+      applyEditStub.resolves(true);
+
+      // Act
+      await handler.handle();
+
+      // Assert
+      expect(applyEditStub.calledOnce).to.equal(true);
+      const edit = applyEditStub.firstCall.args[0] as vscode.WorkspaceEdit;
+      expect(edit.entries().map(([uri]) => uri.toString())).to.have.members([
+        first.uri.toString(),
+        second.uri.toString(),
+      ]);
+      expect(refresh.args.map(([document]) => document.uri.toString())).to.have.members([
+        first.uri.toString(),
+        second.uri.toString(),
+      ]);
+    });
+
+    it("should report when no files need sorting", async (): Promise<void> => {
+      // Arrange
+      const info = sandbox.stub(vscode.window, "showInformationMessage");
+
+      // Act
+      await handler.handle();
+
+      // Assert
+      expect(applyEditStub.called).to.equal(false);
+      expect(info.calledOnceWith("Keep Sorted: No files need sorting.")).to.equal(true);
+    });
+
+    it("should retain diagnostics when the edit is rejected", async (): Promise<void> => {
+      // Arrange
+      diagnostics.set(first.uri, [finding()]);
+      sandbox.stub(editFactory, "create").callsFake(editResultFor);
+      const refresh = sandbox.stub(editFactory, "refreshDiagnostics");
+      applyEditStub.resolves(false);
+
+      // Act & Assert
+      try {
+        await handler.handle();
+        expect.fail("Expected an error to be thrown");
+      } catch (err: unknown) {
+        expect((err as Error).message).to.contain("Could not apply sorting edits");
+      }
+      expect(refresh.called).to.equal(false);
+    });
+
+    it("should sort remaining files when one file fails", async (): Promise<void> => {
+      // Arrange
+      diagnostics.set(first.uri, [finding()]);
+      diagnostics.set(second.uri, [finding()]);
+      sandbox.stub(editFactory, "create").callsFake((document: vscode.TextDocument) => {
+        if (document.uri.toString() === first.uri.toString()) {
+          throw new Error("binary failed");
+        }
+        return editResultFor(document);
+      });
+      sandbox.stub(editFactory, "refreshDiagnostics");
+      const warning = sandbox.stub(vscode.window, "showWarningMessage");
+      applyEditStub.resolves(true);
+
+      // Act
+      await handler.handle();
+
+      // Assert
+      const edit = applyEditStub.firstCall.args[0] as vscode.WorkspaceEdit;
+      expect(edit.entries().map(([uri]) => uri.toString())).to.deep.equal([second.uri.toString()]);
+      expect(warning.calledOnce).to.equal(true);
+      expect(warning.firstCall.args[0]).to.contain("1 could not be sorted");
+    });
+
+    it("should fail when every affected file fails", async (): Promise<void> => {
+      // Arrange
+      diagnostics.set(first.uri, [finding()]);
+      sandbox.stub(editFactory, "create").throws(new Error("binary failed"));
+
+      // Act & Assert
+      try {
+        await handler.handle();
+        expect.fail("Expected an error to be thrown");
+      } catch (err: unknown) {
+        expect((err as Error).message).to.equal("Could not sort 1 file(s).");
+      }
+      expect(applyEditStub.called).to.equal(false);
     });
   });
 

@@ -8,7 +8,7 @@ import { EditFactory } from "../workspace";
 import { KeepSorted } from "../keepsorted";
 import { EXT_NAME } from "../instrumentation";
 import * as sinon from "sinon";
-import { CommandHandlers, SortFileCommandHandler } from "../commands";
+import { CommandHandlers, SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
 
 use(sinonChai);
 
@@ -46,6 +46,7 @@ describe("actions", () => {
       editFactory = new EditFactory(linter, diagnostics);
       editCommandHandlers = {
         sortFile: new SortFileCommandHandler(diagnostics, editFactory),
+        sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
       };
 
       // Open real document from test workspace
@@ -143,7 +144,7 @@ describe("actions", () => {
           kind: vscode.CodeActionKind.QuickFix,
           diagnostics: [diagnostic],
           isPreferred: false,
-          command: editCommandHandlers.sortFile.command,
+          command: { ...editCommandHandlers.sortFile.command, arguments: [document] },
         });
       });
 
@@ -346,6 +347,58 @@ describe("actions", () => {
         const fileAction = actions.find((a) => a.title === "Sort all lines in file (keep-sorted)");
 
         expect(fileAction).to.not.equal(undefined);
+      });
+    });
+
+    describe("workspace sort action", () => {
+      const WORKSPACE_ACTION_TITLE = "Sort all files with problems (keep-sorted)";
+      const blockRange = new vscode.Range(5, 0, 8, 0);
+
+      beforeEach(() => {
+        const diagnostic = new vscode.Diagnostic(blockRange, ANY_DIAGNOSTIC_MESSAGE);
+        diagnostic.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diagnostic]);
+      });
+
+      it("should offer the workspace fix when another file has diagnostics", () => {
+        // Arrange
+        const otherUri = vscode.Uri.file(SORTED_BLOCKS_FILE);
+        diagnostics.set(otherUri, [new vscode.Diagnostic(blockRange, ANY_DIAGNOSTIC_MESSAGE)]);
+
+        // Act
+        const actions = provider.provideCodeActions(document, blockRange);
+
+        // Assert
+        const workspaceAction = actions.find((a) => a.title === WORKSPACE_ACTION_TITLE);
+        expect(workspaceAction).to.not.equal(undefined);
+        expect(workspaceAction!.kind).to.equal(vscode.CodeActionKind.QuickFix);
+        expect(workspaceAction!.command?.command).to.equal("keep-sorted.fixWorkspace");
+        expect(workspaceAction!.diagnostics).to.have.lengthOf(1);
+      });
+
+      it("should not offer the workspace fix when only the current file has diagnostics", () => {
+        // Act
+        const actions = provider.provideCodeActions(document, blockRange);
+
+        // Assert
+        expect(actions.map((a) => a.title)).to.not.include(WORKSPACE_ACTION_TITLE);
+      });
+
+      it("should not offer the workspace fix for save actions", () => {
+        // Arrange
+        diagnostics.set(vscode.Uri.file(SORTED_BLOCKS_FILE), [
+          new vscode.Diagnostic(blockRange, ANY_DIAGNOSTIC_MESSAGE),
+        ]);
+
+        // Act
+        const actions = provider.provideCodeActions(document, blockRange, {
+          diagnostics: [],
+          only: ActionProvider.fixAllKind,
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        expect(actions.map((a) => a.title)).to.not.include(WORKSPACE_ACTION_TITLE);
       });
     });
   });

@@ -19,6 +19,9 @@ const EXPECTED_OPTION_KEYS = [
   "block",
   "sticky_comments",
   "sticky_prefixes",
+  "group_start_regex",
+  "group_end_regex",
+  "order",
   "case",
   "numeric",
   "prefix_order",
@@ -43,7 +46,14 @@ describe("keepsortedopt", () => {
       it(`should have all option values populated for '${option.key}'`, () => {
         expect(option.key).to.be.a("string").and.to.have.length.greaterThan(0);
         expect(option.description).to.be.a("string").and.to.have.length.greaterThan(0);
-        expect(option.valueType).to.be.oneOf(["bool", "int", "list", "map", "regex"]);
+        expect(option.valueType).to.be.oneOf([
+          "bool",
+          "intOrBool",
+          "intList",
+          "list",
+          "regexList",
+          "enum",
+        ]);
         expect(option.documentation).to.be.a("string").and.to.have.length.greaterThan(0);
         expect(option.category).to.be.oneOf(Object.values(KeepSortedOptionCategory));
         // defaultValue is optional - only validate if present
@@ -58,142 +68,143 @@ describe("keepsortedopt", () => {
     describe("bool type", () => {
       const boolOption = KEEP_SORTED_OPTS.get("case")!;
 
-      // Parameterized success cases
       [
         { input: "yes", expected: true },
         { input: "true", expected: true },
         { input: "no", expected: false },
         { input: "false", expected: false },
-        { input: "YES", expected: true },
-        { input: "TRUE", expected: true },
-        { input: "NO", expected: false },
-        { input: "FALSE", expected: false },
-        { input: "Yes", expected: true },
-        { input: "No", expected: false },
       ].forEach(({ input, expected }) => {
         it(`should parse '${input}' as ${expected}`, () => {
           expect(boolOption.parseValue(input)).to.equal(expected);
         });
       });
 
-      // Parameterized error cases
-      [
-        { input: "invalid", errorContains: "Invalid boolean value" },
-        { input: "", errorContains: "Invalid boolean value" },
-        { input: "1", errorContains: "Invalid boolean value" },
-      ].forEach(({ input, errorContains }) => {
+      // keep-sorted matches bool keywords case-sensitively
+      ["invalid", "", "1", "YES", "No"].forEach((input) => {
         it(`should return error for '${input || "(empty)"}'`, () => {
           const result = boolOption.parseValue(input);
           expect(result).to.be.instanceOf(Error);
-          expect((result as Error).message).to.include(errorContains);
+          expect((result as Error).message).to.include("Invalid boolean value");
         });
       });
     });
 
-    describe("int type", () => {
-      const intOption = KEEP_SORTED_OPTS.get("skip_lines")!;
+    describe("intOrBool type", () => {
+      const option = KEEP_SORTED_OPTS.get("newline_separated")!;
 
-      // Parameterized success cases
       [
-        { input: "5", expected: 5 },
+        { input: "yes", expected: 1 },
+        { input: "no", expected: 0 },
         { input: "0", expected: 0 },
-        { input: "100", expected: 100 },
-        { input: "", expected: 0 }, // Number("") === 0 in JavaScript
+        { input: "2", expected: 2 },
       ].forEach(({ input, expected }) => {
-        it(`should parse '${input || "(empty)"}' as ${expected}`, () => {
-          expect(intOption.parseValue(input)).to.equal(expected);
+        it(`should parse '${input}' as ${expected}`, () => {
+          expect(option.parseValue(input)).to.equal(expected);
         });
       });
 
-      // Parameterized error cases
+      ["-1", "1.5", "", "maybe"].forEach((input) => {
+        it(`should return error for '${input || "(empty)"}'`, () => {
+          expect(option.parseValue(input)).to.be.instanceOf(Error);
+        });
+      });
+    });
+
+    describe("intList type", () => {
+      const option = KEEP_SORTED_OPTS.get("skip_lines")!;
+
       [
-        { input: "-1", errorContains: "Invalid integer value" },
-        { input: "3.14", errorContains: "Invalid integer value" },
-        { input: "abc", errorContains: "Invalid integer value" },
-      ].forEach(({ input, errorContains }) => {
+        { input: "1", expected: [1] },
+        { input: "1,-1", expected: [1, -1] },
+        { input: "", expected: [] },
+        { input: "[2, -3]", expected: [2, -3] },
+      ].forEach(({ input, expected }) => {
+        it(`should parse '${input || "(empty)"}' as ${JSON.stringify(expected)}`, () => {
+          expect(option.parseValue(input)).to.deep.equal(expected);
+        });
+      });
+
+      ["abc", "1,x", "1.5"].forEach((input) => {
         it(`should return error for '${input}'`, () => {
-          const result = intOption.parseValue(input);
+          const result = option.parseValue(input);
           expect(result).to.be.instanceOf(Error);
-          expect((result as Error).message).to.include(errorContains);
+          expect((result as Error).message).to.include("Invalid integer list");
         });
       });
     });
 
     describe("list type", () => {
       const listOption = KEEP_SORTED_OPTS.get("prefix_order")!;
-      const ignoreOption = KEEP_SORTED_OPTS.get("ignore_prefixes")!;
 
-      // Parameterized success cases
       [
         { input: "INIT_,MIDDLE_,FINAL_", expected: ["INIT_", "MIDDLE_", "FINAL_"] },
-        { input: "a,,b,,c", expected: ["a", "b", "c"] },
+        // Empty items are meaningful: prefix_order uses them to position unmatched lines
+        { input: "INIT_,,FINAL_", expected: ["INIT_", "", "FINAL_"] },
         { input: "", expected: [] },
         { input: "single", expected: ["single"] },
-        { input: "INIT_,,FINAL_", expected: ["INIT_", "FINAL_"] },
+        { input: "[a, 'b c', \"d\"]", expected: ["a", "b c", "d"] },
+        { input: "[]", expected: [] },
       ].forEach(({ input, expected }) => {
         it(`should parse '${input || "(empty)"}' as ${JSON.stringify(expected)}`, () => {
           expect(listOption.parseValue(input)).to.deep.equal(expected);
         });
       });
 
-      it("should trim whitespace from values", () => {
-        expect(ignoreOption.parseValue("const , let , var")).to.deep.equal(["const", "let", "var"]);
+      it("should parse set options as lists", () => {
+        expect(KEEP_SORTED_OPTS.get("group_prefixes")!.parseValue("and,with")).to.deep.equal([
+          "and",
+          "with",
+        ]);
       });
     });
 
-    describe("map type", () => {
-      const mapOption = KEEP_SORTED_OPTS.get("group_prefixes")!;
-
-      // Parameterized success cases
-      [
-        { input: "and=1,with=2", expected: { and: "1", with: "2" } },
-        { input: " key1 = value1 , key2 = value2 ", expected: { key1: "value1", key2: "value2" } },
-        { input: "", expected: {} },
-        { input: "key=value", expected: { key: "value" } },
-      ].forEach(({ input, expected }) => {
-        it(`should parse '${input || "(empty)"}' as ${JSON.stringify(expected)}`, () => {
-          expect(mapOption.parseValue(input)).to.deep.equal(expected);
-        });
-      });
-
-      // Parameterized error cases
-      [
-        { input: "key=", errorContains: "Invalid map entry" },
-        { input: "=value", errorContains: "Invalid map entry" },
-      ].forEach(({ input, errorContains }) => {
-        it(`should return error for '${input}'`, () => {
-          const result = mapOption.parseValue(input);
-          expect(result).to.be.instanceOf(Error);
-          expect((result as Error).message).to.include(errorContains);
-        });
-      });
-    });
-
-    describe("regex type", () => {
+    describe("regexList type", () => {
       const regexOption = KEEP_SORTED_OPTS.get("by_regex")!;
 
-      // Parameterized success cases
       [
-        { input: "\\w+;", expectedSource: "\\w+;" },
-        { input: "test", expectedSource: "test" },
-        { input: "^[a-z]+$", expectedSource: "^[a-z]+$" },
-      ].forEach(({ input, expectedSource }) => {
-        it(`should parse '${input}' as valid RegExp`, () => {
-          const result = regexOption.parseValue(input);
-          expect(result).to.be.instanceOf(RegExp);
-          expect((result as RegExp).source).to.equal(expectedSource);
+        { input: "\\w+;", expectedSources: ["\\w+;"] },
+        { input: "^[a-z]+$,\\d+", expectedSources: ["^[a-z]+$", "\\d+"] },
+        // Go inline flags have no JavaScript equivalent and are dropped for validation
+        { input: "(?i)foo", expectedSources: ["foo"] },
+      ].forEach(({ input, expectedSources }) => {
+        it(`should parse '${input}' as valid RegExps`, () => {
+          const result = regexOption.parseValue(input) as RegExp[];
+          expect(result.map((r) => r.source)).to.deep.equal(expectedSources);
         });
       });
 
-      // Parameterized error cases
-      [
-        { input: "[invalid", errorContains: "Invalid regex pattern" },
-        { input: "(unclosed", errorContains: "Invalid regex pattern" },
-      ].forEach(({ input, errorContains }) => {
+      it("should leave YAML pattern-to-template items for keep-sorted to validate", () => {
+        expect(regexOption.parseValue("['(\\d+)': '${1}']")).to.deep.equal(["'(\\d+)': '${1}'"]);
+      });
+
+      ["[invalid", "(unclosed", "ok,(bad"].forEach((input) => {
         it(`should return error for '${input}'`, () => {
           const result = regexOption.parseValue(input);
           expect(result).to.be.instanceOf(Error);
-          expect((result as Error).message).to.include(errorContains);
+          expect((result as Error).message).to.include("Invalid regex pattern");
+        });
+      });
+    });
+
+    describe("enum type", () => {
+      [
+        { key: "order", valid: ["asc", "desc"], invalid: ["ASC", "up"] },
+        {
+          key: "remove_duplicates",
+          valid: ["yes", "true", "no", "false", "keep_first_comment", "merge_comments"],
+          invalid: ["merge"],
+        },
+      ].forEach(({ key, valid, invalid }) => {
+        const option = KEEP_SORTED_OPTS.get(key)!;
+        valid.forEach((input) => {
+          it(`should accept '${key}=${input}'`, () => {
+            expect(option.parseValue(input)).to.equal(input);
+          });
+        });
+        invalid.forEach((input) => {
+          it(`should reject '${key}=${input}'`, () => {
+            expect(option.parseValue(input)).to.be.instanceOf(Error);
+          });
         });
       });
     });
@@ -694,7 +705,7 @@ describe("keepsortedopt", () => {
       const option = new KeepSortedOption({
         key: "minimal",
         description: "Minimal option",
-        valueType: "int",
+        valueType: "list",
         category: KeepSortedOptionCategory.Meta,
       });
 
@@ -702,6 +713,41 @@ describe("keepsortedopt", () => {
       expect(option.key).to.equal("minimal");
       expect(option.defaultValue).to.equal(undefined);
       expect(option.examples).to.equal(undefined);
+      expect(option.values).to.equal(undefined);
+    });
+
+    it("should suggest yes and no for bool-like options", () => {
+      expect(KEEP_SORTED_OPTS.get("case")!.values).to.deep.equal(["yes", "no"]);
+      expect(KEEP_SORTED_OPTS.get("newline_separated")!.values).to.deep.equal(["yes", "no"]);
+    });
+
+    it("should document values and conflicts", () => {
+      const option = KEEP_SORTED_OPTS.get("by_regex")!;
+      expect(option.documentation).to.include("conflicts with: `ignore_prefixes`");
+      expect(KEEP_SORTED_OPTS.get("order")!.documentation).to.include("values: `asc` | `desc`");
+    });
+
+    it("should separate documentation blocks so Markdown renders them separately", () => {
+      // Single newlines would merge the description and details into one paragraph
+      const blocks = KEEP_SORTED_OPTS.get("order")!.documentation.split("\n\n");
+      expect(blocks).to.deep.equal([
+        "**order**: Sort in ascending or descending order",
+        [
+          "- type: `enum`",
+          "- category: sorting",
+          "- values: `asc` | `desc`",
+          "- default: `asc`",
+        ].join("\n"),
+        "Examples:\n- `order=desc`",
+      ]);
+    });
+
+    it("should declare conflicts symmetrically", () => {
+      for (const option of KEEP_SORTED_OPTS.values()) {
+        for (const other of option.conflicts ?? []) {
+          expect(KEEP_SORTED_OPTS.get(other)!.conflicts).to.include(option.key);
+        }
+      }
     });
 
     it("should generate documentation with key in bold", () => {
@@ -722,12 +768,12 @@ describe("keepsortedopt", () => {
       const option = new KeepSortedOption({
         key: "type_test",
         description: "Type test",
-        valueType: "regex",
+        valueType: "regexList",
         category: KeepSortedOptionCategory.Sorting,
       });
 
       // Assert
-      expect(option.documentation).to.include("type: regex");
+      expect(option.documentation).to.include("type: `regexList`");
     });
 
     it("should include default value in documentation when provided", () => {
@@ -749,13 +795,13 @@ describe("keepsortedopt", () => {
       const option = new KeepSortedOption({
         key: "example_test",
         description: "Example test",
-        valueType: "int",
+        valueType: "intList",
         category: KeepSortedOptionCategory.PreSorting,
         examples: ["example_test=1", "example_test=5"],
       });
 
       // Assert
-      expect(option.documentation).to.include("examples:");
+      expect(option.documentation).to.include("Examples:");
       expect(option.documentation).to.include("`example_test=1`");
       expect(option.documentation).to.include("`example_test=5`");
     });

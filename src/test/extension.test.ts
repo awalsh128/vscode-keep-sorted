@@ -8,6 +8,7 @@ import { TEST_WORKSPACE_DIR } from "./testing";
 describe("extension", () => {
   const EXTENSION_ID = "awalsh128.keep-sorted";
   const FIX_FILE_COMMAND = "keep-sorted.fixFile";
+  const FIX_WORKSPACE_COMMAND = "keep-sorted.fixWorkspace";
   const SORT_FILE_COMMAND = "keep-sorted.sortFile";
   const SAMPLE_TS_FILENAME = "sample.ts";
   const SAMPLE_SORTED_TS_FILENAME = "sample_sorted.ts";
@@ -78,7 +79,7 @@ describe("extension", () => {
       );
     });
 
-    it("should register the fix and legacy sort file commands", async () => {
+    it("should register the current sort commands", async () => {
       // Arrange
       const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
       await extension.activate();
@@ -88,7 +89,84 @@ describe("extension", () => {
 
       // Assert
       expect(commands).to.include(FIX_FILE_COMMAND);
-      expect(commands).to.include(SORT_FILE_COMMAND);
+      expect(commands).to.include(FIX_WORKSPACE_COMMAND);
+      expect(commands).not.to.include(SORT_FILE_COMMAND);
+    });
+  });
+
+  describe("enabled setting", () => {
+    afterEach(async (): Promise<void> => {
+      await vscode.workspace
+        .getConfiguration("keep-sorted")
+        .update("enabled", undefined, vscode.ConfigurationTarget.Workspace);
+    });
+
+    it("should clear diagnostics when disabled and restore them when re-enabled", async () => {
+      // Arrange
+      await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
+      const document = await getDocument();
+      await waitForDiagnostics(document.uri);
+      const config = vscode.workspace.getConfiguration("keep-sorted");
+
+      // Act & Assert - disabling removes stale warnings
+      await config.update("enabled", false, vscode.ConfigurationTarget.Workspace);
+      const start = Date.now();
+      while (
+        vscode.languages.getDiagnostics(document.uri).length > 0 &&
+        Date.now() - start < 5000
+      ) {
+        await delay(100);
+      }
+      expect(vscode.languages.getDiagnostics(document.uri)).to.have.lengthOf(0);
+
+      // Act & Assert - re-enabling lints documents that are already open
+      await config.update("enabled", true, vscode.ConfigurationTarget.Workspace);
+      await waitForDiagnostics(document.uri);
+    });
+  });
+
+  describe("completion", () => {
+    it("should suggest options when typing on a start directive", async () => {
+      // Arrange
+      await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
+      const document = await vscode.workspace.openTextDocument({
+        content: "// keep-sorted start gr\n// keep-sorted end\n",
+      });
+
+      // Act - Simulate the "r" trigger character that VS Code sends while typing in a comment
+      const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+        "vscode.executeCompletionItemProvider",
+        document.uri,
+        new vscode.Position(0, document.lineAt(0).text.length),
+        "r"
+      );
+
+      // Assert
+      const labels = list.items.map((item) => item.label);
+      expect(labels).to.include.members(["group", "group_prefixes"]);
+    });
+  });
+
+  describe("hover", () => {
+    it("should show option documentation on a start directive", async () => {
+      // Arrange
+      await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
+      const document = await vscode.workspace.openTextDocument({
+        content: "// keep-sorted start order=desc\n// keep-sorted end\n",
+      });
+
+      // Act
+      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+        "vscode.executeHoverProvider",
+        document.uri,
+        new vscode.Position(0, document.lineAt(0).text.indexOf("order") + 1)
+      );
+
+      // Assert
+      const markdown = hovers.flatMap((hover) =>
+        hover.contents.map((content) => (content as vscode.MarkdownString).value)
+      );
+      expect(markdown.join("\n")).to.include("**order**");
     });
   });
 
@@ -124,6 +202,12 @@ describe("extension", () => {
     let originalCodeActions: Record<string, string | boolean> | undefined;
     let originalEnabled: boolean | undefined;
 
+    // VS Code creates its save participants in idle callbacks after startup. Chromium throttles
+    // those in unfocused windows, so the first wait can approach a minute; later waits only cover
+    // configuration changes.
+    let saveParticipantsReady = false;
+    const FIRST_SAVE_PARTICIPANT_WAIT_MS = 90000;
+
     const waitForSaveParticipants = async (): Promise<void> => {
       let requestedOnSave = false;
       const requests = new Set<string>();
@@ -146,15 +230,15 @@ describe("extension", () => {
         { providedCodeActionKinds: [kind] }
       );
       try {
-        // VS Code installs save participants after extension-host tests can start.
-        const deadline = Date.now() + 5000;
+        const deadline =
+          Date.now() + (saveParticipantsReady ? 5000 : FIRST_SAVE_PARTICIPANT_WAIT_MS);
         while (!requestedOnSave && Date.now() < deadline) {
           const edit = new vscode.WorkspaceEdit();
           edit.insert(fixtureUri, new vscode.Position(0, 0), "\n");
           await vscode.workspace.applyEdit(edit);
           await document.save();
           if (!requestedOnSave) {
-            await delay(100);
+            await delay(250);
           }
         }
         const settings = vscode.workspace
@@ -163,12 +247,14 @@ describe("extension", () => {
         const message =
           `Save requests: ${[...requests].join(", ")}; ` + `settings: ${JSON.stringify(settings)}`;
         expect(requestedOnSave, message).to.equal(true);
+        saveParticipantsReady = true;
       } finally {
         probe.dispose();
       }
     };
 
-    beforeEach(async (): Promise<void> => {
+    beforeEach(async function (this: Mocha.Context): Promise<void> {
+      this.timeout(FIRST_SAVE_PARTICIPANT_WAIT_MS + 20000);
       // Unique URIs prevent dirty editor buffers from being reused across tests.
       fixtureUri = vscode.Uri.file(path.join(TEST_WORKSPACE_DIR, `sort-${randomUUID()}.txt`));
       await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
@@ -203,7 +289,7 @@ describe("extension", () => {
         .update("enabled", originalEnabled, vscode.ConfigurationTarget.Workspace);
     });
 
-    [FIX_FILE_COMMAND, SORT_FILE_COMMAND].forEach((command: string): void => {
+    [FIX_FILE_COMMAND].forEach((command: string): void => {
       [
         {
           name: "document",

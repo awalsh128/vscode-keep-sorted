@@ -2,17 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
-    - cron: '0 18 * * *'
+    - cron: "0 18 * * *"
   workflow_dispatch:
   workflow_call:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
@@ -21,12 +21,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
 
       - name: Setup Node.js
-        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, Node 24
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -49,9 +49,9 @@ jobs:
         run: npm run compile
 
       - name: Run script tests (no Go required)
-        run: npx mocha --require tsx --grep "regex" --timeout 10000 scripts/test/create-binaries.test.ts
+        run:
+          npx mocha --require tsx --grep "regex" --timeout 10000
+          scripts/test/create-binaries.test.ts
 
       - name: Run tests
-        uses: GabrielBB/xvfb-action@5bcda06da84ba084708898801da79736b88e00a9
-        with:
-          run: npm test
+        run: xvfb-run --auto-servernum npm test

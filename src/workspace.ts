@@ -42,16 +42,20 @@ export class EditFactory {
     this.diagnostics = diagnostics;
   }
 
+  /** Replaces this extension's file diagnostics with findings from the current buffer. */
+  refreshDiagnostics(document: vscode.TextDocument): void {
+    this.diagnostics.set(document.uri, this.linter.lintDocument(document));
+  }
+
   /**
-   * Applies a fix to the given document and range, updating the provided WorkspaceEdit. Returns the
-   * new content and range if a fix is available, or null if not.
+   * Applies a fix to the given document, updating the provided WorkspaceEdit. Returns the new
+   * content and replaced range if a fix is available, or null if not.
    */
   private applyToEdit(
     edit: vscode.WorkspaceEdit,
-    document: vscode.TextDocument,
-    range?: vscode.Range
+    document: vscode.TextDocument
   ): { content: string; range: vscode.Range } | null {
-    const result = this.linter.fixDocument(document, range);
+    const result = this.linter.fixDocument(document);
     if (result === null || result.content === null) {
       return null;
     }
@@ -60,32 +64,26 @@ export class EditFactory {
   }
 
   /**
-   * Creates a WorkspaceEdit that applies fixes to the specified document and range, and returns the
-   * related diagnostics. If no relevant diagnostics are found, returns null.
+   * Creates a WorkspaceEdit that sorts every keep-sorted block in the document, and returns the
+   * related diagnostics. If the document has no findings, returns null.
    *
    * @param document The document to fix.
-   * @param range The range to fix (if applicable).
    *
    * @returns A CreateEditResult if a fix is available, otherwise null.
    */
-  create(document: vscode.TextDocument, range?: vscode.Range): CreateEditResult | null {
+  create(document: vscode.TextDocument): CreateEditResult | null {
+    // Commands must not depend on stale Problems entries or on document-event timing.
+    this.refreshDiagnostics(document);
     const uri = document.uri;
-    const diagnostics = relevantDiagnostics(this.diagnostics, uri, range);
-    const editLogger = contextualizeLogger(uri, range);
+    const editLogger = contextualizeLogger(uri);
 
-    if (diagnostics.length === 0) {
+    if (relevantDiagnostics(this.diagnostics, uri).length === 0) {
       editLogger.debug(`No relevant diagnostics found`);
       return null;
     }
 
-    const targetRange =
-      range ??
-      diagnostics.slice(1).reduce<vscode.Range>((combined, diagnostic) => {
-        return combined.union(diagnostic.range);
-      }, diagnostics[0].range);
-
     const edit = new vscode.WorkspaceEdit();
-    const result = this.applyToEdit(edit, document, targetRange);
+    const result = this.applyToEdit(edit, document);
     if (result === null) {
       return null;
     }
@@ -131,18 +129,25 @@ export function rootPath(): string | undefined {
 }
 
 /**
- * Returns all open text documents in the workspace that are in scope for keep-sorted operations.
- * Filters out documents that are excluded by configuration or not regular files.
+ * Returns the workspace files that are in scope for keep-sorted operations, opened as text
+ * documents. Filters out files excluded by configuration and skips files that cannot be opened as
+ * text, such as binaries, so one unreadable file does not hide the rest.
  */
 export async function inScopeDocuments(): Promise<readonly vscode.TextDocument[]> {
   const uris = await vscode.workspace.findFiles("**/*");
   const inScopeUris = uris.filter((uri) => isInScope(uri));
-  const documents = await Promise.all(
-    inScopeUris.map((uri) => {
-      logger.debug(`Fetched in-scope document: ${uri.toString()}`);
-      return vscode.workspace.openTextDocument(uri);
-    })
+  const results = await Promise.allSettled(
+    inScopeUris.map((uri) => vscode.workspace.openTextDocument(uri))
   );
+  const documents: vscode.TextDocument[] = [];
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") {
+      logger.debug(`Fetched in-scope document: ${inScopeUris[i].toString()}`);
+      documents.push(result.value);
+    } else {
+      logger.debug(`Skipping ${inScopeUris[i].toString()}: ${String(result.reason)}`);
+    }
+  });
   return documents;
 }
 
@@ -207,7 +212,7 @@ type RegistrantWithState = Registrant & {
 export class ExtensionSubscriptionsHandler implements vscode.Disposable {
   private context: vscode.Disposable[] = [];
   private registrants: RegistrantWithState[] = [];
-  private registrationsActive = true;
+  private registered = false;
 
   /**
    * Constructs a new ExtensionSubscriptionsHandler.
@@ -253,7 +258,7 @@ export class ExtensionSubscriptionsHandler implements vscode.Disposable {
     }
     registrant.enabled = enabled;
     // Re-register all to reflect the change if registrations are active
-    if (!this.registrationsActive) {
+    if (this.registered) {
       // Keep logic simple for now instead of individually registering/unregistering
       await this.registerAllEnabled();
     }
@@ -261,7 +266,7 @@ export class ExtensionSubscriptionsHandler implements vscode.Disposable {
 
   /** Registers all enabled registrants, disposing any previous registrations. */
   public async registerAllEnabled(): Promise<void> {
-    this.registrationsActive = false;
+    this.registered = true;
     // dispose any previously-registered subscriptions (defensive)
     if (this.registrants.filter((r) => r.registration).length > 0) {
       this.unregisterAll();
@@ -275,7 +280,7 @@ export class ExtensionSubscriptionsHandler implements vscode.Disposable {
 
   /** Unregisters (disposes) all managed registrants, making them inactive. */
   public unregisterAll(): void {
-    this.registrationsActive = true;
+    this.registered = false;
     this.registrants
       .map((registrant) => registrant.registration as vscode.Disposable | undefined)
       .filter((disposable) => disposable !== undefined)

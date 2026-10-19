@@ -16,9 +16,29 @@ import { EXT_NAME } from "./instrumentation";
 const directiveStartRegex = () => /^\s*(?:\/\/|#|\/\*|--|;|<!--)\s*keep-sorted\s+start\b/i;
 const directiveOptsRegex = () => /([\w_]+)=((?:\[[^\]]*\])|(?:[^\s]+))/g;
 
-/** Supported option value types in keep-sorted directives */
-export type ValueType = "bool" | "int" | "list" | "map" | "regex";
-export type TsType = boolean | number | string[] | Record<string, string> | RegExp;
+/**
+ * Supported option value types in keep-sorted directives, mirroring the field types that
+ * google/keep-sorted parses:
+ *
+ * - Bool: `yes`, `no`, `true`, or `false`
+ * - IntOrBool: a non-negative integer or a bool (`yes` is 1, `no` is 0)
+ * - IntList: comma-separated integers
+ * - List: comma-separated strings, or a YAML list such as `[a, b]`
+ * - RegexList: comma-separated regular expressions, or a YAML list
+ * - Enum: one of a fixed set of keywords
+ */
+export type ValueType = "bool" | "intOrBool" | "intList" | "list" | "regexList" | "enum";
+export type TsType = boolean | number | number[] | string[] | RegExp[] | string;
+
+const BOOL_VALUES: ReadonlyMap<string, boolean> = new Map([
+  ["yes", true],
+  ["true", true],
+  ["no", false],
+  ["false", false],
+]);
+
+/** Values suggested for bool-like options; `true`/`false` are accepted but not suggested. */
+const BOOL_SUGGESTIONS = ["yes", "no"] as const;
 
 export enum KeepSortedOptionCategory {
   PreSorting = "Pre-Sorting",
@@ -37,8 +57,12 @@ export class KeepSortedOption {
   readonly valueType: ValueType;
   /** Category of the option for grouping in completions */
   readonly category: KeepSortedOptionCategory;
-  /** Default value if applicable */
+  /** Upstream default value if applicable */
   readonly defaultValue?: string;
+  /** Values offered by autocomplete; only set for options with a fixed set of keywords */
+  readonly values?: readonly string[];
+  /** Options that keep-sorted ignores or rejects when combined with this one */
+  readonly conflicts?: readonly string[];
   /** Example values for documentation */
   readonly examples?: readonly string[];
   /** Markdown-formatted documentation for the option */
@@ -50,6 +74,8 @@ export class KeepSortedOption {
     valueType: ValueType;
     category: KeepSortedOptionCategory;
     defaultValue?: string;
+    values?: readonly string[];
+    conflicts?: readonly string[];
     examples?: readonly string[];
   }) {
     this.key = params.key;
@@ -57,87 +83,112 @@ export class KeepSortedOption {
     this.valueType = params.valueType;
     this.category = params.category;
     this.defaultValue = params.defaultValue;
+    this.values =
+      params.values ??
+      (params.valueType === "bool" || params.valueType === "intOrBool"
+        ? BOOL_SUGGESTIONS
+        : undefined);
+    this.conflicts = params.conflicts;
     this.examples = params.examples;
     // Always keep this as the last step in the constructor
     this.documentation = this.createDocumentation();
   }
 
-  /** Build markdown documentation for an option. */
+  /**
+   * Build markdown documentation for an option. Blocks are separated by blank lines because single
+   * newlines collapse into one paragraph when rendered.
+   */
   private createDocumentation(): string {
-    const lines: string[] = [];
-    lines.push(`**${this.key}**: ${this.description}`);
-    lines.push(`type: ${this.valueType}`);
-    lines.push(`category: ${this.category.toLowerCase()}`);
+    const code = (text: string) => `\`${text}\``;
+    const details = [
+      `- type: ${code(this.valueType)}`,
+      `- category: ${this.category.toLowerCase()}`,
+    ];
+    if (this.values) {
+      details.push(`- values: ${this.values.map(code).join(" | ")}`);
+    }
     if (this.defaultValue) {
-      lines.push(`default: \`${this.defaultValue}\``);
+      details.push(`- default: ${code(this.defaultValue)}`);
     }
+    if (this.conflicts) {
+      details.push(`- conflicts with: ${this.conflicts.map(code).join(", ")}`);
+    }
+    const blocks = [`**${this.key}**: ${this.description}`, details.join("\n")];
     if (this.examples && this.examples.length > 0) {
-      lines.push("examples:");
-      for (const example of this.examples) {
-        lines.push(`- \`${example}\``);
-      }
+      blocks.push(
+        ["Examples:", ...this.examples.map((example) => `- ${code(example)}`)].join("\n")
+      );
     }
-    return lines.join("\n");
+    return blocks.join("\n\n");
   }
 
   /**
-   * Parses a string value into the appropriate TypeScript type based on ValueType.
+   * Parses a string value into the appropriate TypeScript type based on ValueType, following the
+   * upstream parser: keywords are case-sensitive and list items are not trimmed.
    *
    * @param value The string value to parse
-   * @param valueType The expected value type
    *
    * @returns The parsed value in the appropriate type, or an Error if parsing fails
    */
   parseValue(value: string): TsType | Error {
     switch (this.valueType) {
       case "bool": {
-        const lower = value.toLowerCase();
-        if (lower === "yes" || lower === "true") {
-          return true;
+        const parsed = BOOL_VALUES.get(value);
+        if (parsed === undefined) {
+          return new Error(
+            `Invalid boolean value: "${value}". Expected "yes"/"no" or "true"/"false".`
+          );
         }
-        if (lower === "no" || lower === "false") {
-          return false;
+        return parsed;
+      }
+      case "intOrBool": {
+        const parsed = BOOL_VALUES.get(value);
+        if (parsed !== undefined) {
+          return parsed ? 1 : 0;
+        }
+        if (/^\d+$/.test(value)) {
+          return Number(value);
         }
         return new Error(
-          `Invalid boolean value: "${value}". Expected "yes"/"no" or "true"/"false".`
+          `Invalid value: "${value}". Expected a non-negative integer or "yes"/"no".`
         );
       }
-      case "int": {
-        const num = Number(value);
-        if (Number.isInteger(num) && num >= 0) {
-          return num;
+      case "intList": {
+        const items = parseListItems(value);
+        if (items.some((item) => !/^-?\d+$/.test(item))) {
+          return new Error(`Invalid integer list: "${value}". Expected integers such as 1,-1.`);
         }
-        return new Error(`Invalid integer value: "${value}". Expected a non-negative integer.`);
+        return items.map(Number);
       }
-      case "list": {
-        // Split by commas and trim whitespace
-        return value
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-      }
-      case "map": {
-        const map: Record<string, string> = {};
-        const entries = value
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-        for (const entry of entries) {
-          const [key, val] = entry.split("=").map((s) => s.trim());
-          if (!key || !val) {
-            return new Error(`Invalid map entry: "${entry}". Expected format is key=value.`);
+      case "list":
+        return parseListItems(value);
+      case "regexList": {
+        const items = parseListItems(value);
+        // YAML items may be pattern-to-template maps, which are left to keep-sorted to validate.
+        if (isYamlList(value)) {
+          return items;
+        }
+        const regexs: RegExp[] = [];
+        for (const item of items) {
+          try {
+            // JavaScript lacks Go leading inline flags such as (?s), so drop them before checking.
+            regexs.push(new RegExp(item.replace(/^\(\?[a-zA-Z-]+\)/, "")));
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            return new Error(`Invalid regex pattern: "${item}". ${message}`);
           }
-          map[key] = val;
         }
-        return map;
+        return regexs;
       }
-      case "regex": {
-        try {
-          return new RegExp(value);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          return new Error(`Invalid regex pattern: "${value}". ${message}`);
+      case "enum": {
+        // Enums that offer yes/no also accept the true/false spellings, like bools
+        const boolAlias = this.values?.includes("yes") && BOOL_VALUES.has(value);
+        if (this.values?.includes(value) || boolAlias) {
+          return value;
         }
+        return new Error(
+          `Invalid value: "${value}". Expected one of ${this.values?.join(", ") ?? "(none)"}.`
+        );
       }
       default:
         return new Error(`Unsupported value type: "${this.valueType}".`);
@@ -145,21 +196,43 @@ export class KeepSortedOption {
   }
 }
 
+function isYamlList(value: string): boolean {
+  return value.startsWith("[") && value.endsWith("]");
+}
+
 /**
- * All keep-sorted options based on google/keep-sorted options.go.
+ * Splits a list value. Comma-separated items are kept verbatim, including empty items, which
+ * `prefix_order` uses to position unmatched lines. YAML list items are trimmed and unquoted.
+ */
+function parseListItems(value: string): string[] {
+  if (value === "") {
+    return [];
+  }
+  if (!isYamlList(value)) {
+    return value.split(",");
+  }
+  const inner = value.slice(1, -1).trim();
+  if (inner === "") {
+    return [];
+  }
+  return inner.split(",").map((item) => item.trim().replace(/^(['"])((?:(?!\1).)*)\1$/, "$2"));
+}
+
+/**
+ * All keep-sorted options supported by the bundled keep-sorted binary (v0.10.0).
  *
- * @see https://github.com/google/keep-sorted/blob/main/keepsorted/options.go
+ * @see https://github.com/google/keep-sorted/blob/v0.10.0/keepsorted/options.go
  */
 export const KEEP_SORTED_OPTS = new Map<string, KeepSortedOption>(
   [
     // Pre-sorting options
     new KeepSortedOption({
       key: "skip_lines",
-      description: "Number of lines to ignore before sorting (useful for table headers)",
-      valueType: "int",
+      description:
+        "Lines to ignore before sorting; a negative value skips lines at the end of the block",
+      valueType: "intList",
       category: KeepSortedOptionCategory.PreSorting,
-      defaultValue: "0",
-      examples: ["skip_lines=1", "skip_lines=2"],
+      examples: ["skip_lines=1", "skip_lines=1,-1"],
     }),
     new KeepSortedOption({
       key: "group",
@@ -171,8 +244,8 @@ export const KEEP_SORTED_OPTS = new Map<string, KeepSortedOption>(
     }),
     new KeepSortedOption({
       key: "group_prefixes",
-      description: "Prefixes that indicate lines should be added to a group",
-      valueType: "map",
+      description: "Prefixes of lines that should be added to the preceding group",
+      valueType: "list",
       category: KeepSortedOptionCategory.PreSorting,
       examples: ["group_prefixes=and,with"],
     }),
@@ -194,12 +267,39 @@ export const KEEP_SORTED_OPTS = new Map<string, KeepSortedOption>(
     }),
     new KeepSortedOption({
       key: "sticky_prefixes",
-      description: "Prefixes that should behave as sticky comments",
-      valueType: "map",
+      description: "Prefixes of lines that should behave as sticky comments",
+      valueType: "list",
       category: KeepSortedOptionCategory.PreSorting,
       examples: ["sticky_prefixes=//,#"],
     }),
+    new KeepSortedOption({
+      key: "group_start_regex",
+      description:
+        "Regexes that match the first line of a group; other lines join the previous group",
+      valueType: "regexList",
+      category: KeepSortedOptionCategory.PreSorting,
+      conflicts: ["group_end_regex"],
+      examples: ["group_start_regex=^func"],
+    }),
+    new KeepSortedOption({
+      key: "group_end_regex",
+      description:
+        "Regexes that match the last line of a group; non-comment lines no longer end groups",
+      valueType: "regexList",
+      category: KeepSortedOptionCategory.PreSorting,
+      conflicts: ["group_start_regex"],
+      examples: ["group_end_regex=;$"],
+    }),
     // Sorting options
+    new KeepSortedOption({
+      key: "order",
+      description: "Sort in ascending or descending order",
+      valueType: "enum",
+      category: KeepSortedOptionCategory.Sorting,
+      defaultValue: "asc",
+      values: ["asc", "desc"],
+      examples: ["order=desc"],
+    }),
     new KeepSortedOption({
       key: "case",
       description: "Case-sensitive sorting (use case=no for case-insensitive)",
@@ -218,7 +318,8 @@ export const KEEP_SORTED_OPTS = new Map<string, KeepSortedOption>(
     }),
     new KeepSortedOption({
       key: "prefix_order",
-      description: "Explicitly order lines based on their matching prefix",
+      description:
+        "Explicitly order lines by matching prefix; an empty item positions unmatched lines",
       valueType: "list",
       category: KeepSortedOptionCategory.Sorting,
       examples: ["prefix_order=INIT_,,FINAL_"],
@@ -228,31 +329,36 @@ export const KEEP_SORTED_OPTS = new Map<string, KeepSortedOption>(
       description: "Prefixes to ignore when sorting lines",
       valueType: "list",
       category: KeepSortedOptionCategory.Sorting,
+      conflicts: ["by_regex"],
       examples: ["ignore_prefixes=const,let,var"],
     }),
     new KeepSortedOption({
       key: "by_regex",
-      description: "Regex patterns to extract the portion of lines to sort by",
-      valueType: "regex",
+      description:
+        "Regexes that extract the portion of lines to sort by; YAML items may map a regex to a template",
+      valueType: "regexList",
       category: KeepSortedOptionCategory.Sorting,
-      examples: ["by_regex=\\w+;"],
+      conflicts: ["ignore_prefixes"],
+      examples: ["by_regex=\\w+;", "by_regex=['(\\d+)-(\\w+)': '${2}${1}']"],
     }),
     // Post-sorting options
     new KeepSortedOption({
       key: "newline_separated",
       description: "Separate sorted groups with newlines (yes/no or number of newlines)",
-      valueType: "int",
+      valueType: "intOrBool",
       category: KeepSortedOptionCategory.PostSorting,
       defaultValue: "no",
-      examples: ["newline_separated=yes", "newline_separated=no", "newline_separated=2"],
+      examples: ["newline_separated=yes", "newline_separated=2"],
     }),
     new KeepSortedOption({
       key: "remove_duplicates",
-      description: "Remove exact duplicate lines",
-      valueType: "bool",
+      description:
+        "Remove duplicate lines; keep_first_comment and merge_comments compare code only and keep or merge their comments",
+      valueType: "enum",
       category: KeepSortedOptionCategory.PostSorting,
       defaultValue: "yes",
-      examples: ["remove_duplicates=yes", "remove_duplicates=no"],
+      values: ["yes", "no", "keep_first_comment", "merge_comments"],
+      examples: ["remove_duplicates=no", "remove_duplicates=merge_comments"],
     }),
     // Meta option
     new KeepSortedOption({
