@@ -11,6 +11,8 @@ marked blocks in any language. Content outside the markers is left unchanged.
 - Optional sorting on save through a source fix-all action.
 - Autocomplete for options on `keep-sorted start` lines with documentation tooltips.
 
+[demo.webm](https://github.com/user-attachments/assets/a97cf717-7503-483d-9586-b77927e0d6d0)
+
 ## Installation
 
 Install
