@@ -23,16 +23,18 @@ Content outside the `keep-sorted start` and `keep-sorted end` markers is left un
 - :warning: Warnings for unsorted blocks as you open, edit, and save files.
 - :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
 - :floppy_disk: Optional sorting on save through a source fix-all action.
-- :information_source: Autocomplete and hover documentation for options on `keep-sorted start` lines.
+- :information_source: Autocomplete and hover documentation for options on `keep-sorted start`
+  lines.
 
 [Demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2)
 
 ## Installation
 
-Install
-[Keep Sorted from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted).
-Requires VS Code 1.100.0 or newer. Native binaries are bundled for Windows x64, Linux x64, and macOS
-Intel/Apple Silicon (keep-sorted v0.10.0); no separate keep-sorted installation is needed.
+Install Keep Sorted from the
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
+or [Open VSIX Registery](https://open-vsx.org/extension/awalsh128/keep-sorted). Requires VS Code
+1.100.0 or newer. Native binaries are bundled for Windows x64, Linux x64, and macOS Intel/Apple
+Silicon; no separate keep-sorted installation is needed.
 
 ## Usage
 
