@@ -6,6 +6,9 @@ import { createHash } from "crypto";
 import { expect } from "chai";
 import { describe, it, before, after } from "mocha";
 
+/** Must match KEEP_SORTED_VERSION in scripts/create-binaries.ts. */
+const KEEP_SORTED_TAG = "v0.10.0";
+
 describe("create-binaries.ts E2E Tests", () => {
   // Construct absolute paths from process.cwd()
   const projectRoot = process.cwd();
@@ -210,7 +213,7 @@ describe("create-binaries.ts E2E Tests", () => {
     });
   });
 
-  it("should use keep-sorted version v0.10.0", function () {
+  it(`should use keep-sorted version ${KEEP_SORTED_TAG}`, function () {
     this.timeout(120000); // 2 minutes for Go builds
 
     // Run the script
@@ -224,12 +227,20 @@ describe("create-binaries.ts E2E Tests", () => {
       const binaryPath = path.join(binDir, binaryName);
       expect(fs.existsSync(binaryPath), `${binaryName} should exist`).to.equal(true);
     }
-    // Only the host binary can report its version; Go stamps it from the cloned tag.
+    // The clone must be exactly the release tag
+    const cloneDir = path.join(projectRoot, "scripts", "bin-build");
+    const git = (args: string): string =>
+      execSync(`git -C "${cloneDir}" ${args}`, { encoding: "utf-8" }).trim();
+    expect(git("describe --tags --exact-match")).to.equal(KEEP_SORTED_TAG);
+
+    // Only the host binary can report its version. Go >= 1.24 reports the tag and older versions
+    // the commit; either way an unmodified clone must not add "-dev".
     if (process.platform === "linux" && process.arch === "x64") {
       const version = execSync(`"${path.join(binDir, "keep-sorted-linux-amd64")}" --version`, {
         encoding: "utf-8",
       });
-      expect(version).to.match(/^v0\.10\.0\b/);
+      const versionId = version.split(" ")[0];
+      expect([KEEP_SORTED_TAG, git("rev-parse --short=7 HEAD")]).to.include(versionId);
     }
   });
 

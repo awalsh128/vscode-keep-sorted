@@ -14,6 +14,8 @@ const PROJECT_ROOT = join(
 );
 const BIN_DIR = join(PROJECT_ROOT, "bin");
 const BIN_BUILD_DIR = join(PROJECT_ROOT, "scripts", "bin-build");
+// Logs stay outside the clone: untracked files there make Go mark binaries as modified ("-dev").
+const BUILD_LOG_DIR = join(PROJECT_ROOT, "scripts", "bin-build-logs");
 
 const PLATFORMS = [
   { goos: "windows", goarch: "amd64", filename: "keep-sorted.exe" },
@@ -62,7 +64,7 @@ function buildBinary(platform: (typeof PLATFORMS)[number]): void {
     env: { ...process.env, CGO_ENABLED: "0", GOOS: platform.goos, GOARCH: platform.goarch },
     encoding: "utf-8",
   });
-  writeFileSync(join(BIN_BUILD_DIR, `build-${platform.filename}.log`), buildOutput);
+  writeFileSync(join(BUILD_LOG_DIR, `build-${platform.filename}.log`), buildOutput);
 
   // Normalize new and existing outputs regardless of umask, including the tracked .exe.
   chmodSync(outputPath, 0o755);
@@ -78,6 +80,8 @@ function buildBinary(platform: (typeof PLATFORMS)[number]): void {
 }
 
 rmSync(BIN_BUILD_DIR, { recursive: true, force: true });
+rmSync(BUILD_LOG_DIR, { recursive: true, force: true });
+mkdirSync(BUILD_LOG_DIR, { recursive: true });
 mkdirSync(BIN_DIR, { recursive: true });
 
 // Ensure the runner has a sufficiently new Go toolchain

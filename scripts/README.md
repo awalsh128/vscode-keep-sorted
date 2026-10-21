@@ -32,6 +32,8 @@ project.
 - Generates SHA256 checksums for each binary
 - Sets checksum files to mode `0644` (non-executable)
 - Outputs all binaries to the `bin/` directory
+- Writes build logs to `scripts/bin-build-logs/`, outside the clone, so binaries report a clean
+  version (`--version` shows the tag with Go 1.24+, otherwise the commit)
 
 **Usage:**
 
@@ -42,6 +44,10 @@ npx tsx scripts/create-binaries.ts
 After compilation, the equivalent entry point is `node out/scripts/create-binaries.js`. Both write
 to the repository's `bin/` directory. The script owns all permission changes; the binary workflow
 transfers a tar archive to preserve those modes across artifact downloads.
+
+Rebuilding the bundled binaries is always intentional: the **Build Static Binaries** workflow runs
+only when started manually (`gh workflow run create-binaries.yml`), then tests the script, builds
+with Go 1.26, and commits `bin/`. Regular CI runs only the script's Go-free unit tests.
 
 ### `sync-labels.ts`
 
