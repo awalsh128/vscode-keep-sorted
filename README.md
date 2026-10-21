@@ -10,17 +10,20 @@
 </p>
 
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://img.shields.io/visual-studio-marketplace/v/awalsh128.keep-sorted?label=Marketplace" alt="Marketplace version"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://badgen.net/vs-marketplace/v/awalsh128.keep-sorted?label=Marketplace" alt="Marketplace version"></a>
   <a href="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml"><img src="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0 license"></a>
 </p>
 
+> [!TIP] If you find this project useful, please consider supporting it
+> [as a sponsor and show some ❤️ for open source maintainers](https://github.com/sponsors/awalsh128).
+
 Content outside the `keep-sorted start` and `keep-sorted end` markers is left unchanged.
 
-- Warnings for unsorted blocks as you open, edit, and save files.
-- Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
-- Optional sorting on save through a source fix-all action.
-- Autocomplete and hover documentation for options on `keep-sorted start` lines.
+- :warning: Warnings for unsorted blocks as you open, edit, and save files.
+- :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
+- :floppy_disk: Optional sorting on save through a source fix-all action.
+- :information_source: Autocomplete and hover documentation for options on `keep-sorted start` lines.
 
 [Demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2)
 
