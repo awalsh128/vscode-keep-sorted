@@ -1,14 +1,9 @@
 name: Build Static Binaries
 
+# Building and committing binaries must be intentional, so this workflow only runs when started
+# manually. Regular CI covers the script's Go-free unit tests.
 on:
-  workflow_dispatch: # Allow manual trigger
-  push:
-    branches:
-      - main
-    paths:
-      - "scripts/create-binaries.ts"
-      - "scripts/test/create-binaries.test.ts"
-      - ".github/workflows/create-binaries.yml"
+  workflow_dispatch:
 
 jobs:
   test-create-binaries:
@@ -22,8 +17,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
-          # keep-sorted v0.10.0 requires go >= 1.23.1, make sure CI uses a compatible toolchain
-          go-version: "1.23.1"
+          # keep-sorted needs Go >= 1.23.1; Go >= 1.24 stamps the release tag into --version
+          go-version: "1.26.x"
           cache: false
 
       - name: Setup Node.js
@@ -50,8 +45,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00
         with:
-          # ensure the runner's Go version meets remote package minimums
-          go-version: "1.23.1"
+          # Keep in sync with the test job so CI builds match what was tested
+          go-version: "1.26.x"
           cache: false
 
       - name: Setup Node.js
