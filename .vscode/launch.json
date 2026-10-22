@@ -17,7 +17,7 @@
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--log=awalsh128.keep-sorted:debug"
       ],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "npm: compile"
     },
     {
@@ -31,7 +31,7 @@
         "--disable-extensions",
         "--log=awalsh128.keep-sorted:debug"
       ],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
       "preLaunchTask": "npm: compile",
       "sourceMaps": true,
       "smartStep": true,

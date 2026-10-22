@@ -507,11 +507,14 @@ Node.js 24 for development tooling and runs extension tests through the runner's
 of a separate JavaScript wrapper action. These build-time requirements do not change the extension's
 VS Code engine requirement.
 
-Packages imported at runtime (`glob-regex`, `winston`, `winston-transport`, `triple-beam`) must be
-in `dependencies`: `vsce` ships `node_modules/` with only that tree, and `.vscodeignore` must not
-exclude it. Versions 1.0.0 and 1.0.1 shipped without them and could not activate.
-[scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks the `vsce ls` file list
-against the compiled extension's imports.
+`npm run compile` type-checks and emits `out/` with `tsc` (used by tests and scripts), then
+`npm run bundle` uses esbuild to write `dist/extension.js`, the manifest's `main`. The bundle inlines
+the runtime packages (`glob-regex`, `winston`, `winston-transport`, `triple-beam`), leaving only
+`vscode` and Node built-ins external, so `.vscodeignore` excludes `node_modules/`, `out/`, and the
+source map. Extension tests activate the bundle, not `out/extension.js`. Versions 1.0.0 and 1.0.1
+shipped without their runtime packages and could not activate;
+[scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that the bundle requires
+no other package and that the `vsce ls` file list contains only release files.
 
 - **winston**, **winston-transport**, **triple-beam**: Structured logging
 - **glob-regex**: Convert glob patterns to regex

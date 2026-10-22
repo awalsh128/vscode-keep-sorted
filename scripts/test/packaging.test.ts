@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { readdirSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
 import { builtinModules } from "module";
 import * as path from "path";
 import { expect } from "chai";
@@ -16,24 +16,23 @@ function packageName(specifier: string): string | undefined {
   return builtins.has(name.replace(/^node:/, "")) || name === "vscode" ? undefined : name;
 }
 
-/** Packages required by the compiled extension, excluding its tests. */
+/** Bare module specifiers the bundled extension requires at runtime. */
+function bundleRequires(): string[] {
+  const bundle = readFileSync(path.join(projectRoot, "dist", "extension.js"), "utf-8");
+  return [...bundle.matchAll(/require\("([^".][^"]*)"\)/g)].map((match): string => match[1]);
+}
+
+/** Packages the bundled extension still requires at runtime. */
 function runtimePackages(): string[] {
-  const outDir = path.join(projectRoot, "out");
-  const names = readdirSync(outDir)
-    .filter((file): boolean => file.endsWith(".js"))
-    .flatMap((file): string[] =>
-      [
-        ...readFileSync(path.join(outDir, file), "utf-8").matchAll(/require\("([^".][^"]*)"\)/g),
-      ].map((match): string => match[1])
-    )
+  const names = bundleRequires()
     .map(packageName)
     .filter((name): name is string => name !== undefined);
   return [...new Set(names)].sort();
 }
 
 /**
- * Guards the published VSIX. Versions 1.0.0 and 1.0.1 shipped without node_modules, so the
- * extension could not activate and no feature worked.
+ * Guards the published VSIX. Versions 1.0.0 and 1.0.1 shipped without their runtime packages, so
+ * the extension could not activate; esbuild now inlines them into dist/extension.js.
  */
 describe("extension package", (): void => {
   let files: string[];
@@ -46,23 +45,20 @@ describe("extension package", (): void => {
       .split(/\r?\n/);
   });
 
-  it("should find runtime packages in the compiled extension", (): void => {
+  it("should leave vscode external to the bundle", (): void => {
+    // Act & Assert
+    expect(bundleRequires()).to.include("vscode");
+  });
+
+  it("should bundle every runtime package", (): void => {
     // Act
     const packages = runtimePackages();
 
     // Assert
-    expect(packages).to.include("winston");
+    expect(packages).to.deep.equal([]);
   });
 
-  it("should include every package the compiled extension requires", (): void => {
-    // Arrange
-    const required = runtimePackages().map((name): string => `node_modules/${name}/package.json`);
-
-    // Act & Assert
-    expect(files).to.include.members(required);
-  });
-
-  ["out/extension.js", "bin/keep-sorted-linux-amd64", "package.json", "LICENSE.md"].forEach(
+  ["dist/extension.js", "bin/keep-sorted-linux-amd64", "package.json", "LICENSE.md"].forEach(
     (file): void => {
       it(`should include ${file}`, (): void => {
         // Act & Assert
@@ -72,13 +68,13 @@ describe("extension package", (): void => {
   );
 
   [
-    "out/test/",
-    "out/scripts/",
+    "out/",
+    "node_modules/",
+    "dist/extension.js.map",
     "src/",
     "scripts/",
     "docs/",
     ".claude/",
-    "node_modules/mocha/",
   ].forEach((prefix): void => {
     it(`should exclude ${prefix}`, (): void => {
       // Act

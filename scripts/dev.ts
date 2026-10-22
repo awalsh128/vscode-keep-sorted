@@ -56,7 +56,7 @@ export async function launchDevelopment(
   launcher: DevLauncher,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
-  if (!existsSync(path.join(root, "out", "extension.js"))) {
+  if (!existsSync(path.join(root, "dist", "extension.js"))) {
     throw new Error("Local build missing. Run npm run dev to compile before launching.");
   }
   const userDataDir = path.join(root, ".vscode-test", "dev-user-data");

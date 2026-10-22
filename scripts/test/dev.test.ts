@@ -18,8 +18,8 @@ describe("development launcher", (): void => {
 
   beforeEach((): void => {
     root = mkdtempSync(path.join(tmpdir(), "keep-sorted-dev-"));
-    mkdirSync(path.join(root, "out"));
-    writeFileSync(path.join(root, "out", "extension.js"), "");
+    mkdirSync(path.join(root, "dist"));
+    writeFileSync(path.join(root, "dist", "extension.js"), "");
     child = new ChildProcess();
     download = sinon.stub().resolves(path.join(tmpdir(), "vscode", "code"));
     start = sinon.stub().callsFake((): ChildProcess => {
@@ -109,7 +109,7 @@ describe("development launcher", (): void => {
 
     it("should not write settings when the build is missing", async (): Promise<void> => {
       // Arrange
-      rmSync(path.join(root, "out"), { recursive: true });
+      rmSync(path.join(root, "dist"), { recursive: true });
 
       // Act
       await expect(launchDevelopment(root, { download, start })).to.be.rejected;
@@ -150,7 +150,7 @@ describe("development launcher", (): void => {
 
   it("should reject missing builds before downloading VS Code", async (): Promise<void> => {
     // Arrange
-    rmSync(path.join(root, "out"), { recursive: true });
+    rmSync(path.join(root, "dist"), { recursive: true });
 
     // Act
     const result = launchDevelopment(root, { download, start });

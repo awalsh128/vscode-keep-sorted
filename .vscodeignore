@@ -1,5 +1,8 @@
-# Production dependencies must ship: vsce packages node_modules/ with only the "dependencies" tree,
-# and the extension cannot activate without them. Do not exclude node_modules/ here.
+# esbuild bundles the extension and its runtime dependencies into dist/extension.js, so neither
+# node_modules/ nor the tsc output in out/ ships.
+node_modules/
+out/
+dist/**/*.map
 .vscode-test/
 .vscode-test-user-data/
 .vscode-test-web/
@@ -7,10 +10,6 @@
 coverage/
 src/
 scripts/
-out/scripts/
-out/test/
-out/**/*.d.ts
-out/*.tsbuildinfo
 test-workspace/
 docs/
 .claude/

@@ -60,7 +60,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -131,7 +131,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm ci && npm run compile",
-    "compile": "npm run clean && tsc -b --clean && tsc -b",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --minify --keep-names --sourcemap --outfile=dist/extension.js",
+    "compile": "npm run clean && tsc -b --clean && tsc -b && npm run bundle",
     "lint": "eslint",
     "ops": "tsx scripts/ops.ts",
     "watch": "tsc -b -w",
@@ -140,7 +141,7 @@
     "test:runner": "npm run compile && node ./out/test/runTest.js",
     "test:scripts": "npm run compile && mocha out/scripts/test/**/*.test.js",
     "create-binaries": "tsx scripts/create-binaries.ts",
-    "clean": "rimraf out/",
+    "clean": "rimraf out/ dist/",
     "refreshlock": "npm i --package-lock-only",
     "sync-labels": "tsx scripts/sync-labels.ts"
   },
@@ -165,6 +166,7 @@
     "azure-devops-node-api": "12.5.0",
     "chai": "^6.2.2",
     "chai-as-promised": "^8.0.2",
+    "esbuild": "^0.28.2",
     "eslint": "^10.0.1",
     "eslint-plugin-mocha": "^11.2.0",
     "js-yaml": "^5.4.3",
@@ -189,7 +191,7 @@
   },
   "overrides": {
     "diff": "^8.0.3",
-    "esbuild": ">=0.28.2",
+    "esbuild": "$esbuild",
     "minimatch": ">=10.2.1",
     "serialize-javascript": ">=7.0.5"
   }

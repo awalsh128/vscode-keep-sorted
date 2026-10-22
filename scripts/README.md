@@ -102,7 +102,7 @@ Scripts have corresponding test files in the `test/` subdirectory:
 - `test/sync-labels.test.ts`
 - `test/dev.test.ts`
 - `test/ops.test.ts`
-- `test/packaging.test.ts` (checks the `vsce ls` file list; not tied to one script)
+- `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one script)
 
 Run tests with:
 
