@@ -3,7 +3,7 @@
   "private": true,
   "displayName": "Keep Sorted",
   "description": "VS Code extension to automatically keep code blocks sorted",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "icon": "images/logo.png",
   "galleryBanner": {
     "color": "#134e4a",
@@ -133,6 +133,7 @@
     "vscode:prepublish": "npm ci && npm run compile",
     "compile": "npm run clean && tsc -b --clean && tsc -b",
     "lint": "eslint",
+    "ops": "tsx scripts/ops.ts",
     "watch": "tsc -b -w",
     "dev": "npm run compile && tsx scripts/dev.ts",
     "test": "npm run compile && rimraf ./src/test/logs/ && node ./out/test/runTest.js",
@@ -161,10 +162,12 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^4.0.0",
+    "azure-devops-node-api": "12.5.0",
     "chai": "^6.2.2",
     "chai-as-promised": "^8.0.2",
     "eslint": "^10.0.1",
     "eslint-plugin-mocha": "^11.2.0",
+    "js-yaml": "^5.4.3",
     "logform": "^2.7.0",
     "mocha": "^11.7.5",
     "mocha-explorer-launcher-scripts": "^0.4.0",
@@ -173,32 +176,21 @@
     "sinon": "^21.0.0",
     "sinon-chai": "^4.0.1",
     "source-map-support": "^0.5.21",
-    "triple-beam": "^1.4.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.0.0",
-    "winston": "^3.18.3"
+    "typescript-eslint": "^8.0.0"
   },
   "dependencies": {
     "glob-regex": "^0.3.2",
-    "js-yaml": "^5.3.0",
-    "lru-cache": "^11.2.2"
+    "triple-beam": "^1.4.1",
+    "winston": "^3.19.0",
+    "winston-transport": "^4.9.0"
   },
-  "bundledDependencies": [
-    "glob-regex",
-    "js-yaml",
-    "lru-cache"
-  ],
   "overrides": {
     "diff": "^8.0.3",
     "esbuild": ">=0.28.2",
     "minimatch": ">=10.2.1",
     "serialize-javascript": ">=7.0.5"
-  },
-  "bundleDependencies": [
-    "glob-regex",
-    "js-yaml",
-    "lru-cache"
-  ]
+  }
 }

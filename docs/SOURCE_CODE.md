@@ -49,7 +49,7 @@ code actions to maintain sorted content.
 bin/             — Bundled keep-sorted binaries and checksums
 docs/            — Architecture (this file) and AI development guidelines
 images/          — Extension icon (logo.png, from logo.svg) and README media
-scripts/         — Development, binary build, and label sync scripts (own tsconfig.json)
+scripts/         — Development, binary build, release, and label sync scripts (own tsconfig.json)
 src/             — Extension source and tests (own tsconfig.json)
 test-workspace/  — Fixture workspace for tests and npm run dev
 tsconfig.json    — Build entry point referencing src/ and scripts/
@@ -79,6 +79,18 @@ also assigns checksums mode `0644`. The binary workflow transfers a tar archive 
 modes after artifact download without a separate chmod step. Regression tests check exact modes
 under a restrictive umask, archive permission preservation, checksum contents, and target executable
 headers.
+
+### Release Operations
+
+[scripts/ops.ts](../scripts/ops.ts) lists, publishes, and deletes versions on Open VSX and the
+Visual Studio Marketplace, and prints deprecation requests, since neither registry has a deprecation
+API. Each registry sits behind a small `Registry` interface: Open VSX uses its REST API directly,
+and the Marketplace uses the public gallery query, `vsce publish`, and `azure-devops-node-api` for
+per-version deletion. `publish` packages one VSIX and skips registries that already have the
+version, so the Publish Extension workflow can be rerun after a partial failure. `delete-versions`
+is a dry run without `--yes` and refuses the package.json version and each registry's latest
+version. [scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the operations with fake
+registries and the registry adapters with stubbed HTTP.
 
 ### Agent Configuration
 
@@ -495,7 +507,13 @@ Node.js 24 for development tooling and runs extension tests through the runner's
 of a separate JavaScript wrapper action. These build-time requirements do not change the extension's
 VS Code engine requirement.
 
-- **winston**: Structured logging
+Packages imported at runtime (`glob-regex`, `winston`, `winston-transport`, `triple-beam`) must be
+in `dependencies`: `vsce` ships `node_modules/` with only that tree, and `.vscodeignore` must not
+exclude it. Versions 1.0.0 and 1.0.1 shipped without them and could not activate.
+[scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks the `vsce ls` file list
+against the compiled extension's imports.
+
+- **winston**, **winston-transport**, **triple-beam**: Structured logging
 - **glob-regex**: Convert glob patterns to regex
 - **Sinon**: Test mocking framework (testing only)
 - **Chai**: Assertion library (testing only)
@@ -503,8 +521,10 @@ VS Code engine requirement.
 - **VS Code API**: Extension host communication
 - **@vscode/test-cli**: Loads the development test configuration; version 0.0.15 or newer avoids the
   older chokidar/braces dependency chain and requires Node.js 22+.
-- **@vscode/vsce**: Local extension packaging tooling. Open VSX publishing is handled by the release
-  workflow; the unused local `ovsx` dependency is not installed.
+- **@vscode/vsce**: Packaging and Marketplace publishing for `scripts/ops.ts`, which calls the Open
+  VSX REST API directly instead of installing `ovsx`.
+- **azure-devops-node-api**: Marketplace gallery client used by `scripts/ops.ts` to delete single
+  versions; pinned to the version `vsce` already uses.
 
 ---
 

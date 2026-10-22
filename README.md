@@ -11,11 +11,15 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://badgen.net/vs-marketplace/v/awalsh128.keep-sorted?label=Marketplace" alt="Marketplace version"></a>
+  <a href="https://open-vsx.org/extension/awalsh128/keep-sorted"><img src="https://img.shields.io/open-vsx/v/awalsh128/keep-sorted?label=Open%20VSX" alt="Open VSX version"></a>
+  <a href="https://open-vsx.org/extension/awalsh128/keep-sorted"><img src="https://img.shields.io/open-vsx/dt/awalsh128/keep-sorted?label=Open%20VSX%20downloads" alt="Open VSX downloads"></a>
   <a href="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml"><img src="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0 license"></a>
 </p>
 
-> [!TIP] If you find this project useful, please consider supporting it
+<!-- prettier-ignore -->
+> [!TIP]
+> If you find this project useful, please consider supporting it
 > [as a sponsor and show some ❤️ for open source maintainers](https://github.com/sponsors/awalsh128).
 
 Content outside the `keep-sorted start` and `keep-sorted end` markers is left unchanged.
@@ -26,13 +30,15 @@ Content outside the `keep-sorted start` and `keep-sorted end` markers is left un
 - :information_source: Autocomplete and hover documentation for options on `keep-sorted start`
   lines.
 
+---
+
 [Demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2)
 
 ## Installation
 
 Install Keep Sorted from the
 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
-or [Open VSIX Registery](https://open-vsx.org/extension/awalsh128/keep-sorted). Requires VS Code
+or [Open VSX Registry](https://open-vsx.org/extension/awalsh128/keep-sorted). Requires VS Code
 1.100.0 or newer. Native binaries are bundled for Windows x64, Linux x64, and macOS Intel/Apple
 Silicon; no separate keep-sorted installation is needed.
 

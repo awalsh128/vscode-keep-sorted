@@ -39,6 +39,8 @@ REJECTED.**
 - `src/test/KeepSorted.test.ts` - KeepSorted class, binary interface, linting, fixing
 - `src/test/shared.test.ts` - displayName, memoize, delayAndExecute functions
 - `scripts/test/create-binaries.test.ts` - E2E test for binary creation
+- `scripts/test/ops.test.ts` - Release operations against fake registries
+- `scripts/test/packaging.test.ts` - VSIX contents include runtime dependencies
 
 **Verification**: `npm test` MUST pass. Always. FAILURES WILL BE REJECTED.
 

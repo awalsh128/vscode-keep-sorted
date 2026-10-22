@@ -1,17 +1,32 @@
+# Production dependencies must ship: vsce packages node_modules/ with only the "dependencies" tree,
+# and the extension cannot activate without them. Do not exclude node_modules/ here.
 .vscode-test/
 .vscode-test-user-data/
 .vscode-test-web/
+.vscode-test.mjs
 coverage/
-node_modules/
 src/
 scripts/
 out/scripts/
+out/test/
+out/**/*.d.ts
+out/*.tsbuildinfo
 test-workspace/
+docs/
+.claude/
 .github/
+.vscode/
 .git/
 .env
+.gitignore
+AGENTS.md
+CLAUDE.md
+CONTRIBUTING.md
+eslint.config.mjs
+tsconfig*.json
 *.tsbuildinfo
 *.log
+*.vsix
 .DS_Store
 Thumbs.db
 images/logo.svg

@@ -49,6 +49,31 @@ Rebuilding the bundled binaries is always intentional: the **Build Static Binari
 only when started manually (`gh workflow run create-binaries.yml`), then tests the script, builds
 with Go 1.26, and commits `bin/`. Regular CI runs only the script's Go-free unit tests.
 
+### `ops.ts`
+
+Release operations for Open VSX and the Visual Studio Marketplace. The **Publish Extension**
+workflow runs `publish`; the other commands are for maintainers.
+
+```bash
+npm run ops -- list                          # versions on each registry
+npm run ops -- publish --dry-run             # package only; add --pre-release if needed
+npm run ops -- delete-versions --before 1.0.0  # show older versions that would be deleted
+npm run ops -- delete-versions 0.0.1 --yes   # delete specific versions
+npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
+```
+
+- `publish` packages the `package.json` version once and publishes that VSIX to each registry that
+  does not have it yet, so a rerun after a partial failure only fills the gap.
+- `delete-versions` deletes permanently: neither registry can hide a single version, and a deleted
+  version number can never be published again. Without `--yes` it only prints the plan. It refuses
+  the `package.json` version and each registry's latest version.
+- `deprecate` prints the request text to submit by hand, since neither registry has a deprecation
+  API: a comment on the Marketplace
+  [Deprecated extensions discussion](https://github.com/microsoft/vscode-discussions/discussions/1)
+  and an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new).
+
+`publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX).
+
 ### `sync-labels.ts`
 
 Synchronizes GitHub repository labels from a YAML configuration file.
@@ -76,6 +101,8 @@ Scripts have corresponding test files in the `test/` subdirectory:
 - `test/create-binaries.test.ts`
 - `test/sync-labels.test.ts`
 - `test/dev.test.ts`
+- `test/ops.test.ts`
+- `test/packaging.test.ts` (checks the `vsce ls` file list; not tied to one script)
 
 Run tests with:
 
