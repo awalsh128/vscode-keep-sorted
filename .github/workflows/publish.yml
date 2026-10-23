@@ -24,6 +24,11 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     needs: ci
+    permissions:
+      contents: read
+      # Visual Studio Marketplace trusted publishing exchanges this job's OIDC token for a
+      # short-lived publish credential, so no Marketplace token is stored.
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
@@ -41,7 +46,6 @@ jobs:
       - name: Publish to Open VSX and Visual Studio Marketplace
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
-          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
         run:
           npm run ops -- publish ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
 

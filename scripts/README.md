@@ -72,7 +72,9 @@ npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
   [Deprecated extensions discussion](https://github.com/microsoft/vscode-discussions/discussions/1)
   and an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new).
 
-`publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX).
+`publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX). In
+GitHub Actions without `VSCE_PAT`, `publish` uses Marketplace trusted publishing
+(`vsce publish --oidc`), which needs the job's `id-token: write` permission.
 
 ### `sync-labels.ts`
 
@@ -102,7 +104,8 @@ Scripts have corresponding test files in the `test/` subdirectory:
 - `test/sync-labels.test.ts`
 - `test/dev.test.ts`
 - `test/ops.test.ts`
-- `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one script)
+- `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one
+  script)
 
 Run tests with:
 

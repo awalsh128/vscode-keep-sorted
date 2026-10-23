@@ -5,7 +5,8 @@
  *
  * Environment variables (only `publish` and `delete-versions --yes` need them):
  *
- * - VSCE_PAT: Visual Studio Marketplace personal access token
+ * - VSCE_PAT: Visual Studio Marketplace personal access token. Without it, `publish` in GitHub
+ *   Actions uses Marketplace trusted publishing (`vsce publish --oidc`) instead.
  * - OVSX_PAT: Open VSX access token
  */
 
@@ -435,7 +436,9 @@ export class MarketplaceRegistry implements Registry {
     private readonly token: string | undefined,
     private readonly run: CommandRunner,
     private readonly fetchFn: typeof fetch = fetch,
-    private readonly deleter: MarketplaceVersionDeleter = deleteMarketplaceVersion
+    private readonly deleter: MarketplaceVersionDeleter = deleteMarketplaceVersion,
+    /** Publishes with a short-lived credential exchanged for the GitHub Actions OIDC token. */
+    private readonly trustedPublishing = false
   ) {}
 
   async listVersions(): Promise<string[]> {
@@ -466,9 +469,14 @@ export class MarketplaceRegistry implements Registry {
   }
 
   async publish(vsixPath: string): Promise<void> {
+    const args = ["--no-install", "vsce", "publish", "--packagePath", vsixPath];
+    if (this.trustedPublishing) {
+      await this.run("npx", [...args, "--oidc"]);
+      return;
+    }
     // vsce reads the token from VSCE_PAT, which keeps it out of the process arguments.
     requireToken(this.token, "VSCE_PAT", this.name);
-    await this.run("npx", ["--no-install", "vsce", "publish", "--packagePath", vsixPath]);
+    await this.run("npx", args);
   }
 
   async deleteVersion(version: string): Promise<void> {
@@ -511,7 +519,14 @@ export function createContext(root: string, env: NodeJS.ProcessEnv = process.env
     manifest,
     registries: [
       new OpenVsxRegistry(manifest, env.OVSX_PAT),
-      new MarketplaceRegistry(manifest, env.VSCE_PAT, runCommand),
+      new MarketplaceRegistry(
+        manifest,
+        env.VSCE_PAT,
+        runCommand,
+        fetch,
+        deleteMarketplaceVersion,
+        env.GITHUB_ACTIONS === "true" && !env.VSCE_PAT
+      ),
     ],
     packageVsix: async (preRelease): Promise<string> => {
       const vsixPath = path.join(root, `${manifest.name}-${manifest.version}.vsix`);

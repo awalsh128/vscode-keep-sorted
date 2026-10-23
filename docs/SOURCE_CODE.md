@@ -85,7 +85,8 @@ headers.
 [scripts/ops.ts](../scripts/ops.ts) lists, publishes, and deletes versions on Open VSX and the
 Visual Studio Marketplace, and prints deprecation requests, since neither registry has a deprecation
 API. Each registry sits behind a small `Registry` interface: Open VSX uses its REST API directly,
-and the Marketplace uses the public gallery query, `vsce publish`, and `azure-devops-node-api` for
+and the Marketplace uses the public gallery query, `vsce publish` (trusted publishing through the
+GitHub Actions OIDC token when `VSCE_PAT` is unset in Actions), and `azure-devops-node-api` for
 per-version deletion. `publish` packages one VSIX and skips registries that already have the
 version, so the Publish Extension workflow can be rerun after a partial failure. `delete-versions`
 is a dry run without `--yes` and refuses the package.json version and each registry's latest
@@ -508,11 +509,11 @@ of a separate JavaScript wrapper action. These build-time requirements do not ch
 VS Code engine requirement.
 
 `npm run compile` type-checks and emits `out/` with `tsc` (used by tests and scripts), then
-`npm run bundle` uses esbuild to write `dist/extension.js`, the manifest's `main`. The bundle inlines
-the runtime packages (`glob-regex`, `winston`, `winston-transport`, `triple-beam`), leaving only
-`vscode` and Node built-ins external, so `.vscodeignore` excludes `node_modules/`, `out/`, and the
-source map. Extension tests activate the bundle, not `out/extension.js`. Versions 1.0.0 and 1.0.1
-shipped without their runtime packages and could not activate;
+`npm run bundle` uses esbuild to write `dist/extension.js`, the manifest's `main`. The bundle
+inlines the runtime packages (`glob-regex`, `winston`, `winston-transport`, `triple-beam`), leaving
+only `vscode` and Node built-ins external, so `.vscodeignore` excludes `node_modules/`, `out/`, and
+the source map. Extension tests activate the bundle, not `out/extension.js`. Versions 1.0.0 and
+1.0.1 shipped without their runtime packages and could not activate;
 [scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that the bundle requires
 no other package and that the `vsce ls` file list contains only release files.
 

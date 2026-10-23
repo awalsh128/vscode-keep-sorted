@@ -402,6 +402,34 @@ describe("ops", (): void => {
       ]);
     });
 
+    it("should publish with trusted publishing instead of a token", async (): Promise<void> => {
+      // Arrange
+      const run = sinon.stub().resolves();
+      const registry = new MarketplaceRegistry(manifest, undefined, run, fetch, sinon.stub(), true);
+
+      // Act
+      await registry.publish(vsixPath);
+
+      // Assert
+      expect(run.firstCall.args).to.deep.equal([
+        "npx",
+        ["--no-install", "vsce", "publish", "--packagePath", vsixPath, "--oidc"],
+      ]);
+    });
+
+    it("should require a token to publish without trusted publishing", async (): Promise<void> => {
+      // Arrange
+      const run = sinon.stub().resolves();
+      const registry = new MarketplaceRegistry(manifest, undefined, run);
+
+      // Act
+      const result = registry.publish(vsixPath);
+
+      // Assert
+      await expect(result).to.be.rejectedWith("Set VSCE_PAT");
+      expect(run.called).to.equal(false);
+    });
+
     it("should delete one version through the gallery API", async (): Promise<void> => {
       // Arrange
       const deleter = sinon.stub().resolves();

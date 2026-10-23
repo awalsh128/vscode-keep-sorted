@@ -131,9 +131,16 @@ This downloads and builds binaries for all supported platforms.
 
 Prefer the
 [Publish Extension workflow](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/publish.yml),
-which runs `npm run ops -- publish` for each GitHub release (or as a dry run when started manually).
+which runs `npm run ops -- publish` for each GitHub release (manual runs default to a dry run).
 Verify the `package.json` version first: published versions are immutable, and a deleted version
 number can never be reused.
+
+The workflow publishes to Open VSX with the `OPEN_VSX_TOKEN` secret and to the Visual Studio
+Marketplace with [trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing)
+(`vsce publish --oidc`), so no Marketplace token is stored. This requires a trusted publishing
+policy on the
+[awalsh128 publisher](https://marketplace.visualstudio.com/manage/publishers/awalsh128) for the
+`awalsh128/vscode-keep-sorted` repository and the `publish.yml` workflow.
 
 ### Manual
 
@@ -146,8 +153,8 @@ npm run ops -- delete-versions --before 1.0.0  # dry run; add --yes to delete
 npm run ops -- deprecate --replacement publisher.other
 ```
 
-Publishing from a workstation needs `VSCE_PAT` and `OVSX_PAT`. The publisher pages are also
-available for manual changes:
+Publishing or deleting versions from a workstation needs `VSCE_PAT` and `OVSX_PAT`. The publisher
+pages are also available for manual changes:
 
 - https://marketplace.visualstudio.com/manage/publishers/awalsh128
 - https://open-vsx.org/
