@@ -191,9 +191,10 @@
     "winston-transport": "^4.9.0"
   },
   "overrides": {
+    "@azure/msal-node": "^7.1.1",
     "diff": "^8.0.3",
     "esbuild": "$esbuild",
     "minimatch": ">=10.2.1",
-    "serialize-javascript": ">=7.0.5"
+    "serialize-javascript": ">=7.1.3"
   }
 }
