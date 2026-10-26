@@ -1,6 +1,8 @@
+// keep-sorted start
+import * as crypto from "crypto";
+import * as path from "path";
 import * as vscode from "vscode";
 import { spawnSync } from "child_process";
-import * as path from "path";
 import {
   EXT_NAME,
   logger,
@@ -8,7 +10,7 @@ import {
   logAndGetError,
   Benchmark,
 } from "./instrumentation";
-import * as crypto from "crypto";
+// keep-sorted end
 
 /** Default process timeout for keep-sorted CLI execution. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;

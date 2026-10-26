@@ -2,14 +2,17 @@ import * as vscode from "vscode";
 import { EXT_NAME } from "./instrumentation";
 
 /**
- * Matches keep-sorted start with various comment styles:
+ * Matches a block's start directive after one of these comment markers:
  *
- * - // keep-sorted start (C-style)
- * - # keep-sorted start (Python/shell)
- * - /* keep-sorted start (block comments)
- * - -- keep-sorted start (SQL)
- * - ; keep-sorted start (Assembly/Lisp)
- * - <!-- keep-sorted start (HTML/XML)
+ * - `//` (C-style)
+ * - `#` (Python/shell)
+ * - `/*` (block comments)
+ * - `--` (SQL)
+ * - `;` (Assembly/Lisp)
+ * - `<!--` (HTML/XML)
+ *
+ * Avoid writing the directive itself in comments: keep-sorted treats any line containing it as a
+ * block start, even in prose.
  *
  * Creates a new regex everytime to avoid issues with global regex state like current index.
  */
@@ -389,7 +392,7 @@ export class Directive {
     readonly optionsText: string
   ) {}
 
-  /** Parses a line of text and returns a Directive if it contains a keep-sorted start. */
+  /** Parses a line of text and returns a Directive if it is a block's start directive. */
   static create(lineText: string): Directive | undefined {
     const startMatch = directiveStartRegex().exec(lineText);
     if (!startMatch) {
@@ -437,7 +440,7 @@ export class Directive {
   }
 }
 
-/** Check if the position is on a keep-sorted start line and cursor is after "start". */
+/** Check if the position is on a block's start directive line and cursor is after "start". */
 export function isValidCompletionPosition(
   document: vscode.TextDocument,
   position: vscode.Position

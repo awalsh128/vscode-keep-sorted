@@ -22,13 +22,12 @@
 > If you find this project useful, please consider supporting it
 > [as a sponsor and show some ❤️ for open source maintainers](https://github.com/sponsors/awalsh128).
 
-Content outside the `keep-sorted start` and `keep-sorted end` markers is left unchanged.
+Content outside keep-sorted blocks is left unchanged.
 
 - :warning: Warnings for unsorted blocks as you open, edit, and save files.
 - :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
 - :floppy_disk: Optional sorting on save through a source fix-all action.
-- :information_source: Autocomplete and hover documentation for options on `keep-sorted start`
-  lines.
+- :information_source: Autocomplete and hover documentation for options on a block's start line.
 
 ---
 
@@ -156,9 +155,9 @@ is normalized and used directly. Prefer a workspace-relative path such as `logs/
 
 ## Troubleshooting
 
-- **No warnings or sorting:** Check `keep-sorted.enabled`, exclusion patterns, and matching
-  `keep-sorted start` / `keep-sorted end` markers. Reload the VS Code window if commands are
-  missing.
+- **No warnings or sorting:** Check `keep-sorted.enabled`, exclusion patterns, and that every start
+  marker has a matching end marker. keep-sorted treats any line containing the start marker as a
+  block start, even in prose or comments. Reload the VS Code window if commands are missing.
 - **Save does not sort:** Configure `source.fixAll.keepSorted` as above; format-on-save alone does
   not invoke this extension.
 - **Sorting breaks syntax:** Keep declarations and surrounding brackets outside the markers, as in

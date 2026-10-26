@@ -97,7 +97,7 @@
           "type": "boolean",
           "default": true,
           "order": 2,
-          "markdownDescription": "Suggest keep-sorted option names and values, with documentation tooltips, after `start` on a `keep-sorted start` line."
+          "markdownDescription": "Suggest keep-sorted option names and values, with documentation tooltips, after `start` on a keep-sorted block's start line."
         },
         "keep-sorted.exclude": {
           "type": "array",

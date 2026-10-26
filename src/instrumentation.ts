@@ -1,12 +1,14 @@
+// keep-sorted start
+/* eslint-disable @typescript-eslint/no-require-imports */
+import * as path from "path";
+import * as tb from "triple-beam";
 import * as vscode from "vscode";
 import * as winston from "winston";
 import * as workspace from "./workspace";
-import * as tb from "triple-beam";
-import * as path from "path";
-import { performance } from "node:perf_hooks";
-/* eslint-disable @typescript-eslint/no-require-imports */
 import TransportStream = require("winston-transport");
 import type { TransformableInfo } from "logform";
+import { performance } from "node:perf_hooks";
+// keep-sorted end
 
 /** Unique name of extension in VS Code. */
 export const EXT_NAME = "keep-sorted";

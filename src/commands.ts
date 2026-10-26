@@ -1,3 +1,4 @@
+// keep-sorted start
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import {
@@ -7,6 +8,7 @@ import {
   logAndGetError,
   logger,
 } from "./instrumentation";
+// keep-sorted end
 
 /**
  * Abstract base class for all command handlers in Keep Sorted. Encapsulates the registration and

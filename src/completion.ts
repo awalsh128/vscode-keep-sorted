@@ -1,6 +1,7 @@
+// keep-sorted start
 import * as vscode from "vscode";
-import { contextualizeLogger, EXT_NAME } from "./instrumentation";
 import * as workspace from "./workspace";
+import { contextualizeLogger, EXT_NAME } from "./instrumentation";
 import {
   Directive,
   KeepSortedOption,
@@ -8,6 +9,7 @@ import {
   isValidCompletionPosition,
   KeepSortedOptionCategory,
 } from "./keepsortedopt";
+// keep-sorted end
 
 /**
  * Characters that open suggestions while typing. VS Code disables quick suggestions inside comments
@@ -51,7 +53,7 @@ export class KeepSortedCompletionProvider
     _token: vscode.CancellationToken,
     _context: vscode.CompletionContext
   ): vscode.CompletionItem[] | vscode.CompletionList | undefined {
-    // Only provide completions on keep-sorted start lines, after the "start" keyword
+    // Only provide completions on keep<dash>sorted start lines, after the "start" keyword
     if (!isValidCompletionPosition(document, position)) {
       return undefined;
     }

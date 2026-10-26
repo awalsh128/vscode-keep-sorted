@@ -1,8 +1,8 @@
 // keep-sorted start
 import * as vscode from "vscode";
-import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
 import * as workspace from "./workspace";
 import { CommandHandlers } from "./commands";
+import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
 // keep-sorted end
 
 /**
@@ -25,16 +25,24 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
 
   private readonly commandHandlers: CommandHandlers;
   private readonly diagnostics: vscode.DiagnosticCollection;
+  private readonly flushLint: (document: vscode.TextDocument) => void;
 
   /**
    * Constructs a new ActionProvider.
    *
    * @param diagnostics The diagnostic collection to use for relevant issues.
    * @param commandHandlers The set of command handlers for available fixes.
+   * @param flushLint Lints a document whose debounced lint is still waiting, so a fix all on save
+   *   sees edits made just before saving.
    */
-  constructor(diagnostics: vscode.DiagnosticCollection, commandHandlers: CommandHandlers) {
+  constructor(
+    diagnostics: vscode.DiagnosticCollection,
+    commandHandlers: CommandHandlers,
+    flushLint: (document: vscode.TextDocument) => void = () => {}
+  ) {
     this.diagnostics = diagnostics;
     this.commandHandlers = commandHandlers;
+    this.flushLint = flushLint;
   }
 
   /**
@@ -63,6 +71,11 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
     context?: vscode.CodeActionContext
   ): vscode.CodeAction[] {
     const uri = document.uri;
+    // Only fix all waits for current diagnostics: quick fixes are requested as the cursor moves,
+    // and flushing for them would lint on every keystroke again.
+    if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
+      this.flushLint(document);
+    }
     if (!this.shouldProvide(uri, range)) {
       return [];
     }

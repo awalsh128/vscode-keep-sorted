@@ -1,11 +1,13 @@
+// keep-sorted start
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
 import { KEEP_SORTED_OPTS, isValidCompletionPosition } from "./keepsortedopt";
+// keep-sorted end
 
 /** Matches a `key=value` option token, including YAML list values that contain spaces. */
 const OPTION_TOKEN_REGEX = /[A-Za-z_]+=(?:\[[^\]]*\]|\S*)/;
 
-/** Shows option documentation when hovering a key or value on a `keep-sorted start` line. */
+/** Shows option documentation when hovering a key or value on a `keep<dash>sorted start` line. */
 export class KeepSortedHoverProvider implements vscode.HoverProvider, workspace.Registrant {
   readonly id = "KeepSortedHoverProvider";
 

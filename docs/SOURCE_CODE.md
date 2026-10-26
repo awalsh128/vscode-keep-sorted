@@ -4,8 +4,8 @@
 
 The vscode-keep-sorted extension provides intelligent code sorting and linting for VS Code, powered
 by Google's [Keep Sorted](https://github.com/google/keep-sorted) binary formatter. It detects
-`keep-sorted start/end` blocks in any file type and provides real-time diagnostics, quick fixes, and
-code actions to maintain sorted content.
+keep-sorted blocks in any file type and provides real-time diagnostics, quick fixes, and code
+actions to maintain sorted content.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -84,14 +84,15 @@ headers.
 
 [scripts/ops.ts](../scripts/ops.ts) lists, publishes, and deletes versions on Open VSX and the
 Visual Studio Marketplace, and prints deprecation requests, since neither registry has a deprecation
-API. Each registry sits behind a small `Registry` interface: Open VSX uses its REST API directly,
-and the Marketplace uses the public gallery query, `vsce publish` (trusted publishing through the
-GitHub Actions OIDC token when `VSCE_PAT` is unset in Actions), and `azure-devops-node-api` for
-per-version deletion. `publish` packages one VSIX and skips registries that already have the
-version, so the Publish Extension workflow can be rerun after a partial failure. `delete-versions`
-is a dry run without `--yes` and refuses the package.json version and each registry's latest
-version. [scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the operations with fake
-registries and the registry adapters with stubbed HTTP.
+API. Each registry sits behind a small `Registry` interface: Open VSX uses its REST API directly
+(with a trusted publishing token from the GitHub Actions OIDC ID token when `OVSX_PAT` is unset in
+Actions), and the Marketplace uses the public gallery query, `vsce publish` (trusted publishing
+through the GitHub Actions OIDC token when `VSCE_PAT` is unset in Actions), and
+`azure-devops-node-api` for per-version deletion. `publish` packages one VSIX and skips registries
+that already have the version, so the Publish Extension workflow can be rerun after a partial
+failure. `delete-versions` is a dry run without `--yes` and refuses the package.json version and
+each registry's latest version. [scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the
+operations with fake registries and the registry adapters with stubbed HTTP.
 
 ### Agent Configuration
 
@@ -121,7 +122,9 @@ registries and the registry adapters with stubbed HTTP.
 - **Key Responsibilities**:
   - Register the `keep-sorted.fixFile` and `keep-sorted.fixWorkspace` sorting commands (the former
     legacy alias is removed)
-  - Lint in-scope documents on activation (`inScopeDocuments()`) and on open, change, and save
+  - Lint in-scope documents on activation (`inScopeDocuments()`) and on open and save; edits go
+    through `LintScheduler` ([scheduler.ts](../src/scheduler.ts)), which lints once edits pause for
+    `LINT_DELAY_MS` (300 ms) per document instead of on every keystroke
   - Setup configuration change listeners
   - Manage extension subscriptions for proper cleanup
   - Initialize diagnostic collection
@@ -166,6 +169,9 @@ registries and the registry adapters with stubbed HTTP.
   - Creates file-level sort action for affected document, plus a workspace sort action when other
     files also have diagnostics (quick fixes only, never on save)
 - **Integration**: Connected via VS Code's codeActionProvider extension point
+- **Debounced lints**: A `source.fixAll.keepSorted` request first runs any lint still waiting for
+  the document, so saving right after typing sorts the latest content. Quick fix requests do not,
+  since VS Code makes them as the cursor moves.
 - **Sort on Save**: `ActionProvider` also advertises `source.fixAll.keepSorted` and returns a
   preferred file-level action when VS Code requests that kind. The action executes
   `keep-sorted.fixFile`; the save participant applies the changes before writing the file.
@@ -187,10 +193,10 @@ avoiding startup timing failures without a fixed delay.
 
 #### **completion.ts** — Autocomplete & IntelliSense
 
-- **Purpose**: Provides intelligent suggestions for keep-sorted options on `keep-sorted start` lines
+- **Purpose**: Provides intelligent suggestions for keep-sorted options on a block's start line
 - **Key Classes**:
   - `KeepSortedCompletionProvider`: Implements `vscode.CompletionItemProvider`
-    - Detects `keep-sorted start` marker lines
+    - Detects start marker lines
     - Offers option names with descriptions, omitting options already on the line and options that
       conflict with them (`by_regex`/`ignore_prefixes`, `group_start_regex`/`group_end_regex`)
     - Inserts `key=` with a choice of known values, non-default values first
@@ -208,7 +214,7 @@ avoiding startup timing failures without a fixed delay.
 #### **hover.ts** — Option Hover Documentation
 
 - **Purpose**: Shows an option's documentation when hovering its key or value after `start` on a
-  `keep-sorted start` line, using the same Markdown as completion items
+  block's start line, using the same Markdown as completion items
 - **Key Classes**:
   - `KeepSortedHoverProvider`: Implements `vscode.HoverProvider`; ignores unknown options and
     non-directive lines. Registered with the other providers, so it follows `keep-sorted.enabled`
@@ -305,7 +311,7 @@ avoiding startup timing failures without a fixed delay.
     `KEEP_SORTED_VERSION` changes in `scripts/create-binaries.ts`.
   - `KeepSortedOption.parseValue()`: Mirrors the upstream parser (case-sensitive keywords, untrimmed
     comma lists, YAML lists, Go inline regex flags dropped before JavaScript validation)
-  - `Directive`: Splits a `keep-sorted start` line into well-formed and malformed option tokens
+  - `Directive`: Splits a block's start line into well-formed and malformed option tokens
   - `isValidCompletionPosition()`: Checks that the cursor follows `start`
 - **Diagnostics**: Option warnings shown in the editor come from the keep-sorted binary;
   `getDirectiveAndErrors()` and `validateOptionsInFile()` are not wired into linting
@@ -344,6 +350,8 @@ avoiding startup timing failures without a fixed delay.
 VS Code Document Event
         │
         ├─> extension.ts: onDidOpenTextDocument / onDidChangeTextDocument
+        │
+        ├─> scheduler.ts: lint now (open/save) or after edits pause (change)
         │
         ├─> workspace.ts: inScopeDocuments() / isInScope()
         │   └─> configuration.ts: fileExcluded()

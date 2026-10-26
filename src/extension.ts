@@ -1,11 +1,13 @@
+// keep-sorted start
 import * as vscode from "vscode";
 import * as workspace from "./workspace";
-import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
-import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
-import { KeepSorted } from "./keepsorted";
 import { ActionProvider } from "./actions";
+import { KeepSorted } from "./keepsorted";
 import { KeepSortedCompletionProvider } from "./completion";
 import { KeepSortedHoverProvider } from "./hover";
+import { LintScheduler } from "./scheduler";
+import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
+import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
 import {
   getConfig,
   handleConfigurationChange,
@@ -13,6 +15,7 @@ import {
   onEnabledChange,
   onLogFilepathChange,
 } from "./configuration";
+// keep-sorted end
 
 export async function activate(context: vscode.ExtensionContext) {
   // Create output channel
@@ -26,7 +29,11 @@ export async function activate(context: vscode.ExtensionContext) {
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
     sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
   };
-  const actionProvider = new ActionProvider(diagnostics, editCommandHandlers);
+  const lintScheduler = new LintScheduler(lint);
+  context.subscriptions.push(lintScheduler);
+  const actionProvider = new ActionProvider(diagnostics, editCommandHandlers, (document) =>
+    lintScheduler.flush(document)
+  );
   const completionProvider = new KeepSortedCompletionProvider();
   const hoverProvider = new KeepSortedHoverProvider();
 
@@ -35,7 +42,14 @@ export async function activate(context: vscode.ExtensionContext) {
   function maybeLint(document: vscode.TextDocument): void {
     if (workspace.isInScope(document.uri)) {
       contextualizeLogger(document.uri).debug(`Document updated.`);
-      lint(document);
+      lintScheduler.now(document);
+    }
+  }
+
+  function maybeLintAfterEdits(event: vscode.TextDocumentChangeEvent): void {
+    // Events without content changes only report dirty-state or language changes.
+    if (event.contentChanges.length > 0 && workspace.isInScope(event.document.uri)) {
+      lintScheduler.schedule(event.document);
     }
   }
 
@@ -74,7 +88,7 @@ export async function activate(context: vscode.ExtensionContext) {
     },
     {
       id: vscode.workspace.onDidChangeTextDocument.name,
-      register: async () => vscode.workspace.onDidChangeTextDocument((e) => maybeLint(e.document)),
+      register: async () => vscode.workspace.onDidChangeTextDocument(maybeLintAfterEdits),
     },
   ].forEach((event) => {
     extSubsHandler.addRegistrant(event);
@@ -95,6 +109,7 @@ export async function activate(context: vscode.ExtensionContext) {
       } else {
         logger.debug(`Extension disabled - disposing event subscriptions.`);
         extSubsHandler.unregisterAll();
+        lintScheduler.dispose();
         diagnostics.clear();
       }
     })

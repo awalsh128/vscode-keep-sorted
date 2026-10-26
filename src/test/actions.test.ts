@@ -174,6 +174,38 @@ describe("actions", () => {
         expect(actions![0].command?.command).to.equal("keep-sorted.fixFile");
       });
 
+      it("should flush a waiting lint before fix all", () => {
+        // Arrange
+        const flushLint = sinon.stub();
+        provider = new ActionProvider(diagnostics, editCommandHandlers, flushLint);
+
+        // Act
+        provider.provideCodeActions(document, range, {
+          diagnostics: [],
+          only: ActionProvider.fixAllKind,
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        expect(flushLint).to.have.been.calledOnceWithExactly(document);
+      });
+
+      it("should not flush a waiting lint for quick fixes", () => {
+        // Arrange
+        const flushLint = sinon.stub();
+        provider = new ActionProvider(diagnostics, editCommandHandlers, flushLint);
+
+        // Act
+        provider.provideCodeActions(document, range, {
+          diagnostics: [],
+          only: undefined,
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        expect(flushLint.called).to.equal(false);
+      });
+
       it("should return actions with multiple diagnostics", () => {
         // Arrange - Explicitly set diagnostics for all three unsorted blocks
         const diag1 = new vscode.Diagnostic(

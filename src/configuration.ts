@@ -1,8 +1,10 @@
+// keep-sorted start
+import * as path from "path";
 import * as vscode from "vscode";
 import globRegex from "glob-regex";
-import * as path from "path";
 import { EXT_NAME, logger } from "./instrumentation";
 import { toJson } from "./workspace";
+// keep-sorted end
 
 /** Configuration namespace for the Keep Sorted extension. */
 const CONFIGURATION_SECTION = EXT_NAME;
