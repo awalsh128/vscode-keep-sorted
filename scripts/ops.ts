@@ -6,7 +6,9 @@
  * Environment variables (only `publish` and `delete-versions --yes` need them):
  *
  * - VSCE_PAT: Visual Studio Marketplace personal access token. Without it, `publish` in GitHub
- *   Actions uses Marketplace trusted publishing (`vsce publish --oidc`) instead.
+ *   Actions uses Marketplace trusted publishing (`vsce publish --oidc`), and elsewhere both
+ *   commands sign in with a Microsoft account through a device code.
+ * - AZURE_TENANT_ID: Microsoft Entra tenant for that sign-in (default: common)
  * - OVSX_PAT: Open VSX access token
  */
 
@@ -14,6 +16,7 @@ import { spawn } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { parseArgs } from "util";
+import { DeviceCodeCredential } from "@azure/identity";
 import { GalleryApi } from "azure-devops-node-api/GalleryApi";
 import { getBasicHandler } from "azure-devops-node-api/WebApi";
 
@@ -43,8 +46,15 @@ export interface OpsContext {
   log(message: string): void;
 }
 
-/** Runs a command with inherited output and rejects when it fails. */
-export type CommandRunner = (command: string, args: readonly string[]) => Promise<void>;
+/** Runs a command with inherited output and extra environment, and rejects when it fails. */
+export type CommandRunner = (
+  command: string,
+  args: readonly string[],
+  env?: NodeJS.ProcessEnv
+) => Promise<void>;
+
+/** Returns a Marketplace access token, signing the user in when needed. */
+export type TokenProvider = () => Promise<string>;
 
 export const usage = `Usage: npm run ops -- <command> [options]
 
@@ -433,7 +443,7 @@ export class MarketplaceRegistry implements Registry {
 
   constructor(
     private readonly manifest: ExtensionManifest,
-    private readonly token: string | undefined,
+    private readonly token: string | TokenProvider | undefined,
     private readonly run: CommandRunner,
     private readonly fetchFn: typeof fetch = fetch,
     private readonly deleter: MarketplaceVersionDeleter = deleteMarketplaceVersion,
@@ -475,14 +485,20 @@ export class MarketplaceRegistry implements Registry {
       return;
     }
     // vsce reads the token from VSCE_PAT, which keeps it out of the process arguments.
-    requireToken(this.token, "VSCE_PAT", this.name);
-    await this.run("npx", args);
+    await this.run("npx", args, { VSCE_PAT: await this.resolveToken() });
   }
 
   async deleteVersion(version: string): Promise<void> {
     const { publisher, name } = this.manifest;
-    const token = requireToken(this.token, "VSCE_PAT", this.name);
-    await this.deleter(token, publisher, name, version);
+    await this.deleter(await this.resolveToken(), publisher, name, version);
+  }
+
+  private async resolveToken(): Promise<string> {
+    return requireToken(
+      typeof this.token === "function" ? await this.token() : this.token,
+      "VSCE_PAT",
+      this.name
+    );
   }
 }
 
@@ -496,9 +512,10 @@ export function readManifest(root: string): ExtensionManifest {
 }
 
 /** Spawns a command with inherited output. */
-export const runCommand: CommandRunner = (command, args) =>
+export const runCommand: CommandRunner = (command, args, env = {}) =>
   new Promise<void>((resolve, reject): void => {
     const child = spawn(command, args, {
+      env: { ...process.env, ...env },
       stdio: "inherit",
       shell: process.platform === "win32",
     });
@@ -512,6 +529,26 @@ export const runCommand: CommandRunner = (command, args) =>
     });
   });
 
+/** Azure DevOps, whose Microsoft Entra tokens the Marketplace accepts in place of a PAT. */
+const AZURE_DEVOPS_SCOPE = "499b84ac-1321-427f-aa17-267ca6975798/.default";
+
+/**
+ * Signs the user in with a Microsoft account, once per run. A device code works without a local
+ * browser, so the sign-in page can be opened on any device.
+ */
+export function deviceCodeSignIn(tenantId = "common", log = console.log): TokenProvider {
+  let token: Promise<string> | undefined;
+  return (): Promise<string> => {
+    token ??= new DeviceCodeCredential({
+      tenantId,
+      userPromptCallback: (info): void => log(info.message),
+    })
+      .getToken(AZURE_DEVOPS_SCOPE)
+      .then((accessToken): string => accessToken.token);
+    return token;
+  };
+}
+
 /** Builds the production context for the repository at `root`. */
 export function createContext(root: string, env: NodeJS.ProcessEnv = process.env): OpsContext {
   const manifest = readManifest(root);
@@ -521,7 +558,8 @@ export function createContext(root: string, env: NodeJS.ProcessEnv = process.env
       new OpenVsxRegistry(manifest, env.OVSX_PAT),
       new MarketplaceRegistry(
         manifest,
-        env.VSCE_PAT,
+        env.VSCE_PAT ||
+          (env.GITHUB_ACTIONS === "true" ? undefined : deviceCodeSignIn(env.AZURE_TENANT_ID)),
         runCommand,
         fetch,
         deleteMarketplaceVersion,

@@ -74,7 +74,10 @@ npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
 
 `publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX). In
 GitHub Actions without `VSCE_PAT`, `publish` uses Marketplace trusted publishing
-(`vsce publish --oidc`), which needs the job's `id-token: write` permission.
+(`vsce publish --oidc`), which needs the job's `id-token: write` permission. Elsewhere without
+`VSCE_PAT`, both commands print a Microsoft device-code sign-in for Azure DevOps. Personal Microsoft
+accounts can only sign in through a Microsoft Entra directory they belong to: set `AZURE_TENANT_ID`
+to it, since the default `common` tenant accepts only work or school accounts.
 
 ### `sync-labels.ts`
 

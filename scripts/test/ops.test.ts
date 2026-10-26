@@ -399,7 +399,34 @@ describe("ops", (): void => {
       expect(run.firstCall.args).to.deep.equal([
         "npx",
         ["--no-install", "vsce", "publish", "--packagePath", vsixPath],
+        { VSCE_PAT: token },
       ]);
+    });
+
+    it("should publish with a token from the sign-in provider", async (): Promise<void> => {
+      // Arrange
+      const run = sinon.stub().resolves();
+      const signIn = sinon.stub().resolves("signed-in");
+      const registry = new MarketplaceRegistry(manifest, signIn, run);
+
+      // Act
+      await registry.publish(vsixPath);
+
+      // Assert
+      expect(run.firstCall.args[2]).to.deep.equal({ VSCE_PAT: "signed-in" });
+    });
+
+    it("should delete with a token from the sign-in provider", async (): Promise<void> => {
+      // Arrange
+      const deleter = sinon.stub().resolves();
+      const signIn = sinon.stub().resolves("signed-in");
+      const registry = new MarketplaceRegistry(manifest, signIn, sinon.stub(), fetch, deleter);
+
+      // Act
+      await registry.deleteVersion("1.0.0");
+
+      // Assert
+      expect(deleter.firstCall.args).to.deep.equal(["signed-in", "pub", "ext", "1.0.0"]);
     });
 
     it("should publish with trusted publishing instead of a token", async (): Promise<void> => {
