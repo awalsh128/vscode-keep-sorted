@@ -136,11 +136,16 @@ Verify the `package.json` version first: published versions are immutable, and a
 number can never be reused.
 
 The workflow publishes to Open VSX with the `OPEN_VSX_TOKEN` secret and to the Visual Studio
-Marketplace with [trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing)
-(`vsce publish --oidc`), so no Marketplace token is stored. This requires a trusted publishing
-policy on the
+Marketplace with the `VS_MARKETPLACE_TOKEN` secret: an Azure DevOps PAT created for **All accessible
+organizations** with the **Marketplace (Manage)** scope. A PAT limited to one organization fails
+with `TF400813`. Azure DevOps stops supporting such PATs on December 1, 2026.
+
+Without `VS_MARKETPLACE_TOKEN`, the workflow uses Marketplace
+[trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing)
+(`vsce publish --oidc`) instead. It needs a trusted publishing policy on the
 [awalsh128 publisher](https://marketplace.visualstudio.com/manage/publishers/awalsh128) for the
-`awalsh128/vscode-keep-sorted` repository and the `publish.yml` workflow.
+`awalsh128/vscode-keep-sorted` repository and the `publish.yml` workflow; as of October 2026 the
+Marketplace has not released that setting.
 
 ### Manual
 
