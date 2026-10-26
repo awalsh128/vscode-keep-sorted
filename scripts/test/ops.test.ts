@@ -13,6 +13,7 @@ import {
   main,
   MarketplaceRegistry,
   OpenVsxRegistry,
+  openVsxTrustedPublishing,
   OpsContext,
   publishVersion,
   readManifest,
@@ -366,6 +367,100 @@ describe("ops", (): void => {
 
       // Assert
       await expect(result).to.be.rejectedWith("Set OVSX_PAT");
+      expect(fetchFn.called).to.equal(false);
+    });
+
+    it("should publish with a token from the provider", async (): Promise<void> => {
+      // Arrange
+      const fetchFn = sinon.stub().resolves(jsonResponse({}));
+      const registry = new OpenVsxRegistry(manifest, sinon.stub().resolves("issued"), fetchFn);
+      const dir = mkdtempSync(path.join(tmpdir(), "keep-sorted-ops-"));
+      const packagePath = path.join(dir, "ext-2.0.0.vsix");
+      writeFileSync(packagePath, "");
+
+      // Act
+      try {
+        await registry.publish(packagePath);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+
+      // Assert
+      expect(fetchFn.firstCall.args[0]).to.equal("https://open-vsx.org/api/-/publish?token=issued");
+    });
+  });
+
+  describe("openVsxTrustedPublishing", (): void => {
+    const env = {
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example/token?api-version=2.0",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
+    };
+
+    it("should exchange the GitHub ID token for a publishing token", async (): Promise<void> => {
+      // Arrange
+      const fetchFn = sinon.stub();
+      fetchFn.onFirstCall().resolves(jsonResponse({ value: "id-token" }));
+      fetchFn.onSecondCall().resolves(jsonResponse({ value: "issued" }));
+      const provider = openVsxTrustedPublishing(manifest, env, fetchFn);
+
+      // Act
+      const issued = await provider();
+
+      // Assert
+      expect(issued).to.equal("issued");
+      const idTokenUrl = fetchFn.firstCall.args[0] as URL;
+      expect(idTokenUrl.searchParams.get("audience")).to.equal("https://open-vsx.org");
+      expect(idTokenUrl.searchParams.get("api-version")).to.equal("2.0");
+      expect(fetchFn.firstCall.args[1].headers.Authorization).to.equal("Bearer request-token");
+      expect(fetchFn.secondCall.args[0]).to.equal(
+        "https://open-vsx.org/api/-/trusted-publishing/token"
+      );
+      expect(JSON.parse(fetchFn.secondCall.args[1].body)).to.deep.equal({
+        namespace: "pub",
+        extension: "ext",
+        token: "id-token",
+      });
+    });
+
+    it("should exchange only once per run", async (): Promise<void> => {
+      // Arrange
+      const fetchFn = sinon.stub();
+      fetchFn.onFirstCall().resolves(jsonResponse({ value: "id-token" }));
+      fetchFn.onSecondCall().resolves(jsonResponse({ value: "issued" }));
+      const provider = openVsxTrustedPublishing(manifest, env, fetchFn);
+
+      // Act
+      await provider();
+      await provider();
+
+      // Assert
+      expect(fetchFn.callCount).to.equal(2);
+    });
+
+    it("should explain a refused exchange", async (): Promise<void> => {
+      // Arrange
+      const fetchFn = sinon.stub();
+      fetchFn.onFirstCall().resolves(jsonResponse({ value: "id-token" }));
+      fetchFn.onSecondCall().resolves(jsonResponse({ error: "No trusted publisher" }, 403));
+      const provider = openVsxTrustedPublishing(manifest, env, fetchFn);
+
+      // Act
+      const result = provider();
+
+      // Assert
+      await expect(result).to.be.rejectedWith(/No trusted publisher.*trusted-publishers/);
+    });
+
+    it("should require the id-token permission", async (): Promise<void> => {
+      // Arrange
+      const fetchFn = sinon.stub();
+      const provider = openVsxTrustedPublishing(manifest, {}, fetchFn);
+
+      // Act
+      const result = provider();
+
+      // Assert
+      await expect(result).to.be.rejectedWith("id-token: write");
       expect(fetchFn.called).to.equal(false);
     });
   });

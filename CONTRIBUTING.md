@@ -135,17 +135,22 @@ which runs `npm run ops -- publish` for each GitHub release (manual runs default
 Verify the `package.json` version first: published versions are immutable, and a deleted version
 number can never be reused.
 
-The workflow publishes to Open VSX with the `OPEN_VSX_TOKEN` secret and to the Visual Studio
-Marketplace with the `VS_MARKETPLACE_TOKEN` secret: an Azure DevOps PAT created for **All accessible
-organizations** with the **Marketplace (Manage)** scope. A PAT limited to one organization fails
-with `TF400813`. Azure DevOps stops supporting such PATs on December 1, 2026.
+The workflow uses trusted publishing (no stored token) for each registry whose token secret is
+unset, exchanging the job's GitHub OIDC token for a short-lived publish credential:
 
-Without `VS_MARKETPLACE_TOKEN`, the workflow uses Marketplace
-[trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing)
-(`vsce publish --oidc`) instead. It needs a trusted publishing policy on the
-[awalsh128 publisher](https://marketplace.visualstudio.com/manage/publishers/awalsh128) for the
-`awalsh128/vscode-keep-sorted` repository and the `publish.yml` workflow; as of October 2026 the
-Marketplace has not released that setting.
+- **Open VSX:** available. Register the `awalsh128/vscode-keep-sorted` repository and the
+  `publish.yml` workflow for the `awalsh128` namespace at
+  [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers), then delete the
+  `OPEN_VSX_TOKEN` secret.
+- **Visual Studio Marketplace:** not yet released; its token endpoint still answers "Trusted
+  Publishing is not supported." Until then, `VS_MARKETPLACE_TOKEN` must be an Azure DevOps PAT
+  created for **All accessible organizations** with the **Marketplace (Manage)** scope (a PAT for
+  one organization fails with `TF400813`). Azure DevOps stops supporting such PATs on December
+  1, 2026. Once the Marketplace supports
+  [trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing), add a policy
+  for the same repository and workflow on the
+  [awalsh128 publisher](https://marketplace.visualstudio.com/manage/publishers/awalsh128) and delete
+  the secret.
 
 ### Manual
 

@@ -9,7 +9,8 @@
  *   Actions uses Marketplace trusted publishing (`vsce publish --oidc`), and elsewhere both
  *   commands sign in with a Microsoft account through a device code.
  * - AZURE_TENANT_ID: Microsoft Entra tenant for that sign-in (default: common)
- * - OVSX_PAT: Open VSX access token
+ * - OVSX_PAT: Open VSX access token. Without it, `publish` in GitHub Actions uses Open VSX trusted
+ *   publishing instead.
  */
 
 import { spawn } from "child_process";
@@ -330,9 +331,81 @@ function requireToken(token: string | undefined, variable: string, registry: str
   return token;
 }
 
+/** Returns the access token, asking the provider for one when the registry has no fixed token. */
+async function resolveToken(
+  token: string | TokenProvider | undefined,
+  variable: string,
+  registry: string
+): Promise<string> {
+  return requireToken(typeof token === "function" ? await token() : token, variable, registry);
+}
+
+/** Requests a GitHub Actions OIDC ID token for `audience`; the job needs `id-token: write`. */
+export async function gitHubIdToken(
+  audience: string,
+  env: NodeJS.ProcessEnv,
+  fetchFn: typeof fetch = fetch
+): Promise<string> {
+  const requestUrl = env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  const requestToken = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!requestUrl || !requestToken) {
+    throw new Error("GitHub Actions has no OIDC ID token; grant the job `id-token: write`.");
+  }
+  // The request URL already carries an api-version parameter, so only the audience is added.
+  const url = new URL(requestUrl);
+  url.searchParams.set("audience", audience);
+  const response = await fetchFn(url, { headers: { Authorization: `Bearer ${requestToken}` } });
+  const body = (await response.json().catch((): unknown => ({}))) as { value?: string };
+  if (!response.ok || !body.value) {
+    throw new Error(`GitHub Actions could not issue an OIDC ID token: HTTP ${response.status}`);
+  }
+  return body.value;
+}
+
+const OPEN_VSX_URL = "https://open-vsx.org";
+
+/**
+ * Exchanges the GitHub Actions OIDC ID token for a short-lived Open VSX token that can only publish
+ * this extension, once per run. The namespace must register this repository and workflow at
+ * https://open-vsx.org/user-settings/trusted-publishers.
+ */
+export function openVsxTrustedPublishing(
+  manifest: ExtensionManifest,
+  env: NodeJS.ProcessEnv,
+  fetchFn: typeof fetch = fetch,
+  baseUrl = OPEN_VSX_URL
+): TokenProvider {
+  let token: Promise<string> | undefined;
+  return (): Promise<string> => {
+    token ??= (async (): Promise<string> => {
+      const idToken = await gitHubIdToken(baseUrl, env, fetchFn);
+      const response = await fetchFn(`${baseUrl}/api/-/trusted-publishing/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          namespace: manifest.publisher,
+          extension: manifest.name,
+          token: idToken,
+        }),
+      });
+      const body = (await response.json().catch((): unknown => ({}))) as OpenVsxBody;
+      if (!response.ok || body.error || !body.value) {
+        throw new Error(
+          `Open VSX refused trusted publishing: ${body.error ?? `HTTP ${response.status}`}. Check ` +
+            `the trusted publishers at ${baseUrl}/user-settings/trusted-publishers.`
+        );
+      }
+      return body.value;
+    })();
+    return token;
+  };
+}
+
 /** The JSON fields ops.ts reads from Open VSX responses. */
 interface OpenVsxBody {
   error?: string;
+  /** The issued token of a trusted publishing exchange. */
+  value?: string;
   totalSize?: number;
   versions?: Record<string, string>;
 }
@@ -346,9 +419,9 @@ export class OpenVsxRegistry implements Registry {
 
   constructor(
     private readonly manifest: ExtensionManifest,
-    private readonly token: string | undefined,
+    private readonly token: string | TokenProvider | undefined,
     private readonly fetchFn: typeof fetch = fetch,
-    private readonly baseUrl = "https://open-vsx.org"
+    private readonly baseUrl = OPEN_VSX_URL
   ) {}
 
   async listVersions(): Promise<string[]> {
@@ -374,7 +447,7 @@ export class OpenVsxRegistry implements Registry {
   }
 
   async publish(vsixPath: string): Promise<void> {
-    const token = requireToken(this.token, "OVSX_PAT", this.name);
+    const token = await resolveToken(this.token, "OVSX_PAT", this.name);
     const response = await this.fetchFn(
       `${this.baseUrl}/api/-/publish?token=${encodeURIComponent(token)}`,
       {
@@ -388,7 +461,7 @@ export class OpenVsxRegistry implements Registry {
 
   async deleteVersion(version: string): Promise<void> {
     const { publisher, name } = this.manifest;
-    const token = requireToken(this.token, "OVSX_PAT", this.name);
+    const token = await resolveToken(this.token, "OVSX_PAT", this.name);
     const response = await this.fetchFn(
       `${this.baseUrl}/api/${publisher}/${name}/delete?token=${encodeURIComponent(token)}`,
       {
@@ -493,12 +566,8 @@ export class MarketplaceRegistry implements Registry {
     await this.deleter(await this.resolveToken(), publisher, name, version);
   }
 
-  private async resolveToken(): Promise<string> {
-    return requireToken(
-      typeof this.token === "function" ? await this.token() : this.token,
-      "VSCE_PAT",
-      this.name
-    );
+  private resolveToken(): Promise<string> {
+    return resolveToken(this.token, "VSCE_PAT", this.name);
   }
 }
 
@@ -555,7 +624,11 @@ export function createContext(root: string, env: NodeJS.ProcessEnv = process.env
   return {
     manifest,
     registries: [
-      new OpenVsxRegistry(manifest, env.OVSX_PAT),
+      new OpenVsxRegistry(
+        manifest,
+        env.OVSX_PAT ||
+          (env.GITHUB_ACTIONS === "true" ? openVsxTrustedPublishing(manifest, env) : undefined)
+      ),
       new MarketplaceRegistry(
         manifest,
         env.VSCE_PAT ||

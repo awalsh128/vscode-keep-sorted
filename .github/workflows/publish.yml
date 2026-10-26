@@ -26,8 +26,8 @@ jobs:
     needs: ci
     permissions:
       contents: read
-      # Without VS_MARKETPLACE_TOKEN, Visual Studio Marketplace trusted publishing exchanges this
-      # job's OIDC token for a short-lived publish credential.
+      # Registries whose token secret is unset get a short-lived publish credential in exchange for
+      # this job's OIDC token (trusted publishing).
       id-token: write
     steps:
       - name: Checkout code
@@ -45,6 +45,8 @@ jobs:
       # so rerunning after a partial failure is safe. Releases are never dry runs.
       - name: Publish to Open VSX and Visual Studio Marketplace
         env:
+          # Delete OPEN_VSX_TOKEN once this repository and publish.yml are registered at
+          # https://open-vsx.org/user-settings/trusted-publishers.
           OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
           # Must be a PAT for all accessible organizations with Marketplace (Manage) scope. Azure
           # DevOps retires those on December 1, 2026; delete the secret once trusted publishing works.
