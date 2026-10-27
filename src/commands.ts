@@ -125,7 +125,7 @@ export abstract class EditCommandHandler extends CommandHandler {
     try {
       const editResult = await this.createEdit(document);
       if (editResult) {
-        logger.debug(
+        logger.debugLazy(
           () =>
             `${this.command.command} create results:\n` +
             workspace.toJson({

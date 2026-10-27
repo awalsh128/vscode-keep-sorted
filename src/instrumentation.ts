@@ -30,29 +30,41 @@ export class Benchmark {
   }
 }
 
-function createLeveledLog(logger: winston.Logger, level: string): winston.LeveledLogMethod {
-  function logLevel(message: string, ...meta: unknown[]): winston.Logger;
-  function logLevel(message: string): winston.Logger;
-  function logLevel(infoObject: object): winston.Logger;
-  function logLevel(...args: unknown[]): winston.Logger {
+/**
+ * Creates a level method that logs through the logger it is called on. Child loggers from
+ * `logger.child()` inherit these methods, so binding them to the parent would drop the child's
+ * metadata, such as the document path from `contextualizeLogger()`.
+ */
+function createLeveledLog(level: string): winston.LeveledLogMethod {
+  function logLevel(this: winston.Logger, message: string, ...meta: unknown[]): winston.Logger;
+  function logLevel(this: winston.Logger, message: string): winston.Logger;
+  function logLevel(this: winston.Logger, infoObject: object): winston.Logger;
+  function logLevel(this: winston.Logger, ...args: unknown[]): winston.Logger {
     if (args.length === 1) {
-      return logger.log(level, args[0]);
+      return this.log(level, args[0]);
     }
     const [message, ...meta] = args;
-    return logger.log(level, message as string, ...(meta as unknown[]));
+    return this.log(level, message as string, ...(meta as unknown[]));
   }
   // string | number | unknown[] | object
   return logLevel;
 }
 
 class LazyLogger extends winston.Logger {
-  error = createLeveledLog(this, "error");
-  warn = createLeveledLog(this, "warn");
-  help = createLeveledLog(this, "help");
-  data = createLeveledLog(this, "data");
-  info = createLeveledLog(this, "info");
-  debug = createLeveledLog(this, "debug");
-  trace = createLeveledLog(this, "trace");
+  error = createLeveledLog("error");
+  warn = createLeveledLog("warn");
+  help = createLeveledLog("help");
+  data = createLeveledLog("data");
+  info = createLeveledLog("info");
+  debug = createLeveledLog("debug");
+  trace = createLeveledLog("trace");
+
+  /** Logs at debug level, building the message only when debug logging is enabled. */
+  debugLazy(getMessage: () => string): void {
+    if (this.isLevelEnabled("debug")) {
+      this.log("debug", getMessage());
+    }
+  }
 
   traceLazy(getMessage: () => string): void {
     if (this.isLevelEnabled("trace")) {
@@ -118,7 +130,6 @@ function createFileTransport(filepath: string) {
   });
 }
 
-/** Creates a logger instance for the extension. */
 /** Sets the level of a logger and all of its transports. */
 export function setLogLevel(logger: winston.Logger, level: string): void {
   const previousLogLevel = logger.level;
@@ -127,6 +138,7 @@ export function setLogLevel(logger: winston.Logger, level: string): void {
   logger.info(`Log level changed from '${previousLogLevel}' to '${logger.level}'`);
 }
 
+/** Creates a logger instance for the extension. */
 function createLogger(): LazyLogger {
   const outputChannel = vscode.window.createOutputChannel(EXT_DISPLAY_NAME, { log: true });
   outputChannel.show();
@@ -158,8 +170,8 @@ function createLogger(): LazyLogger {
     ],
   });
 
-  // The channel's event covers both its own level (Developer: Set Log Level) and the global level it
-  // follows; vscode.env.onDidChangeLogLevel only reports the global level.
+  // The channel's event covers both its own level (Developer: Set Log Level) and
+  // the global level it follows; vscode.env.onDidChangeLogLevel only reports the global level.
   outputChannel.onDidChangeLogLevel((newLevel: vscode.LogLevel) =>
     setLogLevel(logger, winstonLogLevel(newLevel))
   );

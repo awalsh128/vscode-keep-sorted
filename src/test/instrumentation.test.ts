@@ -4,7 +4,7 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import * as winston from "winston";
-import { contextualizeLogger, setLogLevel } from "../instrumentation";
+import { contextualizeLogger, logger, setLogLevel } from "../instrumentation";
 
 use(sinonChai);
 
@@ -46,6 +46,48 @@ describe("instrumentation", () => {
         uri: mockUri,
         fsPath: "/test/file.ts",
       } as unknown as vscode.TextDocument;
+    });
+
+    describe("logged lines", () => {
+      // Child loggers pass their metadata to the shared logger's write().
+      let write: sinon.SinonSpy;
+      const written = (): Record<string, unknown>[] => write.args.map(([info]) => info);
+
+      beforeEach(() => {
+        write = sandbox.spy(logger, "write");
+      });
+
+      it("should build lazy debug messages only when logging them", () => {
+        // Arrange
+        sandbox.stub(logger, "isLevelEnabled").returns(true);
+        const child = contextualizeLogger(mockDocument.uri);
+
+        // Act
+        child.debugLazy(() => "built message");
+
+        // Assert
+        expect(written()).to.have.lengthOf(1);
+        expect(written()[0]).to.include({ level: "debug", message: "built message" });
+      });
+
+      ["error", "warn", "info"].forEach((level) => {
+        it(`should include the document path and range in ${level} lines`, () => {
+          // Arrange
+          const range = new vscode.Range(1, 0, 3, 0);
+          const child = contextualizeLogger(mockDocument.uri, range);
+
+          // Act
+          (child[level as "error" | "warn" | "info"] as (message: string) => void)("message");
+
+          // Assert
+          expect(written()).to.have.lengthOf(1);
+          expect(written()[0]).to.include({
+            message: "message",
+            documentRelativePath: vscode.workspace.asRelativePath(mockDocument.uri),
+            range: "[2:3]",
+          });
+        });
+      });
     });
 
     it("should log document path without range", () => {
