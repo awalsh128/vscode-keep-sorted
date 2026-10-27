@@ -1,0 +1,139 @@
+name: Bug report
+description: Report a problem with the Keep Sorted extension
+labels: [bug]
+assignees: [awalsh128]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [Troubleshooting](https://github.com/awalsh128/vscode-keep-sorted#troubleshooting) first.
+        The extension runs the bundled [keep-sorted](https://github.com/google/keep-sorted) CLI and
+        adds no sorting rules of its own, so if the CLI sorts a block the same way, report it
+        [upstream](https://github.com/google/keep-sorted/issues).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Warnings (diagnostics)
+        - Sorting result
+        - Sort on save
+        - Quick fixes or commands
+        - Autocomplete or hover
+        - Startup or activation
+        - Performance or repeated output
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Include any error message shown in VS Code.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >-
+        The smallest file content that shows the problem, including the keep-sorted start and end
+        lines, and the steps you took (for example, save, run Sort Current File, or open the file).
+      placeholder: |
+        Language: Python
+
+        items = [
+            # keep-sorted start
+            'zebra',
+            'alpha',
+            # keep-sorted end
+        ]
+
+        Steps: open the file, press Ctrl+S
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cli
+    attributes:
+      label: Does the keep-sorted CLI give the same result?
+      description:
+        For sorting results only. Run `keep-sorted --mode lint <file>` or `keep-sorted <file>`.
+      options:
+        - Not applicable
+        - Not tried
+        - Yes, the CLI gives the same result
+        - No, only the extension gives this result
+
+  - type: dropdown
+    id: editor
+    attributes:
+      label: Editor
+      options:
+        - VS Code
+        - VSCodium
+        - Cursor
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: editor-version
+    attributes:
+      label: Editor version
+      description: From Help → About (Code → About on macOS).
+      placeholder: "1.105.0"
+    validations:
+      required: true
+
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+      description: From the Extensions view.
+      placeholder: "1.0.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows x64
+        - macOS Apple Silicon
+        - macOS Intel
+        - Linux x64
+        - Other (Linux arm64, Windows arm64, ...)
+    validations:
+      required: true
+
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: >-
+        Your `keep-sorted.*` settings and any `editor.codeActionsOnSave` entry, from user or
+        workspace settings.
+      render: json
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        Open View → Output and select **Keep Sorted**, then copy the lines around the problem. For
+        more detail, run Developer: Set Log Level..., choose Keep Sorted, and select Trace first. To
+        keep logs across sessions, set `keep-sorted.logFilepath`. Logs include file paths; remove
+        anything private.
+      render: text

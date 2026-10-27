@@ -1,0 +1,31 @@
+name: Issue Triage
+
+# Issue forms label and assign issues opened on the web. This covers issues created another way,
+# such as with gh or the API, which can skip the forms.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Assign the maintainer
+        if: github.event.issue.assignees[0] == null
+        run: gh issue edit "$NUMBER" --add-assignee "$MAINTAINER"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          MAINTAINER: ${{ github.repository_owner }}
+
+      - name: Label issues opened without a type
+        if: github.event.issue.labels[0] == null
+        run: gh issue edit "$NUMBER" --add-label triage-pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}

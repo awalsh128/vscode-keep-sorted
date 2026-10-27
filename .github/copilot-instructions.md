@@ -30,9 +30,12 @@ guidelines in **docs/AI_GUIDELINES.md**.
 All changes MUST pass:
 
 ```bash
-npm test       # All tests must pass
-npm run lint   # No linting errors
+npm test        # All tests must pass
+npm run lint    # No linting errors
 npm run compile # No TypeScript errors
+npm run check   # Docs, settings, and commands agree
 ```
+
+The authoritative validation list is in AGENTS.md.
 
 **📋 For complete requirements, examples, and enforcement rules, see docs/AI_GUIDELINES.md**

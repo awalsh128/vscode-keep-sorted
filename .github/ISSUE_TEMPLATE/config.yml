@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sorting behavior or new sorting options
+    url: https://github.com/google/keep-sorted/issues
+    about:
+      The extension uses the keep-sorted CLI's rules; report sorting results and option requests
+      upstream.
+  - name: Troubleshooting
+    url: https://github.com/awalsh128/vscode-keep-sorted#troubleshooting
+    about: Common problems with warnings, sorting, and sort on save.

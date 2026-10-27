@@ -3,7 +3,8 @@ import { expect, use } from "chai";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { contextualizeLogger } from "../instrumentation";
+import * as winston from "winston";
+import { contextualizeLogger, setLogLevel } from "../instrumentation";
 
 use(sinonChai);
 
@@ -19,6 +20,21 @@ describe("instrumentation", () => {
   });
 
   const relativePath = "relative/path/to/file.ts";
+
+  describe("setLogLevel", () => {
+    it("should set the logger and transport levels", () => {
+      // Arrange
+      const transport = new winston.transports.Console({ level: "info", silent: true });
+      const testLogger = winston.createLogger({ level: "info", transports: [transport] });
+
+      // Act
+      setLogLevel(testLogger, "debug");
+
+      // Assert
+      expect(testLogger.level).to.equal("debug");
+      expect(transport.level).to.equal("debug");
+    });
+  });
 
   describe("contextualizeLogger", () => {
     let mockDocument: vscode.TextDocument;

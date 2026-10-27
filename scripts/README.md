@@ -27,8 +27,8 @@ problem:
 - Commands in `package.json` are in the Command Palette menu and named in the README by ID and
   title.
 
-The `.githooks/pre-commit` hook runs it before each commit, and CI runs it on every push. The check
-reads the working tree, not only staged changes.
+The `.githooks/pre-commit` hook runs it before each commit, and CI runs it on pushes and pull
+requests to `main`. The check reads the working tree, not only staged changes.
 
 `npm run setup` (`npm install`, then `dev.ts setup`) prepares a fresh clone: it sets
 `core.hooksPath` to `.githooks`, installs the extensions recommended in `.vscode/extensions.json`
@@ -104,8 +104,8 @@ Synchronizes GitHub repository labels from a YAML configuration file.
 **What it does:**
 
 - Reads label configuration from `.github/labels.yaml`
-- Creates, updates, or verifies GitHub repository labels
-- Uses GitHub API to manage labels automatically
+- Creates missing labels and updates colors and descriptions; never deletes labels
+- Runs from the **Sync Labels** workflow when `.github/labels.yaml` changes on `main`
 
 **Usage:**
 
@@ -122,8 +122,10 @@ npx tsx scripts/sync-labels.ts
 Scripts have corresponding test files in the `test/` subdirectory:
 
 - `test/create-binaries.test.ts`
-- `test/sync-labels.test.ts`
 - `test/dev.test.ts`
+- `test/ops.test.ts`
+- `test/packaging.test.ts`
+- `test/sync-labels.test.ts`
 - `test/ops.test.ts`
 - `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one
   script)

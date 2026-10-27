@@ -1,13 +1,14 @@
 # Configuration for automatically generated release notes
 # https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+# Labels must exist in .github/labels.yaml.
 
 changelog:
   exclude:
     labels:
       - invalid
-      - stale
-      - need-more-info
-      - discussion
+      - duplicate
+      - wontfix
+      - question
     authors:
       - dependabot
       - dependabot[bot]
@@ -16,7 +17,6 @@ changelog:
     - title: "Breaking Changes"
       labels:
         - breaking-change
-        - Semver-Major
 
     - title: "New Features"
       labels:
@@ -25,15 +25,18 @@ changelog:
     - title: "Bug Fixes"
       labels:
         - bug
-        - bug:vscode
+
+    - title: "Performance"
+      labels:
+        - performance
 
     - title: "Security"
       labels:
-        - security
+        - vulnerability
 
     - title: "Documentation"
       labels:
-        - doc
+        - documentation
 
     - title: "Dependencies"
       labels:

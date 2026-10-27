@@ -1,0 +1,82 @@
+# Issue and PR Labels
+# Pushing changes to main runs the "Sync Labels" workflow, which creates and updates labels but never
+# deletes them. Names match the labels GitHub, the issue forms, CI, and Dependabot apply.
+
+labels:
+  # Issue Types (applied by the issue forms)
+  - name: bug
+    color: "#d73a4a"
+    description: Something isn't working
+
+  - name: enhancement
+    color: "#a2eeef"
+    description: New feature or request
+
+  - name: documentation
+    color: "#0075ca"
+    description: Improvements or additions to documentation
+
+  - name: performance
+    color: "#f9d0c4"
+    description: Performance related issues
+
+  - name: question
+    color: "#d876e3"
+    description: Further information is requested
+
+  # Triage
+  - name: triage-pending
+    color: "#fbca04"
+    description: Opened without a template; needs a type label
+
+  - name: upstream
+    color: "#bfdadc"
+    description: Sorting behavior of the keep-sorted CLI, not the extension
+
+  # Resolution
+  - name: duplicate
+    color: "#cfd3d7"
+    description: This issue or pull request already exists
+
+  - name: invalid
+    color: "#e4e669"
+    description: This doesn't seem right
+
+  - name: wontfix
+    color: "#ffffff"
+    description: This will not be worked on
+
+  # Contributors
+  - name: help wanted
+    color: "#008672"
+    description: Extra attention is needed
+
+  - name: good first issue
+    color: "#7057ff"
+    description: Good for newcomers
+
+  # Pull Requests
+  - name: breaking-change
+    color: "#b60205"
+    description: Breaking change
+
+  - name: dependencies
+    color: "#0366d6"
+    description: Pull requests that update a dependency file
+
+  - name: javascript
+    color: "#168700"
+    description: Pull requests that update javascript code
+
+  - name: github_actions
+    color: "#000000"
+    description: Pull requests that update GitHub Actions
+
+  # Automation (applied by the CI npm audit job)
+  - name: vulnerability
+    color: "#b60205"
+    description: Security vulnerability in a dependency
+
+  - name: test
+    color: "#ededed"
+    description: Found by automated checks

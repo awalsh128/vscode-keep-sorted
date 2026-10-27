@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement to the Keep Sorted extension
+labels: [enhancement]
+assignees: [awalsh128]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New sorting options or changes to how blocks are sorted belong
+        [upstream in keep-sorted](https://github.com/google/keep-sorted/issues). This extension
+        covers the editor experience: warnings, quick fixes, commands, sort on save, autocomplete,
+        and settings.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How should the extension behave? Include example files or settings if useful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Workarounds you use today or other approaches you considered.

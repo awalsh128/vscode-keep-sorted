@@ -224,7 +224,8 @@ upstream's [pre-commit configuration](https://github.com/google/keep-sorted#pre-
   not invoke this extension.
 - **Sorting breaks syntax:** Keep declarations and surrounding brackets outside the markers, as in
   the list example. Use upstream options to group multi-line entries when needed.
-- **Errors or unexpected results:** Open **View → Output** and select **Keep Sorted**. Set
+- **Errors or unexpected results:** Open **View → Output** and select **Keep Sorted**. For more
+  detail, run **Developer: Set Log Level...**, choose **Keep Sorted**, and select **Trace**. Set
   `keep-sorted.logFilepath` to retain logs in a file.
 
 Report bugs or request features through

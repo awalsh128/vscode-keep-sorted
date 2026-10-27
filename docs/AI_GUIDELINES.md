@@ -18,38 +18,45 @@ human developers MUST follow these guidelines unconditionally when working on vs
 
 ## Non-Negotiable Requirements
 
-## Non-Negotiable Requirements
-
 ### 1. Test Coverage - ABSOLUTE REQUIREMENT
 
 **EVERY** TypeScript file MUST have its own test file. **NO EXCEPTIONS. VIOLATIONS WILL BE
 REJECTED.**
 
-- **Location**: `src/test/` directory with `.test.ts` extension - MANDATORY
+- **Location**: `src/test/` (extension) or `scripts/test/` (scripts) with `.test.ts` extension -
+  MANDATORY
 - **Naming**: Match source files exactly (`actions.ts` → `actions.test.ts`) - REQUIRED
 - **Framework**: Mocha + Chai + Sinon ONLY - NO ALTERNATIVES
 - **Coverage**: ALL exported functions, classes, error paths, edge cases - COMPLETE OR REJECTED
 
 **Current Test Files** (MAINTAIN OR DIE):
 
-- `src/test/actions.test.ts` - FixCommandHandler, KeepSortedActionProvider
-- `src/test/configuration.test.ts` - getConfig, onConfigurationChange, fileExcluded
-- `src/test/extension.test.ts` - activation, event listeners, document filtering
-- `src/test/instrumentation.test.ts` - KeepSortedDiagnostics, ErrorTracker, createGithubIssueAsUrl
-- `src/test/KeepSorted.test.ts` - KeepSorted class, binary interface, linting, fixing
-- `src/test/shared.test.ts` - displayName, memoize, delayAndExecute functions
+- `src/test/actions.test.ts` - ActionProvider quick fixes and fix-all source action
+- `src/test/commands.test.ts` - SortFileCommandHandler, SortWorkspaceCommandHandler
+- `src/test/completion.test.ts` - KeepSortedCompletionProvider
+- `src/test/configuration.test.ts` - getConfig, handleConfigurationChange, excluded, change events
+- `src/test/extension.test.ts` - activation, event listeners, sorting and save integration
+- `src/test/hover.test.ts` - KeepSortedHoverProvider
+- `src/test/instrumentation.test.ts` - logAndGetError, relevantDiagnostics, logging setup
+- `src/test/keepsorted.test.ts` - KeepSorted class, binary interface, linting, fixing
+- `src/test/keepsortedopt.test.ts` - option metadata and directive parsing
+- `src/test/scheduler.test.ts` - LintScheduler debouncing
+- `src/test/workspace.test.ts` - EditFactory, isInScope, toJson
 - `scripts/test/create-binaries.test.ts` - E2E test for binary creation
+- `scripts/test/dev.test.ts` - development launcher, consistency checks, setup
 - `scripts/test/ops.test.ts` - Release operations against fake registries
-- `scripts/test/packaging.test.ts` - Bundle inlines runtime packages; VSIX ships only release files
+- `scripts/test/packaging.test.ts` - Bundle inlines runtime packages; VSIX excludes development
+  files
+- `scripts/test/sync-labels.test.ts` - label synchronization
 
 **Verification**: `npm test` MUST pass. Always. FAILURES WILL BE REJECTED.
 
-**VS Code Test Runner Setup** (MANDATORY):
+**Running Tests**:
 
-- Install `hbenl.vscode-mocha-test-runner` extension - REQUIRED
-- Test files compiled to `out/test/**/*.test.js` - AUTOMATIC
-- Test helper at `out/test/test.js` provides source maps - REQUIRED
-- Use "Run Tests" from context menu or test explorer - ENABLED
+- `npm test` compiles, then runs `src/test` in a downloaded VS Code instance
+- `npm run test:scripts` runs `scripts/test` with Mocha in Node
+- Test files compile to `out/test/**/*.test.js` and `out/scripts/test/**/*.test.js` - AUTOMATIC
+- Shared test helpers live in `src/test/testing.ts`
 
 ### 2. Documentation Synchronization - MANDATORY
 
@@ -95,10 +102,6 @@ Update THIS FILE when you:
 
 **FOLLOW THESE OR YOUR CODE WILL BE REJECTED.**
 
-### 3. TypeScript Standards - NON-NEGOTIABLE
-
-**FOLLOW THESE OR YOUR CODE WILL BE REJECTED.**
-
 #### Type Safety - MANDATORY
 
 - **NO `any` TYPES** - Use specific types or generics - VIOLATIONS REJECTED
@@ -122,10 +125,6 @@ Update THIS FILE when you:
 
 **Reference**: https://google.github.io/styleguide/tsguide.html
 
-### 4. Google TypeScript Style Guide - MANDATORY
-
-**Reference**: https://google.github.io/styleguide/tsguide.html
-
 **VIOLATIONS WILL BE REJECTED. FOLLOW EXACTLY.**
 
 #### Naming (ENFORCED - NO EXCEPTIONS)
@@ -139,11 +138,12 @@ interface DiagnosticInfo {}
 function lintDocument() {}
 const errorCount = 0;
 
-// Constants: camelCase (NOT SCREAMING_SNAKE_CASE)
+// Module-level constants: CONSTANT_CASE; local constants: camelCase
+const LINT_DELAY_MS = 300;
 const maxRetries = 3;
 
-// File names: kebab-case
-// keep-sorted.ts, error-tracker.ts
+// File names: lowercase, matching existing modules
+// keepsorted.ts, keepsortedopt.ts, scheduler.ts
 ```
 
 #### Formatting (REQUIRED - NO DEVIATIONS)
@@ -161,15 +161,13 @@ import * as path from "path";
 // 2. External libraries
 import * as vscode from "vscode";
 // 3. Internal modules
-import { KeepSorted } from "./keep_sorted";
+import { KeepSorted } from "./keepsorted";
 ```
 
 #### Documentation (REQUIRED - NO EXCEPTIONS)
 
 - **JSDoc comments** for ALL exported functions and classes - MANDATORY
 - **Implementation comments** explain WHY, not WHAT - REQUIRED
-
-## Enforcement
 
 ## Enforcement
 
@@ -180,7 +178,9 @@ Before committing changes:
 1. **Run tests**: `npm test` - All tests must pass - FAILURES REJECTED
 2. **Run linter**: `npm run lint` - No errors allowed - VIOLATIONS DIE
 3. **Compile**: `npm run compile` - No TypeScript errors - OR REJECTED
-4. **Review docs**: Check if `SOURCE_CODE.md` or `README.md` need updates - UPDATE OR DIE
+4. **Check consistency**: `npm run check` - Docs, settings, and commands agree - the pre-commit hook
+   runs this
+5. **Review docs**: Check if `SOURCE_CODE.md` or `README.md` need updates - UPDATE OR DIE
 
 ### Code Review Checklist - ABSOLUTE
 
@@ -222,8 +222,9 @@ When reviewing changes:
 ### Logging Pattern
 
 ```typescript
-// Always create logger with createLogger()
-const logger = createLogger("ComponentName");
+// Use the shared logger, or scope it to a document with contextualizeLogger()
+import { contextualizeLogger, logger } from "./instrumentation";
+const documentLogger = contextualizeLogger(document.uri);
 
 // Log at appropriate levels
 logger.debug("Detailed information", { data });
@@ -232,17 +233,14 @@ logger.warn("Recoverable issues", { warning });
 logger.error("Critical failures", error);
 ```
 
-### Error Tracking Pattern
+### Error Handling Pattern
 
 ```typescript
-// Always use ErrorTracker for binary operations
+// Log with context and rethrow a proper Error
 try {
-  const result = await binaryOperation();
-  errorTracker.recordSuccess(); // Reset error count
-  return result;
-} catch (error) {
-  errorTracker.recordError(error as Error, "operationContext");
-  throw error;
+  return binaryOperation();
+} catch (err: Error | unknown) {
+  throw logAndGetError(logger, err);
 }
 ```
 
@@ -286,33 +284,27 @@ describe("ComponentName", () => {
   });
 
   describe("methodName", () => {
-    it("should handle delayed execution", () => {
+    it("should lint once edits pause", () => {
       // Arrange
-      let executed = false;
-      const fn = () => {
-        executed = true;
-      };
+      const lint = sandbox.stub();
+      const scheduler = new LintScheduler(lint);
 
       // Act
-      delayAndExecute("test", async () => fn());
-      clock.tick(1000); // Advance fake time
+      scheduler.schedule(document);
+      clock.tick(LINT_DELAY_MS); // Advance fake time
 
       // Assert
-      expect(executed).to.equals(true);
+      expect(lint.calledOnceWithExactly(document)).to.equal(true);
     });
   });
 
-  [{
-    value: 0,
-    expected: "0"
-  },
-  {
-    value: true
-    expected: "true"
-  }
-  }].forEach(({ value, expected }) => {
-    it(`should parse value ${value} as ${expected}`, () => {
-      expect(parseValue(value)).to.equal(expected);
+  [
+    { value: 0, expected: "0" },
+    { value: true, expected: "true" },
+  ].forEach(({ value, expected }) => {
+    it(`should format value ${value} as ${expected}`, () => {
+      // Act & Assert
+      expect(String(value)).to.equal(expected);
     });
   });
 });

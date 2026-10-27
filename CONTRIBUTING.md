@@ -55,7 +55,8 @@ requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
    git checkout -b feature/your-feature-name
    ```
 
-2. **Write tests first** - Every new `.ts` file needs a `.test.ts` file in `src/test/`
+2. **Write tests first** - Every new `.ts` file needs a `.test.ts` file in `src/test/` or
+   `scripts/test/`
 
 3. **Make your changes** following the coding standards
 
@@ -159,8 +160,8 @@ npm run ops -- delete-versions --before 1.0.0  # dry run; add --yes to delete
 npm run ops -- deprecate --replacement publisher.other
 ```
 
-Publishing or deleting versions from a workstation needs `VSCE_PAT` and `OVSX_PAT`. The publisher
-pages are also available for manual changes:
+Publishing or deleting versions from a workstation needs `OVSX_PAT`, and `VSCE_PAT` or an
+interactive Azure DevOps sign-in. The publisher pages are also available for manual changes:
 
 - https://marketplace.visualstudio.com/manage/publishers/awalsh128
 - https://open-vsx.org/

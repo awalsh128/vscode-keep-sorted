@@ -75,6 +75,7 @@ describe("extension package", (): void => {
     "scripts/",
     "docs/",
     ".claude/",
+    ".githooks/",
   ].forEach((prefix): void => {
     it(`should exclude ${prefix}`, (): void => {
       // Act

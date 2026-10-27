@@ -68,6 +68,7 @@
     "**/dist/**",
     "**/test/**",
     "test-workspace/**",
-    "README.md"
+    "README.md",
+    ".github/ISSUE_TEMPLATE/bug_report.yml"
   ]
 }

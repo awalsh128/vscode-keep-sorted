@@ -20,6 +20,7 @@ actions to maintain sorted content.
 │     ├─> completion.ts (Autocomplete)                   │
 │     ├─> hover.ts (Option Hover Documentation)          │
 │     ├─> configuration.ts (Settings Management)         │
+│     ├─> scheduler.ts (Debounced Linting)               │
 │     └─> workspace.ts (Editor Operations)               │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
@@ -46,6 +47,7 @@ actions to maintain sorted content.
 ### Repository Layout
 
 ```
+.githooks/       — Git hooks enabled by npm run setup; pre-commit runs npm run check
 bin/             — Bundled keep-sorted binaries and checksums
 docs/            — Architecture (this file) and AI development guidelines
 images/          — Extension icon (logo.png, from logo.svg) and README media
@@ -67,7 +69,9 @@ workspace, without an extension-test entry point. `npm run dev` compiles first; 
 verifies build output and removes `ELECTRON_RUN_AS_NODE` from the child environment. Separate
 profile/extension directories isolate it from the normal editor.
 [scripts/test/dev.test.ts](../scripts/test/dev.test.ts) tests launch arguments and failure handling
-without opening an editor or downloading VS Code.
+without opening an editor or downloading VS Code. `dev.ts` also provides `check` (cross-file
+consistency, run by the pre-commit hook and CI) and `setup` (fresh-clone setup); see
+[scripts/README.md](../scripts/README.md#devts).
 
 ### Bundled Binary Generation
 
@@ -110,14 +114,15 @@ operations with fake registries and the registry adapters with stubbed HTTP.
 
 #### **extension.ts** — Extension Lifecycle & Activation
 
-- **Purpose**: Main entry point, manages extension activation/deactivation
+- **Purpose**: Main entry point, manages extension activation
 - **Key Classes/Functions**:
-  - `activate()`: Initialize extension on startup
-  - `deactivate()`: Clean up resources on unload
+  - `activate()`: Initialize extension on startup; subscriptions added to the context are disposed
+    when the extension unloads
   - Event listeners for document changes, configuration updates
   - DiagnosticCollection management
 - **Dependencies**:
-  - `commands`, `actions`, `completion`, `configuration`, `workspace`, `instrumentation`
+  - `commands`, `actions`, `completion`, `hover`, `configuration`, `keepsorted`, `scheduler`,
+    `workspace`, `instrumentation`
   - VS Code API: `vscode`, `ExtensionContext`
 - **Key Responsibilities**:
   - Register the `keep-sorted.fixFile` and `keep-sorted.fixWorkspace` sorting commands (the former
@@ -158,16 +163,16 @@ operations with fake registries and the registry adapters with stubbed HTTP.
 
 #### **actions.ts** — Code Actions (Quick Fixes)
 
-- **Purpose**: Provides "quick fix" lightbulb suggestions for unsorted blocks
+- **Purpose**: Provides quick fixes and the fix-all source action for unsorted blocks
 - **Key Classes**:
   - `ActionProvider`: Implements `vscode.CodeActionProvider`
-    - Triggered when diagnostics exist on a line
-    - Returns sort actions for intersecting keep-sorted blocks
 - **Key Methods**:
   - `provideCodeActions()`: Returns array of CodeAction objects
-  - Filters diagnostics by range intersection
-  - Creates file-level sort action for affected document, plus a workspace sort action when other
-    files also have diagnostics (quick fixes only, never on save)
+  - Quick fixes use the diagnostics that intersect the requested range: a preferred file-level sort
+    action, so Auto Fix applies it, plus a workspace sort action when other files also have
+    diagnostics (quick fixes only, never on save)
+  - `source.fixAll.keepSorted` uses all of the document's diagnostics, so Source Action and Fix All
+    offer it wherever the cursor is
 - **Integration**: Connected via VS Code's codeActionProvider extension point
 - **Debounced lints**: A `source.fixAll.keepSorted` request first runs any lint still waiting for
   the document, so saving right after typing sorts the latest content. Quick fix requests do not,
@@ -231,8 +236,8 @@ avoiding startup timing failures without a fixed delay.
     `onAutoCompleteChange`, `onExcludeChange`, or `onLogFilepathChange` for values that changed. On
     `onExcludeChange`, `extension.ts` clears diagnostics and pending lints for newly excluded files
     and lints the in-scope workspace documents
-  - `excluded()`: Check if file matches exclusion patterns
-  - `fileExcluded()`: Determine if file should be processed
+  - `excluded()`: Return the exclusion pattern a file matches, or null; `workspace.isInScope()`
+    combines it with the URI scheme check
 - **Configuration Schema**:
   - `enabled`: boolean (default: true)
   - `autoComplete`: boolean (default: true)
@@ -285,8 +290,8 @@ avoiding startup timing failures without a fixed delay.
     - Handles stdin/stdout communication
     - Parses binary responses
 - **Key Methods**:
-  - `lint()`: Check document for sorting violations
-    - Returns diagnostics and error information
+  - `lintDocument()`: Check document for sorting violations
+    - Returns diagnostics
     - Spawns binary with timeout (DEFAULT_COMMAND_TIMEOUT_MS = 30 seconds)
   - `fixDocument()`: Apply keep-sorted formatting
     - Returns `{ content, range }` (a single block or the whole file), or null when the document has
@@ -298,7 +303,7 @@ avoiding startup timing failures without a fixed delay.
   - macOS Intel: `keep-sorted-darwin-amd64`
   - Linux: `keep-sorted-linux-amd64`
 - **Error Handling**:
-  - Validates binary path and checksums
+  - Resolves the platform binary path (overridable with `KEEP_SORTED_BINARY`)
   - Handles spawn errors and timeouts
   - Parses binary error output (FIXED: timeout test gap remains)
 
@@ -323,20 +328,19 @@ avoiding startup timing failures without a fixed delay.
 
 #### **instrumentation.ts** — Logging & Diagnostics
 
-- **Purpose**: Centralized logging, error tracking, and diagnostic management
+- **Purpose**: Centralized logging and diagnostic lookup
 - **Key Classes**:
   - `LazyLogger`: Wrapper for winston logger with lazy initialization
-  - `ErrorTracker`: Tracks extension errors for telemetry
+  - `Benchmark`: Measures elapsed time for log messages
 - **Key Functions**:
-  - `createLogger()`: Initialize winston logger with transports
+  - `logger`: Shared logger, created by the private `createLogger()`
   - `logAndGetError()`: Log error and return for handling (FIXED: now handles primitive strings
     correctly)
   - `setFileLogging()`: Enable/disable file logging
   - `contextualizeLogger()`: Create scoped logger for document/range
   - `relevantDiagnostics()`: Filter diagnostics by URI and range
-  - `createGithubIssueAsUrl()`: Generate GitHub issue link with diagnostics
 - **Logger Configuration**:
-  - Console transport with readable format
+  - `OutputChannelTransport` writing to the Keep Sorted Output channel
   - Optional file transport (configurable)
   - Winston leveledLog method generation
 - **Error Handling** (FIXED):
@@ -357,14 +361,14 @@ VS Code Document Event
         ├─> scheduler.ts: lint now (open/save) or after edits pause (change)
         │
         ├─> workspace.ts: inScopeDocuments() / isInScope()
-        │   └─> configuration.ts: fileExcluded()
+        │   └─> configuration.ts: excluded()
         │
-        ├─> keepsorted.ts: lint()
+        ├─> workspace.ts: EditFactory.refreshDiagnostics()
+        │
+        ├─> keepsorted.ts: lintDocument() creates diagnostics
         │   └─> Binary process (keep-sorted)
         │
-        ├─> instrumentation.ts: Create diagnostics
-        │
-        └─> extension.ts: Update DiagnosticCollection
+        └─> workspace.ts: EditFactory writes the DiagnosticCollection
 ```
 
 ### Sort Command Flow
@@ -399,18 +403,17 @@ Sort All Files with Problems
 ### Code Action Flow
 
 ```
-User Hovers on Diagnostic / Clicks Lightbulb
+Lightbulb / Quick Fix / Source Action / Fix All / Save
         │
         ├─> actions.ts: ActionProvider.provideCodeActions()
         │
-        ├─> Filter diagnostics by range
+        ├─> Quick fix: diagnostics in the range
+        │   └─> Preferred file action (+ workspace action when other files have diagnostics)
         │
-        ├─> Create CodeAction for each issue
+        ├─> source.fixAll.keepSorted: flush any waiting lint, then all document diagnostics
+        │   └─> Preferred file action
         │
-        ├─> Link to SortFileCommandHandler (and SortWorkspaceCommandHandler when other files
-        │   have diagnostics)
-        │
-        └─> VS Code executes the file sort command on the document
+        └─> VS Code executes the file (or workspace) sort command
 ```
 
 ---
@@ -430,6 +433,7 @@ src/test/
 ├── instrumentation.test.ts  — Logging & diagnostics tests (FIXED: string type checking)
 ├── keepsorted.test.ts       — Binary interface tests (MEDIUM: timeout test gap)
 ├── keepsortedopt.test.ts    — Option parsing tests (EXCELLENT: comprehensive)
+├── scheduler.test.ts        — Debounced lint scheduling tests
 ├── workspace.test.ts        — Document & edit tests
 ├── runTest.ts              — Test runner entry point
 ├── testing.ts              — Test utilities and mocks
@@ -441,7 +445,6 @@ src/test/
 
 - **Framework**: Mocha + Chai + Sinon
 - **Mocks**: Sinon stubs for VS Code API calls
-- **Coverage**: 228+ passing tests
 
 ---
 
@@ -495,23 +498,6 @@ const lazyLogger = contextualizeLogger(uri, range);
 
 ---
 
-## Recent Changes & Fixes (2026-08-12)
-
-### Critical Bugs Fixed
-
-1. ✅ Promise error handling: `Promise.all()` → `Promise.allSettled()`
-2. ✅ Null check: Added validation for `document.uri`
-3. ✅ Error handling: Nested try-catch for glob pattern parsing
-4. ✅ Race condition: Added `isClosed` check for editor documents
-5. ✅ Type checking: `instanceof String` → `typeof === 'string'`
-
-### Test Updates
-
-- Updated configuration error handling test (now graceful instead of throwing)
-- All 228 tests passing
-
----
-
 ## Dependencies & External Libraries
 
 The reusable CI and publishing workflows pin Ubuntu 24.04 and Node 24-based actions. CI installs
@@ -526,7 +512,8 @@ only `vscode` and Node built-ins external, so `.vscodeignore` excludes `node_mod
 the source map. Extension tests activate the bundle, not `out/extension.js`. Versions 1.0.0 and
 1.0.1 shipped without their runtime packages and could not activate;
 [scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that the bundle requires
-no other package and that the `vsce ls` file list contains only release files.
+no other package and that the `vsce ls` file list includes the bundle and excludes development
+directories such as `src/`, `out/`, `node_modules/`, and `.githooks/`.
 
 - **winston**, **winston-transport**, **triple-beam**: Structured logging
 - **glob-regex**: Convert glob patterns to regex
@@ -584,7 +571,6 @@ no other package and that the `vsce ls` file list contains only release files.
 
 ## Future Enhancements
 
-- [ ] SOURCE_CODE.md: ✅ COMPLETE (2026-08-12)
 - [ ] KeepSortedCompletionProvider.register() test
 - [ ] Extension deactivation cleanup tests
 - [ ] Keep-sorted binary timeout scenario tests

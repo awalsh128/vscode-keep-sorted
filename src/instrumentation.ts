@@ -119,6 +119,14 @@ function createFileTransport(filepath: string) {
 }
 
 /** Creates a logger instance for the extension. */
+/** Sets the level of a logger and all of its transports. */
+export function setLogLevel(logger: winston.Logger, level: string): void {
+  const previousLogLevel = logger.level;
+  logger.level = level;
+  logger.transports.forEach((t) => (t.level = level));
+  logger.info(`Log level changed from '${previousLogLevel}' to '${logger.level}'`);
+}
+
 function createLogger(): LazyLogger {
   const outputChannel = vscode.window.createOutputChannel(EXT_DISPLAY_NAME, { log: true });
   outputChannel.show();
@@ -150,13 +158,11 @@ function createLogger(): LazyLogger {
     ],
   });
 
-  vscode.env.onDidChangeLogLevel((newLevel: vscode.LogLevel) => {
-    const previousLogLevel = logger.level;
-    const newWinstonLevel = winstonLogLevel(newLevel);
-    logger.level = newWinstonLevel;
-    logger.transports.forEach((t) => (t.level = newWinstonLevel));
-    logger.info(`Log level changed from '${previousLogLevel}' to '${logger.level}'`);
-  });
+  // The channel's event covers both its own level (Developer: Set Log Level) and the global level it
+  // follows; vscode.env.onDidChangeLogLevel only reports the global level.
+  outputChannel.onDidChangeLogLevel((newLevel: vscode.LogLevel) =>
+    setLogLevel(logger, winstonLogLevel(newLevel))
+  );
 
   return logger;
 }
