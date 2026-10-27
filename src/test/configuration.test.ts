@@ -10,6 +10,7 @@ import {
   KeepSortedConfiguration,
   onEnabledChange,
   onAutoCompleteChange,
+  onExcludeChange,
   onLogFilepathChange,
 } from "../configuration";
 import type { JSONSchema7 } from "json-schema";
@@ -577,6 +578,45 @@ describe("configuration", () => {
 
         // Assert
         expect(autoCompleteChangeSpy.called).to.equal(false);
+
+        disposable.dispose();
+      });
+
+      it("should fire onExcludeChange when exclude patterns change", () => {
+        setupConfigStubs({ exclude: ["a"] });
+        const mockEvent = {
+          affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+        } as vscode.ConfigurationChangeEvent;
+        handleConfigurationChange(mockEvent);
+
+        const excludeChangeSpy = sandbox.spy();
+        const disposable = onExcludeChange(excludeChangeSpy);
+
+        setupConfigStubs({ exclude: ["a", "b"] });
+
+        handleConfigurationChange(mockEvent);
+
+        expect(excludeChangeSpy.calledOnce).to.equal(true);
+        expect(excludeChangeSpy).to.have.been.calledWith(["a", "b"]);
+
+        disposable.dispose();
+      });
+
+      it("should not fire onExcludeChange when exclude patterns stay the same", () => {
+        setupConfigStubs({ exclude: ["a"] });
+        const mockEvent = {
+          affectsConfiguration: sandbox.stub().withArgs(KEEP_SORTED_CONFIG_NAMESPACE).returns(true),
+        } as vscode.ConfigurationChangeEvent;
+        handleConfigurationChange(mockEvent);
+
+        const excludeChangeSpy = sandbox.spy();
+        const disposable = onExcludeChange(excludeChangeSpy);
+
+        setupConfigStubs({ exclude: ["a"] });
+
+        handleConfigurationChange(mockEvent);
+
+        expect(excludeChangeSpy.called).to.equal(false);
 
         disposable.dispose();
       });

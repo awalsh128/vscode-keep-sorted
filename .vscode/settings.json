@@ -62,5 +62,12 @@
   "prettier.bracketSpacing": true,
   "prettier.arrowParens": "always",
   "prettier.printWidth": 100,
-  "prettier.proseWrap": "always"
+  "prettier.proseWrap": "always",
+  "keep-sorted.exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/test/**",
+    "test-workspace/**",
+    "README.md"
+  ]
 }

@@ -13,6 +13,7 @@ import {
   handleConfigurationChange,
   onAutoCompleteChange,
   onEnabledChange,
+  onExcludeChange,
   onLogFilepathChange,
 } from "./configuration";
 // keep-sorted end
@@ -112,6 +113,26 @@ export async function activate(context: vscode.ExtensionContext) {
         lintScheduler.dispose();
         diagnostics.clear();
       }
+    })
+  );
+  context.subscriptions.push(
+    onExcludeChange(async (exclude: string[]) => {
+      logger.info(`Exclusion patterns are now: ${workspace.toJson(exclude)}`);
+      if (!getConfig().enabled) {
+        return;
+      }
+      // Drop diagnostics and pending lints for files that are now excluded
+      diagnostics.forEach((uri) => {
+        if (!workspace.isInScope(uri)) {
+          diagnostics.delete(uri);
+        }
+      });
+      vscode.workspace.textDocuments
+        .filter((document) => !workspace.isInScope(document.uri))
+        .forEach((document) => lintScheduler.cancel(document));
+      // Lint files that are no longer excluded, as on activation
+      const documents = await workspace.inScopeDocuments();
+      documents.forEach(lint);
     })
   );
 

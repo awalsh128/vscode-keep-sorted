@@ -17,6 +17,23 @@ the extension; sort-on-save remains opt-in. Each launch applies `DEV_PROFILE_SET
 `dev.ts`, including `workbench.colorTheme`, because VS Code has no command-line theme option. Use a
 built-in theme: the window runs with `--disable-extensions`, so Marketplace themes are unavailable.
 
+`npm run check` (`dev.ts check`) verifies that related files agree and exits with status 1 on any
+problem:
+
+- `vX.Y.Z` versions in `README.md` and `docs/SOURCE_CODE.md` match `KEEP_SORTED_VERSION` in
+  `create-binaries.ts`.
+- Settings in `package.json` match the README settings table, including defaults, and the
+  `KeepSortedConfiguration` interface.
+- Commands in `package.json` are in the Command Palette menu and named in the README by ID and
+  title.
+
+The `.githooks/pre-commit` hook runs it before each commit, and CI runs it on every push. The check
+reads the working tree, not only staged changes.
+
+`npm run setup` (`npm install`, then `dev.ts setup`) prepares a fresh clone: it sets
+`core.hooksPath` to `.githooks`, installs the extensions recommended in `.vscode/extensions.json`
+with the `code` CLI (listing them instead if the CLI is unavailable), and compiles.
+
 ### `create-binaries.ts`
 
 Downloads and builds the `keep-sorted` CLI binaries for multiple platforms from the upstream Go

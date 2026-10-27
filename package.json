@@ -133,6 +133,7 @@
     "vscode:prepublish": "npm ci && npm run compile",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --minify --keep-names --sourcemap --outfile=dist/extension.js",
     "compile": "npm run clean && tsc -b --clean && tsc -b && npm run bundle",
+    "check": "tsx scripts/dev.ts check",
     "lint": "eslint",
     "ops": "tsx scripts/ops.ts",
     "watch": "tsc -b -w",
@@ -143,6 +144,7 @@
     "create-binaries": "tsx scripts/create-binaries.ts",
     "clean": "rimraf out/ dist/",
     "refreshlock": "npm i --package-lock-only",
+    "setup": "npm install && tsx scripts/dev.ts setup",
     "sync-labels": "tsx scripts/sync-labels.ts"
   },
   "devDependencies": {

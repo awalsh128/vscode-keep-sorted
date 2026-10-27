@@ -143,7 +143,7 @@ describe("actions", () => {
           title: "Sort all lines in file (keep-sorted)",
           kind: vscode.CodeActionKind.QuickFix,
           diagnostics: [diagnostic],
-          isPreferred: false,
+          isPreferred: true,
           command: { ...editCommandHandlers.sortFile.command, arguments: [document] },
         });
       });
@@ -172,6 +172,29 @@ describe("actions", () => {
         );
         expect(actions![0].isPreferred).to.equal(true);
         expect(actions![0].command?.command).to.equal("keep-sorted.fixFile");
+      });
+
+      it("should return source fix all action when the range has no diagnostics", () => {
+        // Arrange - Source actions cover the whole file, so the cursor can be outside the block
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(5, 0, 6, 10),
+          ANY_DIAGNOSTIC_MESSAGE,
+          vscode.DiagnosticSeverity.Warning
+        );
+        diagnostic.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diagnostic]);
+
+        // Act
+        const actions = provider.provideCodeActions(document, new vscode.Range(0, 0, 0, 0), {
+          diagnostics: [],
+          only: vscode.CodeActionKind.Source,
+          triggerKind: vscode.CodeActionTriggerKind.Invoke,
+        });
+
+        // Assert
+        expect(actions).to.have.length(1);
+        expect(actions[0].kind).to.deep.equal(ActionProvider.fixAllKind);
+        expect(actions[0].diagnostics).to.deep.equal([diagnostic]);
       });
 
       it("should flush a waiting lint before fix all", () => {
@@ -306,7 +329,7 @@ describe("actions", () => {
         expect(fileAction.title).to.equal("Sort all lines in file (keep-sorted)");
         expect(fileAction.kind).to.equal(vscode.CodeActionKind.QuickFix);
         expect(fileAction.diagnostics).to.have.length.greaterThan(0);
-        expect(fileAction.isPreferred).to.equal(false);
+        expect(fileAction.isPreferred).to.equal(true);
       });
 
       it("should create actions with no edits", () => {
@@ -349,7 +372,7 @@ describe("actions", () => {
         expect(actions).to.have.length(ACTION_COUNT);
         const fileAction = actions.find((a) => a.title === "Sort all lines in file (keep-sorted)");
         expect(fileAction).to.not.equal(undefined);
-        expect(fileAction!.isPreferred).to.equal(false);
+        expect(fileAction!.isPreferred).to.equal(true);
         expect(fileAction!.kind).to.equal(vscode.CodeActionKind.QuickFix);
       });
 

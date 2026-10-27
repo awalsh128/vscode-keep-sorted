@@ -135,6 +135,7 @@ export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent
   const previousEnabled = context.config.enabled;
   const previousAutoComplete = context.config.autoComplete;
   const previousLogFilepath = context.config.logFilepath;
+  const previousExclude = context.config.exclude;
 
   context = loadContext();
   if (context.config.enabled !== previousEnabled) {
@@ -145,6 +146,9 @@ export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent
   }
   if (context.config.logFilepath !== previousLogFilepath) {
     onLogFilepathChangeEmitter.fire(context.config.logFilepath);
+  }
+  if (JSON.stringify(context.config.exclude) !== JSON.stringify(previousExclude)) {
+    onExcludeChangeEmitter.fire(context.config.exclude);
   }
   return true;
 }
@@ -164,3 +168,8 @@ export const onAutoCompleteChangeEmitter = new vscode.EventEmitter<boolean>();
 
 /** Event triggered when the autocomplete state changes. */
 export const onAutoCompleteChange: vscode.Event<boolean> = onAutoCompleteChangeEmitter.event;
+
+const onExcludeChangeEmitter = new vscode.EventEmitter<string[]>();
+
+/** Event triggered when the exclusion patterns change. */
+export const onExcludeChange: vscode.Event<string[]> = onExcludeChangeEmitter.event;

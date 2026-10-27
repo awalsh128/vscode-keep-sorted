@@ -45,6 +45,9 @@ jobs:
       - name: Run linting
         run: npm run lint
 
+      - name: Check cross-file consistency
+        run: npm run check
+
       - name: Run TypeScript compilation
         run: npm run compile
 

@@ -21,6 +21,18 @@ describe("workspace", () => {
     sandbox.restore();
   });
 
+  describe("toJson", () => {
+    it("prints getter values", () => {
+      const value = {
+        get name() {
+          return "zebra";
+        },
+      };
+
+      expect(workspace.toJson(value)).to.contain("[Getter: 'zebra']");
+    });
+  });
+
   describe("EditFactory diagnostics", (): void => {
     let diagnostics: vscode.DiagnosticCollection;
     let linter: KeepSorted;

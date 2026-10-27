@@ -46,24 +46,12 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
   }
 
   /**
-   * Determines whether code actions should be provided for the given URI and range. Returns true if
-   * there are relevant diagnostics in the specified range.
-   */
-  private shouldProvide(uri: vscode.Uri, range: vscode.Range): boolean {
-    const diagnostics = relevantDiagnostics(this.diagnostics, uri, range);
-    if (diagnostics.length === 0) {
-      contextualizeLogger(uri, range).debug("No relevant diagnostics found");
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * Provides code actions (quick fixes and fix all) for the given document and range. Returns an
-   * array of CodeAction objects, or an empty array if no actions are available.
+   * Provides code actions (quick fixes and fix all) for the given document and range. Quick fixes
+   * cover diagnostics in the range, while fix all covers the whole document wherever the cursor is,
+   * like other source actions. Returns an empty array if no actions are available.
    *
    * @param document The document in which to provide actions.
-   * @param range The range to check for diagnostics and provide fixes.
+   * @param range The range to check for diagnostics and provide quick fixes.
    */
   provideCodeActions(
     document: vscode.TextDocument,
@@ -71,40 +59,40 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
     context?: vscode.CodeActionContext
   ): vscode.CodeAction[] {
     const uri = document.uri;
-    // Only fix all waits for current diagnostics: quick fixes are requested as the cursor moves,
-    // and flushing for them would lint on every keystroke again.
-    if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
-      this.flushLint(document);
-    }
-    if (!this.shouldProvide(uri, range)) {
-      return [];
-    }
-
-    const diagnostics = [...relevantDiagnostics(this.diagnostics, document.uri, range)];
-    if (diagnostics.length === 0) {
-      return [];
-    }
-
     const actions: vscode.CodeAction[] = [];
     if (this.shouldIncludeAction(context, vscode.CodeActionKind.QuickFix)) {
-      actions.push(this.commandHandlers.sortFile.asCodeAction(diagnostics, document));
-      // Only offer the workspace fix when it does more than the file fix.
-      const { sortWorkspace } = this.commandHandlers;
-      if (sortWorkspace.affectedUris().some((other) => other.toString() !== uri.toString())) {
-        actions.push(sortWorkspace.asCodeAction(diagnostics));
+      const diagnostics = [...relevantDiagnostics(this.diagnostics, uri, range)];
+      if (diagnostics.length > 0) {
+        // Preferred so Auto Fix applies it.
+        actions.push(this.commandHandlers.sortFile.asCodeAction(diagnostics, document, true));
+        // Only offer the workspace fix when it does more than the file fix.
+        const { sortWorkspace } = this.commandHandlers;
+        if (sortWorkspace.affectedUris().some((other) => other.toString() !== uri.toString())) {
+          actions.push(sortWorkspace.asCodeAction(diagnostics));
+        }
       }
     }
     if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
-      actions.push(
-        this.commandHandlers.sortFile.asCodeAction(
-          diagnostics,
-          document,
-          true,
-          ActionProvider.fixAllKind
-        )
-      );
+      // Only fix all waits for current diagnostics: quick fixes are requested as the cursor moves,
+      // and flushing for them would lint on every keystroke again.
+      this.flushLint(document);
+      const diagnostics = [...relevantDiagnostics(this.diagnostics, uri)];
+      if (diagnostics.length > 0) {
+        actions.push(
+          this.commandHandlers.sortFile.asCodeAction(
+            diagnostics,
+            document,
+            true,
+            ActionProvider.fixAllKind
+          )
+        );
+      }
     }
 
+    if (actions.length === 0) {
+      contextualizeLogger(uri, range).debug("No relevant diagnostics found");
+      return actions;
+    }
     contextualizeLogger(uri, range).info(
       `Providing code action(s) for ${uri.fsPath}:\n` +
         actions

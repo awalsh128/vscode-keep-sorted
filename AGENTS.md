@@ -43,9 +43,9 @@ silently opt users in through `configurationDefaults`. Document `"explicit"`, `"
 ## Validation
 
 Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Code changes
-require `npm test`, `npm run lint`, and `npm run compile`; run `npm run test:scripts` when scripts
-change. For documentation-only changes, validate examples, links, and configuration syntax; do not
-claim that runtime tests were run unless they were.
+require `npm test`, `npm run lint`, `npm run compile`, and `npm run check`; run
+`npm run test:scripts` when scripts change. For documentation-only changes, validate examples,
+links, and configuration syntax; do not claim that runtime tests were run unless they were.
 
 ## Agent Layout
 

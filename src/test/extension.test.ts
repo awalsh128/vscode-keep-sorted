@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
+import { promises as fs } from "fs";
 import * as path from "path";
+import { isDeepStrictEqual } from "util";
 import { expect } from "chai";
 import { describe, it, beforeEach, afterEach } from "mocha";
 import * as vscode from "vscode";
@@ -40,6 +42,44 @@ describe("extension", () => {
       await delay(100);
     }
     throw new Error(`Timed out waiting for diagnostics for ${uri.fsPath}`);
+  };
+
+  // Settings are written to the file directly: VS Code's configuration API saves through a text
+  // model that can reject quick successive writes as "newer" than the file, and the rejected edit
+  // stays unsaved and fails every later write.
+  const WORKSPACE_SETTINGS = path.join(TEST_WORKSPACE_DIR, ".vscode", "settings.json");
+  const readWorkspaceSettings = (): Promise<string> => fs.readFile(WORKSPACE_SETTINGS, "utf8");
+
+  /** Writes the workspace settings file and waits until VS Code has loaded the given keys. */
+  const writeWorkspaceSettings = async (text: string, keys: string[]): Promise<void> => {
+    await fs.writeFile(WORKSPACE_SETTINGS, text);
+    const expected: Record<string, unknown> = JSON.parse(text);
+    const loaded = (): boolean =>
+      keys.every((key) =>
+        isDeepStrictEqual(
+          vscode.workspace.getConfiguration().inspect(key)?.workspaceValue,
+          expected[key]
+        )
+      );
+    const start = Date.now();
+    while (!loaded()) {
+      if (Date.now() - start > 5000) {
+        throw new Error(`Timed out waiting for workspace settings ${keys.join(", ")}`);
+      }
+      await delay(50);
+    }
+  };
+
+  /** Sets workspace settings, removing those set to undefined. */
+  const updateWorkspaceSettings = async (changes: Record<string, unknown>): Promise<void> => {
+    const settings = { ...JSON.parse(await readWorkspaceSettings()), ...changes };
+    await writeWorkspaceSettings(JSON.stringify(settings, null, 2) + "\n", Object.keys(changes));
+  };
+
+  /** Restores the workspace settings file to text read earlier. */
+  const restoreWorkspaceSettings = async (text: string): Promise<void> => {
+    const keys = Object.keys({ ...JSON.parse(await readWorkspaceSettings()), ...JSON.parse(text) });
+    await writeWorkspaceSettings(text, keys);
   };
 
   describe("activation behavior", () => {
@@ -95,10 +135,14 @@ describe("extension", () => {
   });
 
   describe("enabled setting", () => {
+    let originalSettings: string;
+
+    beforeEach(async (): Promise<void> => {
+      originalSettings = await readWorkspaceSettings();
+    });
+
     afterEach(async (): Promise<void> => {
-      await vscode.workspace
-        .getConfiguration("keep-sorted")
-        .update("enabled", undefined, vscode.ConfigurationTarget.Workspace);
+      await restoreWorkspaceSettings(originalSettings);
     });
 
     it("should clear diagnostics when disabled and restore them when re-enabled", async () => {
@@ -106,10 +150,9 @@ describe("extension", () => {
       await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
       const document = await getDocument();
       await waitForDiagnostics(document.uri);
-      const config = vscode.workspace.getConfiguration("keep-sorted");
 
       // Act & Assert - disabling removes stale warnings
-      await config.update("enabled", false, vscode.ConfigurationTarget.Workspace);
+      await updateWorkspaceSettings({ "keep-sorted.enabled": false });
       const start = Date.now();
       while (
         vscode.languages.getDiagnostics(document.uri).length > 0 &&
@@ -120,7 +163,7 @@ describe("extension", () => {
       expect(vscode.languages.getDiagnostics(document.uri)).to.have.lengthOf(0);
 
       // Act & Assert - re-enabling lints documents that are already open
-      await config.update("enabled", true, vscode.ConfigurationTarget.Workspace);
+      await updateWorkspaceSettings({ "keep-sorted.enabled": true });
       await waitForDiagnostics(document.uri);
     });
   });
@@ -199,8 +242,7 @@ describe("extension", () => {
       "",
     ].join("\n");
     let document: vscode.TextDocument;
-    let originalCodeActions: Record<string, string | boolean> | undefined;
-    let originalEnabled: boolean | undefined;
+    let originalSettings: string;
 
     // VS Code creates its save participants in idle callbacks after startup. Chromium throttles
     // those in unfocused windows, so the first wait can approach a minute; later waits only cover
@@ -258,17 +300,11 @@ describe("extension", () => {
       // Unique URIs prevent dirty editor buffers from being reused across tests.
       fixtureUri = vscode.Uri.file(path.join(TEST_WORKSPACE_DIR, `sort-${randomUUID()}.txt`));
       await vscode.extensions.getExtension(EXTENSION_ID)!.activate();
-      const editorConfig = vscode.workspace.getConfiguration("editor", fixtureUri);
-      originalCodeActions =
-        editorConfig.inspect<Record<string, string | boolean>>("codeActionsOnSave")?.workspaceValue;
-      const extensionConfig = vscode.workspace.getConfiguration("keep-sorted");
-      originalEnabled = extensionConfig.inspect<boolean>("enabled")?.workspaceValue;
-      await extensionConfig.update("enabled", true, vscode.ConfigurationTarget.Workspace);
-      await editorConfig.update(
-        "codeActionsOnSave",
-        { "source.fixAll.keepSorted": "explicit" },
-        vscode.ConfigurationTarget.Workspace
-      );
+      originalSettings = await readWorkspaceSettings();
+      await updateWorkspaceSettings({
+        "keep-sorted.enabled": true,
+        "editor.codeActionsOnSave": { "source.fixAll.keepSorted": "explicit" },
+      });
       await vscode.workspace.fs.writeFile(fixtureUri, Buffer.from("Save readiness probe\n"));
       document = await vscode.workspace.openTextDocument(fixtureUri);
       await vscode.window.showTextDocument(document);
@@ -281,12 +317,7 @@ describe("extension", () => {
 
     afterEach(async (): Promise<void> => {
       await document.save();
-      await vscode.workspace
-        .getConfiguration("editor", fixtureUri)
-        .update("codeActionsOnSave", originalCodeActions, vscode.ConfigurationTarget.Workspace);
-      await vscode.workspace
-        .getConfiguration("keep-sorted")
-        .update("enabled", originalEnabled, vscode.ConfigurationTarget.Workspace);
+      await restoreWorkspaceSettings(originalSettings);
     });
 
     [FIX_FILE_COMMAND].forEach((command: string): void => {
@@ -327,6 +358,34 @@ describe("extension", () => {
       });
     });
 
+    const codeActions = (range: vscode.Range, kind: string): Thenable<vscode.CodeAction[]> =>
+      vscode.commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        fixtureUri,
+        range,
+        kind
+      );
+
+    // Source Action menu and Fix All command
+    ["source", "source.fixAll"].forEach((kind: string): void => {
+      it(`should offer fix all for ${kind} with the cursor outside blocks`, async () => {
+        // Act
+        const actions = await codeActions(new vscode.Range(0, 0, 0, 0), kind);
+
+        // Assert
+        expect(actions.map((action) => action.kind?.value)).to.include("source.fixAll.keepSorted");
+      });
+    });
+
+    it("should prefer the file quick fix so Auto Fix applies it", async () => {
+      // Act
+      const actions = await codeActions(new vscode.Range(2, 0, 2, 0), "quickfix");
+
+      // Assert
+      const fileAction = actions.find((action) => action.command?.command === FIX_FILE_COMMAND);
+      expect(fileAction?.isPreferred).to.equal(true);
+    });
+
     const makeDocumentDirty = async (): Promise<void> => {
       const edit = new vscode.WorkspaceEdit();
       edit.insert(fixtureUri, new vscode.Position(document.lineCount - 1, 0), "\n");
@@ -359,13 +418,9 @@ describe("extension", () => {
 
     it("should only lint on save when the save action is disabled", async (): Promise<void> => {
       // Arrange
-      await vscode.workspace
-        .getConfiguration("editor", fixtureUri)
-        .update(
-          "codeActionsOnSave",
-          { "source.fixAll.keepSorted": "never" },
-          vscode.ConfigurationTarget.Workspace
-        );
+      await updateWorkspaceSettings({
+        "editor.codeActionsOnSave": { "source.fixAll.keepSorted": "never" },
+      });
       await makeDocumentDirty();
 
       // Act

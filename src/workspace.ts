@@ -176,7 +176,8 @@ export function isInScope(uri: vscode.Uri): boolean {
 
 /**
  * Converts a value to a pretty-printed JSON string for logging and diagnostics. Uses util.inspect
- * for objects, returns strings as-is.
+ * for objects, evaluating own getters such as those on VS Code's TextDocument, and returns strings
+ * as-is.
  *
  * @param value The value to convert.
  *
@@ -186,7 +187,7 @@ export function toJson(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
-  return util.inspect(value, { depth: null, compact: false, colors: false });
+  return util.inspect(value, { depth: null, compact: false, colors: false, getters: true });
 }
 
 /**

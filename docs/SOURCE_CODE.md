@@ -227,7 +227,10 @@ avoiding startup timing failures without a fixed delay.
 - **Purpose**: Handles VS Code settings, file exclusion patterns, logging configuration
 - **Key Functions**:
   - `getConfig()`: Retrieve current configuration object
-  - `onConfigurationChange()`: Handle settings updates
+  - `handleConfigurationChange()`: Reload settings and fire `onEnabledChange`,
+    `onAutoCompleteChange`, `onExcludeChange`, or `onLogFilepathChange` for values that changed. On
+    `onExcludeChange`, `extension.ts` clears diagnostics and pending lints for newly excluded files
+    and lints the in-scope workspace documents
   - `excluded()`: Check if file matches exclusion patterns
   - `fileExcluded()`: Determine if file should be processed
 - **Configuration Schema**:
