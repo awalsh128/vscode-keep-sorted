@@ -19,6 +19,21 @@ import { EXT_NAME } from "./instrumentation";
 const directiveStartRegex = () => /^\s*(?:\/\/|#|\/\*|--|;|<!--)\s*keep-sorted\s+start\b/i;
 const directiveOptsRegex = () => /([\w_]+)=((?:\[[^\]]*\])|(?:[^\s]+))/g;
 
+/** Text that every keep-sorted directive contains. */
+const DIRECTIVE_MARKER = "keep-sorted";
+
+/**
+ * Determines whether text could contain keep-sorted directives. Used as a fast check before parsing
+ * lines or running the keep-sorted binary.
+ *
+ * @param text The line or file content to check.
+ *
+ * @returns True if the text contains the directive marker, otherwise false.
+ */
+export function hasDirectives(text: string): boolean {
+  return text.includes(DIRECTIVE_MARKER);
+}
+
 /**
  * Supported option value types in keep-sorted directives, mirroring the field types that
  * google/keep-sorted parses:
@@ -473,7 +488,7 @@ export function getDirectiveAndErrors(
   lineNum: number
 ): { directive: Directive; diagnostics: vscode.Diagnostic[] } | undefined {
   // Fast check for keep-sorted since this call is on the critical path
-  if (!lineText.includes("keep-sorted")) {
+  if (!hasDirectives(lineText)) {
     return undefined;
   }
 

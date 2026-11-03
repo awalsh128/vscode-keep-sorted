@@ -2,6 +2,7 @@
 import * as crypto from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
+import { hasDirectives } from "./keepsortedopt";
 import { spawnSync } from "child_process";
 import {
   EXT_NAME,
@@ -186,15 +187,29 @@ export class KeepSorted {
   /**
    * Lints the provided document and returns diagnostics for any findings.
    *
-   * @param uri The URI of the document to lint
+   * @param document The document to lint
    *
    * @returns An array of diagnostics
    *
    * @throws Error if the binary call fails
    */
   lintDocument(document: vscode.TextDocument): vscode.Diagnostic[] {
-    const kpLogger = contextualizeLogger(document.uri);
-    const findings = this.getFindings(document.uri, document.getText());
+    return this.lintText(document.uri, document.getText());
+  }
+
+  /**
+   * Lints file content that is not open as a document, such as a file read from disk.
+   *
+   * @param uri The URI the content belongs to
+   * @param text The content to lint
+   *
+   * @returns An array of diagnostics
+   *
+   * @throws Error if the binary call fails
+   */
+  lintText(uri: vscode.Uri, text: string): vscode.Diagnostic[] {
+    const kpLogger = contextualizeLogger(uri);
+    const findings = this.getFindings(uri, text);
     const diagnostics: vscode.Diagnostic[] = findings.map((finding) => {
       const kpRange = new KeepSortedRange(finding.lines.start, finding.lines.end);
       kpLogger.debug(
@@ -214,7 +229,7 @@ export class KeepSorted {
       return diagnostic;
     });
 
-    kpLogger.info(`${this.binaryFilename} found ${diagnostics.length} replacements.`);
+    kpLogger.debug(`${this.binaryFilename} found ${diagnostics.length} replacements.`);
     return diagnostics;
   }
 
@@ -247,6 +262,10 @@ export class KeepSorted {
 
   private getFindings(documentUri: vscode.Uri, documentText: string): KeepSortedFinding[] {
     const kpLogger = contextualizeLogger(documentUri);
+    if (!hasDirectives(documentText)) {
+      kpLogger.trace(`No keep-sorted directives; skipped ${this.binaryFilename}.`);
+      return [];
+    }
     const { code, stdout, stderr } = this.spawnCommand(
       ["--mode", "lint", "-"],
       documentUri,

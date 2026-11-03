@@ -32,7 +32,7 @@ const beta = 2;
   let keepSorted: KeepSorted;
   let sandbox: sinon.SinonSandbox;
 
-  function mockDocument(text = ""): vscode.TextDocument {
+  function mockDocument(text = sortedTextBlock): vscode.TextDocument {
     return {
       uri: vscode.Uri.file(path.join(TEST_WORKSPACE_DIR, "sample.ts")),
       fsPath: path.join(TEST_WORKSPACE_DIR, "sample.ts"),
@@ -119,6 +119,27 @@ const beta = 2;
   });
 
   describe("lintDocument", () => {
+    it("should not run the binary for text without directives", () => {
+      // Arrange
+      const spawnStub = mockSpawnSync(0, "");
+
+      // Act
+      const result = keepSorted.lintDocument(mockDocument(sortedText));
+
+      // Assert
+      expect(result).to.deep.equal([]);
+      expect(spawnStub.called).to.equal(false);
+    });
+
+    it("should lint text that is not open as a document", () => {
+      // Act
+      const result = keepSorted.lintText(mockDocument().uri, unsortedTextBlock);
+
+      // Assert
+      expect(result).to.have.lengthOf(1);
+      expect(result[0].message).to.equal("These lines are out of order.");
+    });
+
     it("should return empty array when no issues found", async function () {
       // Arrange
       this.timeout(5000);
@@ -265,7 +286,7 @@ const beta = 2;
 
     it("should handle error with non-zero exit code gracefully", () => {
       // Arrange
-      const document = mockDocument("invalid syntax");
+      const document = mockDocument();
       mockSpawnSync(1, "output", "error message");
 
       // Act & Assert - Should throw when stdout is not valid JSON
@@ -277,7 +298,7 @@ const beta = 2;
 
     it("should handle null exit code with signal gracefully", () => {
       // Arrange
-      const document = mockDocument("unsorted content");
+      const document = mockDocument();
       mockSpawnSyncResult({ status: null, signal: "SIGTERM" });
 
       // Act & Assert - Should throw when process is terminated by signal
@@ -286,7 +307,7 @@ const beta = 2;
 
     it("should handle spawn errors gracefully", () => {
       // Arrange
-      const document = mockDocument("content");
+      const document = mockDocument();
       sandbox.stub(childProcess, "spawnSync").throws(new Error("ENOENT"));
 
       // Act & Assert - Should throw when spawnSync itself throws
