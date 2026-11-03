@@ -40,6 +40,25 @@ extension-owned boolean. Do not redefine editor-owned settings under `contribute
 silently opt users in through `configurationDefaults`. Document `"explicit"`, `"always"`, and
 `"never"` semantics, including the after-delay Auto Save limitation, using official VS Code sources.
 
+## Code Reuse and Conventions
+
+Before adding a helper, constant, or settings read, search for an existing one and extend it rather
+than adding a parallel version. Each concern has one owning module:
+
+- Settings, including editor-owned ones such as `files.exclude`:
+  [src/configuration.ts](src/configuration.ts). Other modules call its accessors; `npm run check`
+  fails on `getConfiguration()` anywhere else. Editor-owned settings get accessors there but stay
+  out of `KeepSortedConfiguration`.
+- Directive text and option parsing, including `hasDirectives()`:
+  [src/keepsortedopt.ts](src/keepsortedopt.ts).
+- Running the keep-sorted binary: [src/keepsorted.ts](src/keepsorted.ts).
+- Writing diagnostics: `EditFactory` in [src/workspace.ts](src/workspace.ts).
+- Logging: [src/instrumentation.ts](src/instrumentation.ts).
+
+Match the surrounding code's documentation and structure, following the Documentation section of
+[docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Compare new code with a neighbor in the same module
+before finishing.
+
 ## Validation
 
 Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Code changes

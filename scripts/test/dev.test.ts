@@ -13,7 +13,9 @@ import {
   checkCommands,
   checkConsistency,
   checkSettings,
+  checkSettingsAccess,
   devCachePath,
+  extensionSources,
   launchDevelopment,
   setupDev,
 } from "../dev";
@@ -239,7 +241,26 @@ describe("consistency checks", (): void => {
 
   it("should find no problems in the repository", (): void => {
     // Act & Assert
-    expect(checkConsistency(read)).to.deep.equal([]);
+    expect(checkConsistency(read, extensionSources(repoRoot))).to.deep.equal([]);
+  });
+
+  it("should report settings read outside src/configuration.ts", (): void => {
+    // Arrange
+    overrides["src/other.ts"] = 'vscode.workspace.getConfiguration("files").get("exclude");';
+
+    // Act & Assert
+    expect(checkSettingsAccess(read, ["src/configuration.ts", "src/other.ts"])).to.deep.equal([
+      "src/other.ts: reads settings with getConfiguration(); add an accessor to src/configuration.ts.",
+    ]);
+  });
+
+  it("should list extension sources without tests", (): void => {
+    // Act
+    const sources = extensionSources(repoRoot);
+
+    // Assert
+    expect(sources).to.include("src/configuration.ts");
+    expect(sources.some((file) => file.startsWith("src/test/"))).to.equal(false);
   });
 
   it("should report a doc naming another keep-sorted version", (): void => {

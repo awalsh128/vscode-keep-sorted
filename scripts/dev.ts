@@ -1,5 +1,5 @@
 import { spawn, spawnSync, ChildProcess } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import * as os from "os";
 import * as path from "path";
 import { downloadAndUnzipVSCode } from "@vscode/test-electron";
@@ -110,6 +110,7 @@ export function checkBundledVersion(read: ReadFile, docs: string[] = VERSIONED_D
     return ["scripts/create-binaries.ts: KEEP_SORTED_VERSION not found."];
   }
   const bundled = match[1];
+  // Only three-part versions count, so action tags such as `actions/checkout@v6` are ignored.
   return docs.flatMap((doc) =>
     [...read(doc).matchAll(/\bv\d+\.\d+\.\d+\b/g)]
       .filter(([version]) => version !== bundled)
@@ -125,14 +126,17 @@ export function checkSettings(read: ReadFile): string[] {
   const manifest = JSON.parse(read("package.json"));
   const properties: Record<string, { default: unknown }> =
     manifest.contributes.configuration.properties;
+  // Settings table rows start with "| `keep-sorted.name` | `default` |".
   const readmeDefaults = new Map(
     [...read("README.md").matchAll(/^\| `(keep-sorted\.\w+)`\s*\| `([^`]*)`/gm)].map(
       ([, name, value]) => [name, value]
     )
   );
+  // The interface body ends at the first closing brace at the start of a line.
   const configuration = read("src/configuration.ts").match(
     /export interface KeepSortedConfiguration \{([\s\S]*?)\n\}/
   );
+  // Member names, including optional ones such as `logFilepath?`.
   const interfaceKeys = new Set(
     [...(configuration?.[1] ?? "").matchAll(/readonly (\w+)\??:/g)].map(([, key]) => key)
   );
@@ -203,9 +207,58 @@ export function checkCommands(read: ReadFile): string[] {
   return problems;
 }
 
-/** Runs every consistency check and returns the problems found. */
-export function checkConsistency(read: ReadFile): string[] {
-  return [...checkBundledVersion(read), ...checkSettings(read), ...checkCommands(read)];
+/** The only extension module that reads settings, including editor-owned ones. */
+export const SETTINGS_MODULE = "src/configuration.ts";
+
+/**
+ * Checks that only `src/configuration.ts` reads settings, so other modules use its accessors
+ * instead of duplicating settings access.
+ *
+ * @param read Reads a repository file.
+ * @param sourceFiles Extension source files, relative to the repository root.
+ *
+ * @returns The problems found.
+ */
+export function checkSettingsAccess(read: ReadFile, sourceFiles: string[]): string[] {
+  return (
+    sourceFiles
+      // A plain text search also catches calls on aliased imports such as `ws.getConfiguration(`.
+      .filter((file) => file !== SETTINGS_MODULE && read(file).includes("getConfiguration("))
+      .map(
+        (file) =>
+          `${file}: reads settings with getConfiguration(); add an accessor to ${SETTINGS_MODULE}.`
+      )
+  );
+}
+
+/**
+ * Lists the extension's non-test TypeScript sources.
+ *
+ * @param root The repository root.
+ *
+ * @returns Paths relative to the repository root.
+ */
+export function extensionSources(root: string): string[] {
+  return readdirSync(path.join(root, "src"))
+    .filter((name) => name.endsWith(".ts"))
+    .map((name) => `src/${name}`);
+}
+
+/**
+ * Runs every consistency check and returns the problems found.
+ *
+ * @param read Reads a repository file.
+ * @param sourceFiles Extension source files to check for settings access.
+ *
+ * @returns The problems found.
+ */
+export function checkConsistency(read: ReadFile, sourceFiles: string[] = []): string[] {
+  return [
+    ...checkBundledVersion(read),
+    ...checkSettings(read),
+    ...checkCommands(read),
+    ...checkSettingsAccess(read, sourceFiles),
+  ];
 }
 
 /** Runs a command in the repository and throws if it cannot start or fails. */
@@ -255,7 +308,7 @@ if (require.main === module) {
   const [command = "launch"] = process.argv.slice(2);
   try {
     if (command === "check") {
-      const problems = checkConsistency(read);
+      const problems = checkConsistency(read, extensionSources(root));
       problems.forEach((problem) => console.error(problem));
       process.exitCode = problems.length > 0 ? 1 : 0;
     } else if (command === "setup") {

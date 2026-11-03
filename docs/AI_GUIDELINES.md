@@ -169,7 +169,13 @@ import { KeepSorted } from "./keepsorted";
 
 - **JSDoc comments** for ALL exported functions and classes - MANDATORY
 - **Implementation comments** explain WHY, not WHAT - REQUIRED
-
+- **Follow the existing pattern** - REQUIRED. Compare with `EditFactory` in `src/workspace.ts`:
+  - A summary sentence, then `@param` and `@returns` for functions and methods that take or return
+    values
+  - A `/** ... */` comment on every interface member
+  - Service classes (providers, handlers, factories, schedulers) declare `private readonly` fields
+    and document the constructor as `Constructs a new ClassName.` with `@param` tags; small value
+    classes such as `Directive` may use `readonly` constructor parameter properties
 
 ## Enforcement
 

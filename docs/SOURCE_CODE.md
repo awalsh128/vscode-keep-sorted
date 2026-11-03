@@ -242,6 +242,8 @@ avoiding startup timing failures without a fixed delay.
   - `scanExclude()`: Build the workspace scan's `findFiles` exclude glob from the editor-owned
     `files.exclude` and `search.exclude` (`scanExcludeGlob()`); conditional (`when`) patterns and
     patterns with nested or multiple brace groups are not applied
+- **Settings access**: This is the only module that calls `getConfiguration()`; `npm run check`
+  enforces it
 - **Configuration Schema**:
   - `enabled`: boolean (default: true)
   - `autoComplete`: boolean (default: true)

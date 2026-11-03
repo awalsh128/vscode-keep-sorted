@@ -9,16 +9,20 @@ export const LINT_DELAY_MS = 300;
  * before it is finished. Opens and saves lint immediately.
  */
 export class LintScheduler implements vscode.Disposable {
+  private readonly lint: (document: vscode.TextDocument) => void;
+  private readonly delayMs: number;
   private readonly pending = new Map<string, NodeJS.Timeout>();
 
   /**
+   * Constructs a new LintScheduler.
+   *
    * @param lint Lints a document and updates its diagnostics.
    * @param delayMs Quiet period after the last edit before linting.
    */
-  constructor(
-    private readonly lint: (document: vscode.TextDocument) => void,
-    private readonly delayMs = LINT_DELAY_MS
-  ) {}
+  constructor(lint: (document: vscode.TextDocument) => void, delayMs = LINT_DELAY_MS) {
+    this.lint = lint;
+    this.delayMs = delayMs;
+  }
 
   /** Lints the document once edits pause, replacing any lint already waiting for it. */
   schedule(document: vscode.TextDocument): void {
