@@ -520,7 +520,9 @@ const lazyLogger = contextualizeLogger(uri, range);
 The reusable CI and publishing workflows pin Ubuntu 24.04 and Node 24-based actions. CI installs
 Node.js 24 for development tooling and runs extension tests through the runner's `xvfb-run` instead
 of a separate JavaScript wrapper action. These build-time requirements do not change the extension's
-VS Code engine requirement.
+VS Code engine requirement. CI's `npm audit` fails on any advisory in runtime dependencies, which
+ship in the bundle, and on high or critical advisories in any dependency; lower-severity advisories
+in development tools are reported in a GitHub issue without failing the build.
 
 `npm run compile` type-checks and emits `out/` with `tsc` (used by tests and scripts), then
 `npm run bundle` uses esbuild to write `dist/extension.js`, the manifest's `main`. The bundle

@@ -33,14 +33,41 @@ jobs:
         shell: bash
         run: npm ci
 
-      - uses: oke-py/npm-audit-action@f02a3cf15e7a1860efac849dd45126f9c2cafe4f
+      # Runtime dependencies are bundled into dist/extension.js and ship to users, so any advisory
+      # fails the build.
+      - name: Audit runtime dependencies
+        uses: oke-py/npm-audit-action@f02a3cf15e7a1860efac849dd45126f9c2cafe4f
+        with:
+          production_flag: true
+          audit_level: low
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          create_pr_comments: true
+          create_issues: true
+          issue_title: npm audit found vulnerabilities in runtime dependencies
+          issue_labels: vulnerability,test
+          dedupe_issues: true
+
+      # Development tools never ship, so moderate advisories are reported in an issue without
+      # failing the build.
+      - name: Report development dependency advisories
+        uses: oke-py/npm-audit-action@f02a3cf15e7a1860efac849dd45126f9c2cafe4f
         with:
           audit_level: moderate
+          fail_on_vulnerabilities: false
           github_token: ${{ secrets.GITHUB_TOKEN }}
           create_pr_comments: true
           create_issues: true
           issue_labels: vulnerability,test
           dedupe_issues: true
+
+      # Some tools run with publishing credentials, so high and critical advisories still fail.
+      - name: Audit all dependencies for high severity
+        uses: oke-py/npm-audit-action@f02a3cf15e7a1860efac849dd45126f9c2cafe4f
+        with:
+          audit_level: high
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          create_pr_comments: false
+          create_issues: false
 
       - name: Run linting
         run: npm run lint
