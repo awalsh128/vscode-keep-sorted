@@ -34,14 +34,15 @@ REJECTED.**
 - `src/test/actions.test.ts` - ActionProvider quick fixes and fix-all source action
 - `src/test/commands.test.ts` - SortFileCommandHandler, SortWorkspaceCommandHandler
 - `src/test/completion.test.ts` - KeepSortedCompletionProvider
-- `src/test/configuration.test.ts` - getConfig, handleConfigurationChange, excluded, change events
+- `src/test/configuration.test.ts` - getConfig, handleConfigurationChange, excluded,
+  scanExcludeGlob, change events
 - `src/test/extension.test.ts` - activation, event listeners, sorting and save integration
 - `src/test/hover.test.ts` - KeepSortedHoverProvider
 - `src/test/instrumentation.test.ts` - logAndGetError, relevantDiagnostics, logging setup
 - `src/test/keepsorted.test.ts` - KeepSorted class, binary interface, linting, fixing
 - `src/test/keepsortedopt.test.ts` - option metadata and directive parsing
 - `src/test/scheduler.test.ts` - LintScheduler debouncing
-- `src/test/workspace.test.ts` - EditFactory, isInScope, toJson
+- `src/test/workspace.test.ts` - EditFactory, WorkspaceScanner, isInScope, toJson
 - `scripts/test/create-binaries.test.ts` - E2E test for binary creation
 - `scripts/test/dev.test.ts` - development launcher, consistency checks, setup
 - `scripts/test/ops.test.ts` - Release operations against fake registries
@@ -168,6 +169,7 @@ import { KeepSorted } from "./keepsorted";
 
 - **JSDoc comments** for ALL exported functions and classes - MANDATORY
 - **Implementation comments** explain WHY, not WHAT - REQUIRED
+
 
 ## Enforcement
 

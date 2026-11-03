@@ -120,6 +120,49 @@ export function excluded(uri: vscode.Uri): RegExp | null {
 }
 
 /**
+ * Builds a `findFiles` exclude glob from `files.exclude` and `search.exclude`. Passing an exclude
+ * to `findFiles` replaces its default of `files.exclude`, and `search.exclude` is what skips
+ * `node_modules` by default. Patterns with one brace group are expanded so they can join the union;
+ * patterns with conditions or nested braces are left out.
+ */
+export function scanExcludeGlob(
+  ...settings: (Record<string, unknown> | undefined)[]
+): string | undefined {
+  const patterns = new Set<string>();
+  for (const [pattern, enabled] of settings.flatMap((s) => Object.entries(s ?? {}))) {
+    // `false` turns a pattern off; `{ when: ... }` conditions depend on sibling files.
+    if (enabled !== true) {
+      continue;
+    }
+    // Split `prefix{a,b}suffix` into prefix, choices, and suffix.
+    const group = pattern.match(/^([^{}]*)\{([^{}]*)\}([^{}]*)$/);
+    if (group) {
+      group[2].split(",").forEach((choice) => patterns.add(`${group[1]}${choice}${group[3]}`));
+    } else if (!/[{}]/.test(pattern)) {
+      // Nested or multiple brace groups cannot be placed inside the union below.
+      patterns.add(pattern);
+    }
+  }
+  // findFiles takes one exclude glob, so join the patterns as `{a,b,c}` alternatives.
+  return patterns.size > 0 ? `{${[...patterns].join(",")}}` : undefined;
+}
+
+/**
+ * Gets the exclude glob for the workspace scan from VS Code's `files.exclude` and `search.exclude`.
+ * Passing an exclude to `findFiles` replaces its default of `files.exclude`, and `search.exclude`
+ * is what skips `node_modules` by default. Both settings are editor-owned, so they are read here
+ * but are not part of `KeepSortedConfiguration`.
+ *
+ * @returns The exclude glob, or undefined when no patterns apply.
+ */
+export function scanExclude(): string | undefined {
+  return scanExcludeGlob(
+    vscode.workspace.getConfiguration("files").get("exclude"),
+    vscode.workspace.getConfiguration("search").get("exclude")
+  );
+}
+
+/**
  * Event handler for configuration changes and reloads this specific configuration if changed from
  * the serialized form.
  *
@@ -147,6 +190,7 @@ export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent
   if (context.config.logFilepath !== previousLogFilepath) {
     onLogFilepathChangeEmitter.fire(context.config.logFilepath);
   }
+  // Compare arrays by value; unlike join(","), JSON keeps patterns containing commas distinct.
   if (JSON.stringify(context.config.exclude) !== JSON.stringify(previousExclude)) {
     onExcludeChangeEmitter.fire(context.config.exclude);
   }

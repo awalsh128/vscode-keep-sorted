@@ -1,9 +1,10 @@
 // keep-sorted start
 import * as util from "util";
 import * as vscode from "vscode";
+import { Benchmark, contextualizeLogger, logger, relevantDiagnostics } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
-import { contextualizeLogger, logger, relevantDiagnostics } from "./instrumentation";
-import { excluded } from "./configuration";
+import { excluded, getConfig, scanExclude } from "./configuration";
+import { hasDirectives } from "./keepsortedopt";
 // keep-sorted end
 
 /**
@@ -47,6 +48,16 @@ export class EditFactory {
   /** Replaces this extension's file diagnostics with findings from the current buffer. */
   refreshDiagnostics(document: vscode.TextDocument): void {
     this.diagnostics.set(document.uri, this.linter.lintDocument(document));
+  }
+
+  /**
+   * Replaces this extension's file diagnostics with findings from content read from disk.
+   *
+   * @param uri The file the content belongs to.
+   * @param text The file's content.
+   */
+  refreshFileDiagnostics(uri: vscode.Uri, text: string): void {
+    this.diagnostics.set(uri, this.linter.lintText(uri, text));
   }
 
   /**
@@ -130,27 +141,159 @@ export function rootPath(): string | undefined {
   return undefined;
 }
 
+/** Files larger than this are not read by the workspace scan; open documents are always linted. */
+export const MAX_SCAN_BYTES = 1024 * 1024;
+
+/** Result of a completed workspace scan. */
+export interface ScanResult {
+  /** Workspace files considered by the scan. */
+  files: number;
+  /** Files and open documents that were linted because they contain directives. */
+  linted: number;
+}
+
+/** Editor and file system access used by the scan, replaceable in tests. */
+export interface ScanHost {
+  /** Finds workspace files, skipping those that match the exclude glob. */
+  findFiles(exclude: string | undefined): Thenable<vscode.Uri[]>;
+  /** Returns the documents currently open in the editor. */
+  textDocuments(): readonly vscode.TextDocument[];
+  /** Returns file metadata, such as its size. */
+  stat(uri: vscode.Uri): Thenable<vscode.FileStat>;
+  /** Reads a file's content from disk. */
+  readFile(uri: vscode.Uri): Thenable<Uint8Array>;
+}
+
+const defaultScanHost: ScanHost = {
+  findFiles: (exclude) => vscode.workspace.findFiles("**/*", exclude),
+  textDocuments: () => vscode.workspace.textDocuments,
+  stat: (uri) => vscode.workspace.fs.stat(uri),
+  readFile: (uri) => vscode.workspace.fs.readFile(uri),
+};
+
 /**
- * Returns the workspace files that are in scope for keep-sorted operations, opened as text
- * documents. Filters out files excluded by configuration and skips files that cannot be opened as
- * text, such as binaries, so one unreadable file does not hide the rest.
+ * Lints the workspace's in-scope files so warnings appear without opening them. Open documents are
+ * linted from their buffers; other files are read from disk, without opening them as documents, and
+ * only run through keep-sorted when they contain directives. The scan yields between files so the
+ * extension host stays responsive. Starting a new scan or calling `cancel()` stops the previous
+ * one, and a disk result is dropped if the file was opened meanwhile, since document events then
+ * own its diagnostics.
  */
-export async function inScopeDocuments(): Promise<readonly vscode.TextDocument[]> {
-  const uris = await vscode.workspace.findFiles("**/*");
-  const inScopeUris = uris.filter((uri) => isInScope(uri));
-  const results = await Promise.allSettled(
-    inScopeUris.map((uri) => vscode.workspace.openTextDocument(uri))
-  );
-  const documents: vscode.TextDocument[] = [];
-  results.forEach((result, i) => {
-    if (result.status === "fulfilled") {
-      logger.debug(`Fetched in-scope document: ${inScopeUris[i].toString()}`);
-      documents.push(result.value);
-    } else {
-      logger.debug(`Skipping ${inScopeUris[i].toString()}: ${String(result.reason)}`);
+export class WorkspaceScanner {
+  private readonly editFactory: EditFactory;
+  private readonly host: ScanHost;
+  private generation = 0;
+
+  /**
+   * Constructs a new WorkspaceScanner.
+   *
+   * @param editFactory The edit factory whose diagnostics the scan refreshes.
+   * @param host Editor and file system access; defaults to the VS Code API.
+   */
+  constructor(editFactory: EditFactory, host: ScanHost = defaultScanHost) {
+    this.editFactory = editFactory;
+    this.host = host;
+  }
+
+  /** Stops any running scan. */
+  cancel(): void {
+    this.generation++;
+  }
+
+  /**
+   * Scans the workspace, replacing any scan already running.
+   *
+   * @returns The scan counts, or undefined if the scan was cancelled or replaced.
+   */
+  async scan(): Promise<ScanResult | undefined> {
+    // cancel() and newer scans bump the generation, which stops this scan at its next check.
+    const generation = ++this.generation;
+    const current = (): boolean => generation === this.generation && getConfig().enabled;
+    const benchmark = new Benchmark();
+    let linted = 0;
+
+    // Open documents first: their buffers can hold unsaved edits that are not on disk.
+    const openDocuments = this.host.textDocuments().filter((d) => isInScope(d.uri));
+    for (const document of openDocuments) {
+      const lint = (): void => this.editFactory.refreshDiagnostics(document);
+      if (hasDirectives(document.getText()) && this.tryLint(document.uri, lint)) {
+        linted++;
+      }
     }
-  });
-  return documents;
+
+    const files = await this.host.findFiles(scanExclude());
+    for (const uri of files) {
+      // Yield so document events and other extensions run between files.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (!current()) {
+        return undefined;
+      }
+      // Open files were already linted from their buffers above.
+      if (!isInScope(uri) || this.isOpen(uri)) {
+        continue;
+      }
+      const text = await this.readText(uri);
+      // The file may have been opened, excluded, or the scan replaced while it was read.
+      if (text === undefined || !current() || this.isOpen(uri) || !isInScope(uri)) {
+        continue;
+      }
+      if (this.tryLint(uri, () => this.editFactory.refreshFileDiagnostics(uri, text))) {
+        linted++;
+      }
+    }
+    logger.info(
+      `Scanned ${files.length} workspace files and linted ${linted} with keep-sorted ` +
+        `directives (time: ${benchmark.getDeltaAsText()}).`
+    );
+    return { files: files.length, linted };
+  }
+
+  /** Determines whether the file is open in the editor, so document events own its diagnostics. */
+  private isOpen(uri: vscode.Uri): boolean {
+    // Compare strings: two Uri objects for the same file are different instances.
+    const key = uri.toString();
+    return this.host.textDocuments().some((document) => document.uri.toString() === key);
+  }
+
+  /**
+   * Reads a file that may contain directives.
+   *
+   * @param uri The file to read.
+   *
+   * @returns The file's text, or undefined to skip a large, binary, unreadable, or directive-free
+   *   file.
+   */
+  private async readText(uri: vscode.Uri): Promise<string | undefined> {
+    try {
+      if ((await this.host.stat(uri)).size > MAX_SCAN_BYTES) {
+        return undefined;
+      }
+      const text = new TextDecoder().decode(await this.host.readFile(uri));
+      // Skip text without directives and binary content.
+      return hasDirectives(text) && !text.includes("\0") ? text : undefined;
+    } catch (err: Error | unknown) {
+      contextualizeLogger(uri).debug(`Skipping unreadable file: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Runs a lint, logging failures so one file does not stop the scan.
+   *
+   * @param uri The file being linted, for logging.
+   * @param lint The lint to run.
+   *
+   * @returns True if the lint succeeded, otherwise false.
+   */
+  private tryLint(uri: vscode.Uri, lint: () => void): boolean {
+    try {
+      lint();
+      return true;
+    } catch (err: Error | unknown) {
+      contextualizeLogger(uri).error(`Linting failed with:\n${String(err)}`);
+      return false;
+    }
+  }
 }
 
 /**

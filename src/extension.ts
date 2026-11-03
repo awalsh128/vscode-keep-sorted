@@ -35,6 +35,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const actionProvider = new ActionProvider(diagnostics, editCommandHandlers, (document) =>
     lintScheduler.flush(document)
   );
+  const scanner = new workspace.WorkspaceScanner(editFactory);
+  context.subscriptions.push({ dispose: () => scanner.cancel() });
   const completionProvider = new KeepSortedCompletionProvider();
   const hoverProvider = new KeepSortedHoverProvider();
 
@@ -105,11 +107,12 @@ export async function activate(context: vscode.ExtensionContext) {
       if (enabled) {
         logger.debug(`Extension enabled - registering event subscriptions.`);
         await extSubsHandler.registerAllEnabled();
-        // Open documents were not linted while disabled
-        vscode.workspace.textDocuments.forEach(maybeLint);
+        // Nothing was linted while disabled
+        await scanner.scan();
       } else {
         logger.debug(`Extension disabled - disposing event subscriptions.`);
         extSubsHandler.unregisterAll();
+        scanner.cancel();
         lintScheduler.dispose();
         diagnostics.clear();
       }
@@ -127,12 +130,12 @@ export async function activate(context: vscode.ExtensionContext) {
           diagnostics.delete(uri);
         }
       });
+      // A pending lint from earlier edits would otherwise re-add an excluded file's warnings.
       vscode.workspace.textDocuments
         .filter((document) => !workspace.isInScope(document.uri))
         .forEach((document) => lintScheduler.cancel(document));
       // Lint files that are no longer excluded, as on activation
-      const documents = await workspace.inScopeDocuments();
-      documents.forEach(lint);
+      await scanner.scan();
     })
   );
 
@@ -152,15 +155,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   await extSubsHandler.registerAllEnabled();
 
-  // Initial linting of all documents upon activation
-  const documents = await workspace.inScopeDocuments();
-  logger.info(`Found ${documents.length} workspace documents for possible linting on activation`);
-  // Don't block activation on linting
-  const lintResults = await Promise.allSettled(documents.map(lint));
-  const lintFailures = lintResults.filter((r) => r.status === "rejected");
-  if (lintFailures.length > 0) {
-    logger.warn(`${lintFailures.length} document(s) failed linting on activation`);
-  }
-
   logger.info(`Extension ${EXT_NAME} activated.`);
+  // Lint the workspace in the background; the scan yields between files and logs a summary.
+  void scanner.scan();
 }

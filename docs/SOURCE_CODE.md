@@ -127,9 +127,10 @@ operations with fake registries and the registry adapters with stubbed HTTP.
 - **Key Responsibilities**:
   - Register the `keep-sorted.fixFile` and `keep-sorted.fixWorkspace` sorting commands (the former
     legacy alias is removed)
-  - Lint in-scope documents on activation (`inScopeDocuments()`) and on open and save; edits go
-    through `LintScheduler` ([scheduler.ts](../src/scheduler.ts)), which lints once edits pause for
-    `LINT_DELAY_MS` (300 ms) per document instead of on every keystroke
+  - Scan the workspace in the background on activation, re-enable, and exclusion changes
+    (`WorkspaceScanner`), and lint documents on open and save; edits go through `LintScheduler`
+    ([scheduler.ts](../src/scheduler.ts)), which lints once edits pause for `LINT_DELAY_MS` (300 ms)
+    per document instead of on every keystroke
   - Setup configuration change listeners
   - Manage extension subscriptions for proper cleanup
   - Initialize diagnostic collection
@@ -235,9 +236,12 @@ avoiding startup timing failures without a fixed delay.
   - `handleConfigurationChange()`: Reload settings and fire `onEnabledChange`,
     `onAutoCompleteChange`, `onExcludeChange`, or `onLogFilepathChange` for values that changed. On
     `onExcludeChange`, `extension.ts` clears diagnostics and pending lints for newly excluded files
-    and lints the in-scope workspace documents
+    and rescans the workspace (`WorkspaceScanner.scan()`)
   - `excluded()`: Return the exclusion pattern a file matches, or null; `workspace.isInScope()`
     combines it with the URI scheme check
+  - `scanExclude()`: Build the workspace scan's `findFiles` exclude glob from the editor-owned
+    `files.exclude` and `search.exclude` (`scanExcludeGlob()`); conditional (`when`) patterns and
+    patterns with nested or multiple brace groups are not applied
 - **Configuration Schema**:
   - `enabled`: boolean (default: true)
   - `autoComplete`: boolean (default: true)
@@ -262,15 +266,21 @@ avoiding startup timing failures without a fixed delay.
   - `EditFactory`: Creates WorkspaceEdit objects for sorting
     - `create()`: Main method, lints document and returns edit
     - `refreshDiagnostics()`: Replaces file diagnostics from the current buffer, including an empty
-      result to clear resolved problems. It is the only writer of the diagnostic collection:
-      document listeners call it on open/change/save, and commands call it before edit generation
-      and after successful edits; failed edit application retains diagnostics instead of clearing
-      them optimistically. `relevantDiagnostics()` is the matching reader, optionally filtered by
-      range for code actions.
+      result to clear resolved problems. With `refreshFileDiagnostics()`, which the workspace scan
+      uses for content read from disk, it produces every finding in the diagnostic collection;
+      `extension.ts` only deletes entries, on disable and on exclusion changes. Document listeners
+      call it on open/change/save, and commands call it before edit generation and after successful
+      edits; failed edit application retains diagnostics instead of clearing them optimistically.
+      `relevantDiagnostics()` is the matching reader, optionally filtered by range for code actions.
     - `applyToEdit()`: Add the whole-file fix to a WorkspaceEdit (private)
 - **Key Methods**:
-  - `inScopeDocuments()`: Open in-scope workspace files from `findFiles("**/*")` for activation
-    linting, skipping files that cannot be opened as text
+  - `WorkspaceScanner.scan()`: Lint the workspace without opening files as documents. Open documents
+    are linted from their buffers; other in-scope files from `findFiles("**/*", scanExclude())` are
+    read from disk when under `MAX_SCAN_BYTES` (1 MiB) and linted only when they contain directives
+    and no NUL bytes (binary). The scan yields between files; a newer scan, `cancel()`, or disabling
+    the extension stops it, and a disk result is dropped if the file was opened during the read, so
+    document events own open files' diagnostics. There is no file watcher: files changed on disk
+    outside VS Code are rechecked when opened or on the next scan.
   - `isInScope()`: Check if URI matches workspace scope
   - `rootPath()`: Get workspace root directory
 - **Dependencies**: KeepSorted linter, configuration
@@ -290,8 +300,11 @@ avoiding startup timing failures without a fixed delay.
     - Handles stdin/stdout communication
     - Parses binary responses
 - **Key Methods**:
-  - `lintDocument()`: Check document for sorting violations
+  - `lintDocument()` / `lintText()`: Check a document, or content read from disk, for sorting
+    violations
     - Returns diagnostics
+    - Skips the binary when the text has no `keep-sorted` marker (`hasDirectives()` from
+      `keepsortedopt.ts`)
     - Spawns binary with timeout (DEFAULT_COMMAND_TIMEOUT_MS = 30 seconds)
   - `fixDocument()`: Apply keep-sorted formatting
     - Returns `{ content, range }` (a single block or the whole file), or null when the document has
@@ -354,19 +367,21 @@ avoiding startup timing failures without a fixed delay.
 ### Document Open/Change Flow
 
 ```
-VS Code Document Event
-        │
-        ├─> extension.ts: onDidOpenTextDocument / onDidChangeTextDocument
+VS Code Document Event                       Activation / Re-enable / Exclusion Change
+        │                                            │
+        ├─> extension.ts: onDidOpenTextDocument /    └─> workspace.ts: WorkspaceScanner.scan()
+        │   onDidSaveTextDocument /                      ├─> open documents: refreshDiagnostics()
+        │   onDidChangeTextDocument                      └─> other files read from disk:
+        │                                                    refreshFileDiagnostics()
+        ├─> workspace.ts: isInScope()                        └─> keepsorted.ts: lintText()
+        │   └─> configuration.ts: excluded()
         │
         ├─> scheduler.ts: lint now (open/save) or after edits pause (change)
-        │
-        ├─> workspace.ts: inScopeDocuments() / isInScope()
-        │   └─> configuration.ts: excluded()
         │
         ├─> workspace.ts: EditFactory.refreshDiagnostics()
         │
         ├─> keepsorted.ts: lintDocument() creates diagnostics
-        │   └─> Binary process (keep-sorted)
+        │   └─> Binary process (keep-sorted), skipped without directives
         │
         └─> workspace.ts: EditFactory writes the DiagnosticCollection
 ```
@@ -564,6 +579,9 @@ directories such as `src/`, `out/`, `node_modules/`, and `.githooks/`.
 
 - **Lazy initialization**: Loggers created only when needed
 - **Debouncing**: Document changes debounced to avoid excessive linting
+- **Directive pre-check**: Text without `keep-sorted` never runs the binary (`hasDirectives()`)
+- **Background scan**: The workspace scan reads files from disk instead of opening documents and
+  yields between files
 - **Binary timeouts**: 30-second timeout on keep-sorted binary execution
 - **File exclusion**: Early exit for out-of-scope files
 

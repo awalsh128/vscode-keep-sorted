@@ -12,6 +12,7 @@ import {
   onAutoCompleteChange,
   onExcludeChange,
   onLogFilepathChange,
+  scanExcludeGlob,
 } from "../configuration";
 import type { JSONSchema7 } from "json-schema";
 
@@ -396,6 +397,32 @@ describe("configuration", () => {
 
         // Assert
         expect(result?.source).to.be.equal(expectedMatchingRegex?.source);
+      });
+    });
+  });
+
+  describe("scanExcludeGlob", () => {
+    [
+      {
+        name: "merges enabled patterns from both settings",
+        settings: [{ "**/.git": true }, { "**/node_modules": true, "**/out": false }],
+        expected: "{**/.git,**/node_modules}",
+      },
+      {
+        name: "expands a single brace group",
+        settings: [{ "**/*.{js,map}": true }],
+        expected: "{**/*.js,**/*.map}",
+      },
+      {
+        name: "leaves out conditional and nested patterns",
+        settings: [{ "**/*.js": { when: "$(basename).ts" }, "**/{a,{b,c}}": true }],
+        expected: undefined,
+      },
+      { name: "returns undefined without settings", settings: [undefined], expected: undefined },
+    ].forEach(({ name, settings, expected }) => {
+      it(`should ${name}`, () => {
+        // Act & Assert
+        expect(scanExcludeGlob(...settings)).to.equal(expected);
       });
     });
   });

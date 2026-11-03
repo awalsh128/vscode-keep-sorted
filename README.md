@@ -24,7 +24,7 @@
 
 Content outside keep-sorted blocks is left unchanged.
 
-- :warning: Warnings for unsorted blocks as you open, edit, and save files.
+- :warning: Warnings for unsorted blocks across the workspace and as you open, edit, and save files.
 - :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
 - :floppy_disk: Optional sorting on save through a source fix-all action.
 - :information_source: Autocomplete and hover documentation for options on a block's start line.
@@ -77,9 +77,10 @@ items = [
 
 To sort every file with Keep Sorted problems at once, run **Keep Sorted: Sort All Files with
 Problems**, or choose **Sort all files with problems (keep-sorted)** from a quick fix when other
-files also have warnings. This covers workspace files scanned at startup (respecting `files.exclude`
-and `keep-sorted.exclude`) plus files opened or edited since. All changes are applied as one edit;
-review them, then use **File → Save All**.
+files also have warnings. This covers files found by the background scan at startup plus files
+opened or edited since. The scan respects `files.exclude`, `search.exclude` (which skips
+`node_modules` by default), and `keep-sorted.exclude`, and skips files over 1 MB unless they are
+open. All changes are applied as one edit; review them, then use **File → Save All**.
 
 For keybindings or automation, use command IDs `keep-sorted.fixFile` and `keep-sorted.fixWorkspace`.
 The former `keep-sorted.sortFile` alias has been removed; update existing keybindings to
@@ -219,7 +220,8 @@ upstream's [pre-commit configuration](https://github.com/google/keep-sorted#pre-
 
 - **No warnings or sorting:** Check `keep-sorted.enabled`, exclusion patterns, and that every start
   marker has a matching end marker. keep-sorted treats any line containing the start marker as a
-  block start, even in prose or comments. Reload the VS Code window if commands are missing.
+  block start, even in prose or comments. Unopened files over 1 MB or matched by `files.exclude` or
+  `search.exclude` are only checked once opened. Reload the VS Code window if commands are missing.
 - **Save does not sort:** Configure `source.fixAll.keepSorted` as above; format-on-save alone does
   not invoke this extension.
 - **Sorting breaks syntax:** Keep declarations and surrounding brackets outside the markers, as in

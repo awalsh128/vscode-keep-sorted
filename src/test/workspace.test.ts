@@ -123,55 +123,144 @@ describe("workspace", () => {
     });
   });
 
-  describe("inScopeUris", () => {
-    it("skips files that cannot be opened as text", async () => {
-      // Arrange
-      const textUri = vscode.Uri.file("/project/text.ts");
-      const binaryUri = vscode.Uri.file("/project/logo.png");
-      const textDoc = await vscode.workspace.openTextDocument({ content: "text" });
-      sandbox.stub(vscode.workspace, "findFiles").resolves([binaryUri, textUri]);
+  describe("WorkspaceScanner", () => {
+    const DIRECTIVE_TEXT = "# keep-sorted start\nb\na\n# keep-sorted end\n";
+    const PLAIN_TEXT = "no directives here\n";
+    let files: Map<string, string>;
+    let openDocuments: vscode.TextDocument[];
+    let editFactory: {
+      refreshDiagnostics: sinon.SinonStub;
+      refreshFileDiagnostics: sinon.SinonStub;
+    };
+    let host: workspace.ScanHost & { readFile: sinon.SinonSpy };
+    let scanner: workspace.WorkspaceScanner;
+
+    const fileUri = (name: string): vscode.Uri => vscode.Uri.file(`/project/${name}`);
+    const openDocument = (name: string, text: string): vscode.TextDocument =>
+      ({ uri: fileUri(name), getText: () => text }) as unknown as vscode.TextDocument;
+
+    beforeEach(() => {
+      files = new Map();
+      openDocuments = [];
+      editFactory = { refreshDiagnostics: sandbox.stub(), refreshFileDiagnostics: sandbox.stub() };
+      host = {
+        findFiles: async () => [...files.keys()].map((name) => fileUri(name)),
+        textDocuments: () => openDocuments,
+        stat: async (uri) =>
+          ({ size: files.get(path.basename(uri.path))!.length }) as vscode.FileStat,
+        readFile: sandbox.spy(async (uri: vscode.Uri) =>
+          new TextEncoder().encode(files.get(path.basename(uri.path)))
+        ),
+      };
       sandbox.stub(configuration, "excluded").returns(null);
-      sandbox
-        .stub(vscode.workspace, "openTextDocument")
-        .callsFake(async (uri?: unknown) =>
-          uri === binaryUri ? Promise.reject(new Error("File seems to be binary")) : textDoc
-        );
+      scanner = new workspace.WorkspaceScanner(
+        editFactory as unknown as workspace.EditFactory,
+        host
+      );
+    });
+
+    it("should lint files with directives from disk without opening them", async () => {
+      // Arrange
+      files.set("sorted.txt", DIRECTIVE_TEXT);
+      files.set("plain.txt", PLAIN_TEXT);
+      const openTextDocument = sandbox.spy(vscode.workspace, "openTextDocument");
 
       // Act
-      const results = await workspace.inScopeDocuments();
+      const result = await scanner.scan();
 
       // Assert
-      expect(results).to.deep.equal([textDoc]);
+      expect(result).to.deep.equal({ files: 2, linted: 1 });
+      expect(editFactory.refreshFileDiagnostics.callCount).to.equal(1);
+      const [uri, text] = editFactory.refreshFileDiagnostics.firstCall.args;
+      expect([uri.toString(), text]).to.deep.equal([
+        fileUri("sorted.txt").toString(),
+        DIRECTIVE_TEXT,
+      ]);
+      expect(openTextDocument.called).to.equal(false);
     });
 
-    it("filters non-file URI", async () => {
-      // Arrange - Open a real document so it appears in textDocuments
-      const testFilePath = path.join(__dirname, "..", "..", "test-workspace", "sample.ts");
-      const testDoc = await vscode.workspace.openTextDocument(testFilePath);
-
-      // Stub configuration.excluded to return null (not excluded)
-      sandbox.stub(configuration, "excluded").returns(null);
+    it("should lint open documents from their buffers instead of disk", async () => {
+      // Arrange
+      files.set("open.txt", PLAIN_TEXT);
+      const document = openDocument("open.txt", DIRECTIVE_TEXT);
+      openDocuments.push(document);
 
       // Act
-      const results = (await workspace.inScopeDocuments()).map((doc) => doc.uri.fsPath);
+      const result = await scanner.scan();
 
-      // Assert - Should contain the opened file (file scheme)
-      expect(results).to.contain(testDoc.uri.fsPath);
+      // Assert
+      expect(result).to.deep.equal({ files: 1, linted: 1 });
+      expect(editFactory.refreshDiagnostics).to.have.been.calledOnceWithExactly(document);
+      expect(host.readFile.called).to.equal(false);
     });
 
-    it("filters excluded URIs", async () => {
-      // Arrange - Open a real document
-      const testFilePath = path.join(__dirname, "..", "..", "test-workspace", "sample.ts");
-      const testDoc = await vscode.workspace.openTextDocument(testFilePath);
+    [
+      {
+        name: "files over the size limit",
+        text: "x".repeat(workspace.MAX_SCAN_BYTES) + "keep-sorted",
+      },
+      { name: "binary content", text: `\0${DIRECTIVE_TEXT}` },
+    ].forEach(({ name, text }) => {
+      it(`should skip ${name}`, async () => {
+        // Arrange
+        files.set("skipped.bin", text);
 
-      // Stub configuration.excluded to return a regex that matches the file
-      sandbox.stub(configuration, "excluded").returns(/sample/);
+        // Act
+        const result = await scanner.scan();
+
+        // Assert
+        expect(result).to.deep.equal({ files: 1, linted: 0 });
+        expect(editFactory.refreshFileDiagnostics.called).to.equal(false);
+      });
+    });
+
+    it("should drop a disk result when the file opens during the read", async () => {
+      // Arrange
+      files.set("racing.txt", DIRECTIVE_TEXT);
+      const read = host.readFile;
+      host.readFile = sandbox.spy(async (uri: vscode.Uri) => {
+        openDocuments.push(openDocument("racing.txt", DIRECTIVE_TEXT));
+        return read(uri);
+      });
 
       // Act
-      const results = (await workspace.inScopeDocuments()).map((doc) => doc.uri.fsPath);
+      const result = await scanner.scan();
 
-      // Assert - Should NOT contain the excluded file
-      expect(results).to.not.contain(testDoc.uri.fsPath);
+      // Assert
+      expect(result).to.deep.equal({ files: 1, linted: 0 });
+      expect(editFactory.refreshFileDiagnostics.called).to.equal(false);
+    });
+
+    it("should stop applying results once cancelled", async () => {
+      // Arrange
+      files.set("first.txt", DIRECTIVE_TEXT);
+      files.set("second.txt", DIRECTIVE_TEXT);
+      const read = host.readFile;
+      host.readFile = sandbox.spy(async (uri: vscode.Uri) => {
+        scanner.cancel();
+        return read(uri);
+      });
+
+      // Act
+      const result = await scanner.scan();
+
+      // Assert
+      expect(result).to.equal(undefined);
+      expect(editFactory.refreshFileDiagnostics.called).to.equal(false);
+    });
+
+    it("should keep scanning after a file fails to lint", async () => {
+      // Arrange
+      files.set("failing.txt", DIRECTIVE_TEXT);
+      files.set("passing.txt", DIRECTIVE_TEXT);
+      editFactory.refreshFileDiagnostics.onFirstCall().throws(new Error("lint failed"));
+
+      // Act
+      const result = await scanner.scan();
+
+      // Assert
+      expect(result).to.deep.equal({ files: 2, linted: 1 });
+      expect(editFactory.refreshFileDiagnostics.callCount).to.equal(2);
     });
   });
 
