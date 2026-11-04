@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, it } from "mocha";
 import { expect, use } from "chai";
-import sinonChai from "sinon-chai";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
+import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import { LintScheduler } from "../scheduler";
 

@@ -1,20 +1,20 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
+import type { JSONSchema7 } from "json-schema";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import {
+  excluded as pathExcluded,
   getConfig,
   handleConfigurationChange,
-  excluded as pathExcluded,
   KeepSortedConfiguration,
-  onEnabledChange,
   onAutoCompleteChange,
+  onEnabledChange,
   onExcludeChange,
   onLogFilepathChange,
   scanExcludeGlob,
 } from "../configuration";
-import type { JSONSchema7 } from "json-schema";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const packageJson = require("../../package.json");

@@ -155,14 +155,15 @@ const maxRetries = 3;
 - **Semicolons**: REQUIRED - NO EXCEPTIONS
 - **Trailing commas**: REQUIRED in multi-line - OR DIE
 
-#### Imports (MANDATORY ORDER - FOLLOW EXACTLY)
+#### Imports (ENFORCED BY `simple-import-sort/imports`)
+
+Packages, including Node built-ins, come first and relative modules after, each sorted by path with
+no blank lines between them. Run `npx eslint --fix` instead of ordering imports by hand, and do not
+wrap imports in keep-sorted blocks.
 
 ```typescript
-// 1. Node built-ins
 import * as path from "path";
-// 2. External libraries
 import * as vscode from "vscode";
-// 3. Internal modules
 import { KeepSorted } from "./keepsorted";
 ```
 

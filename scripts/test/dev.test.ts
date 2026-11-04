@@ -1,22 +1,22 @@
-import { ChildProcess } from "child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { homedir, tmpdir } from "os";
-import * as path from "path";
 import { expect, use } from "chai";
 import chaiAsPromised from "chai-as-promised";
+import { ChildProcess } from "child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { afterEach, beforeEach, describe, it } from "mocha";
+import { homedir, tmpdir } from "os";
+import * as path from "path";
 import * as sinon from "sinon";
 import {
-  DEV_PROFILE_SETTINGS,
-  ReadFile,
   checkBundledVersion,
   checkCommands,
   checkConsistency,
   checkSettings,
   checkSettingsAccess,
+  DEV_PROFILE_SETTINGS,
   devCachePath,
   extensionSources,
   launchDevelopment,
+  ReadFile,
   setupDev,
 } from "../dev";
 

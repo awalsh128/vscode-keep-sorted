@@ -1,5 +1,5 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";

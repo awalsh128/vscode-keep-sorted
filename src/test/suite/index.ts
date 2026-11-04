@@ -1,13 +1,13 @@
-import * as path from "path";
+import { sync as globSync } from "glob";
 import * as Mocha from "mocha";
+import * as path from "path";
 import * as vscode from "vscode";
 import {
-  TestLogs,
   TEST_LOGS_DIR as TEST_OUTPUT_LOGS_DIR,
-  TestWorkspace,
   TEST_WORKSPACE_DIR,
+  TestLogs,
+  TestWorkspace,
 } from "../testing";
-import { sync as globSync } from "glob";
 
 export function run(): Promise<void> {
   // Allow `any` here because Mocha types and our usage are compatible at runtime

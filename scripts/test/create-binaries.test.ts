@@ -1,10 +1,10 @@
-import * as path from "path";
-import * as fs from "fs";
-import * as os from "os";
+import { expect } from "chai";
 import { execFileSync, execSync, spawnSync } from "child_process";
 import { createHash } from "crypto";
-import { expect } from "chai";
-import { describe, it, before, after } from "mocha";
+import * as fs from "fs";
+import { after, before, describe, it } from "mocha";
+import * as os from "os";
+import * as path from "path";
 
 /** Must match KEEP_SORTED_VERSION in scripts/create-binaries.ts. */
 const KEEP_SORTED_TAG = "v0.10.0";

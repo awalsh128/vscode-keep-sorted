@@ -1,14 +1,14 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
+import chaiAsPromised from "chai-as-promised";
+import * as childProcess from "child_process";
+import * as fs from "fs";
+import { afterEach, beforeEach, describe, it } from "mocha";
+import * as path from "path";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import * as childProcess from "child_process";
-import * as path from "path";
-import * as fs from "fs";
 import { KeepSorted } from "../keepsorted";
 import { EXT_WORKSPACE_DIR, TEST_WORKSPACE_DIR } from "./testing";
-import chaiAsPromised from "chai-as-promised";
 
 use(sinonChai);
 use(chaiAsPromised);

@@ -1,8 +1,8 @@
-import { describe, it, beforeEach } from "mocha";
 import { expect, use } from "chai";
+import { beforeEach, describe, it } from "mocha";
+import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import * as sinon from "sinon";
 import { KeepSortedCompletionProvider } from "../completion";
 import { KEEP_SORTED_OPTS } from "../keepsortedopt";
 

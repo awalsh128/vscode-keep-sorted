@@ -1,11 +1,9 @@
-// keep-sorted start
 import * as util from "util";
 import * as vscode from "vscode";
+import { excluded, getConfig, scanExclude } from "./configuration";
 import { Benchmark, contextualizeLogger, logger, relevantDiagnostics } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
-import { excluded, getConfig, scanExclude } from "./configuration";
 import { hasDirectives } from "./keepsortedopt";
-// keep-sorted end
 
 /**
  * List of URI schemes that are considered in-scope for keep-sorted operations. Only documents with

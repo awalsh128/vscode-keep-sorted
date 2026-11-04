@@ -1,6 +1,6 @@
-import * as path from "path";
-import * as fs from "fs";
 import * as crypto from "crypto";
+import * as fs from "fs";
+import * as path from "path";
 
 export const EXT_WORKSPACE_DIR = path.resolve(__dirname, "../../");
 export const TEST_WORKSPACE_DIR = path.resolve(__dirname, "../../test-workspace");

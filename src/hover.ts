@@ -1,8 +1,6 @@
-// keep-sorted start
 import * as vscode from "vscode";
+import { isValidCompletionPosition, KEEP_SORTED_OPTS } from "./keepsortedopt";
 import * as workspace from "./workspace";
-import { KEEP_SORTED_OPTS, isValidCompletionPosition } from "./keepsortedopt";
-// keep-sorted end
 
 /** Matches a `key=value` option token, including YAML list values that contain spaces. */
 const OPTION_TOKEN_REGEX = /[A-Za-z_]+=(?:\[[^\]]*\]|\S*)/;

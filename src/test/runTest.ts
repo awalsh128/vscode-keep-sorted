@@ -1,8 +1,8 @@
+import { runTests } from "@vscode/test-electron";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { EXT_WORKSPACE_DIR, TEST_WORKSPACE_DIR } from "./testing";
-import { runTests } from "@vscode/test-electron";
 
 async function main() {
   // A fresh profile per run avoids restoring editors and backups left by an earlier run, and the

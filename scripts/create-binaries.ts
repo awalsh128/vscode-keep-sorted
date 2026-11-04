@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, chmodSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { join } from "path";
-import { chdir } from "process";
 import { execFileSync, execSync } from "child_process";
 import { createHash } from "crypto";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
+import { chdir } from "process";
 
 const KEEP_SORTED_VERSION = "v0.10.0";
 // The source runs under scripts/, while tsc emits the entry point under out/scripts/.
@@ -50,7 +50,7 @@ function ensureGoVersion(minVersion = "1.23.1") {
       }
     }
   } catch (err) {
-    throw new Error(`Go check failed: ${(err as Error).message}`);
+    throw new Error(`Go check failed: ${(err as Error).message}`, { cause: err });
   }
 }
 

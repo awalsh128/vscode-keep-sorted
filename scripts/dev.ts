@@ -1,8 +1,8 @@
-import { spawn, spawnSync, ChildProcess } from "child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { downloadAndUnzipVSCode } from "@vscode/test-electron";
+import { ChildProcess, spawn, spawnSync } from "child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import * as os from "os";
 import * as path from "path";
-import { downloadAndUnzipVSCode } from "@vscode/test-electron";
 
 /** Process boundary for testing the development launcher without opening a window. */
 export interface DevLauncher {

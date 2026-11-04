@@ -1,9 +1,9 @@
+import { expect } from "chai";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
+import { before, describe, it } from "mocha";
 import { builtinModules } from "module";
 import * as path from "path";
-import { expect } from "chai";
-import { before, describe, it } from "mocha";
 
 const projectRoot = process.cwd();
 const builtins = new Set(builtinModules);

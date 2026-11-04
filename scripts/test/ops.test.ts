@@ -1,17 +1,17 @@
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import * as path from "path";
 import { expect, use } from "chai";
 import chaiAsPromised from "chai-as-promised";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { afterEach, beforeEach, describe, it } from "mocha";
+import { tmpdir } from "os";
+import * as path from "path";
 import * as sinon from "sinon";
 import {
   checkReleaseChannel,
   compareVersions,
   deleteVersions,
   deprecationRequests,
-  ExtensionManifest,
   exportOpenVsxToken,
+  ExtensionManifest,
   main,
   MarketplaceRegistry,
   OpenVsxRegistry,

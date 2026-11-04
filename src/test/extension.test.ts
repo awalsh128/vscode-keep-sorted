@@ -1,9 +1,9 @@
+import { expect } from "chai";
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as path from "path";
 import { isDeepStrictEqual } from "util";
-import { expect } from "chai";
-import { describe, it, beforeEach, afterEach } from "mocha";
 import * as vscode from "vscode";
 import { TEST_WORKSPACE_DIR } from "./testing";
 

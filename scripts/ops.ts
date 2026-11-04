@@ -13,13 +13,13 @@
  *   publishing instead.
  */
 
+import { DeviceCodeCredential } from "@azure/identity";
+import { GalleryApi } from "azure-devops-node-api/GalleryApi";
+import { getBasicHandler } from "azure-devops-node-api/WebApi";
 import { spawn } from "child_process";
 import { appendFileSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { parseArgs } from "util";
-import { DeviceCodeCredential } from "@azure/identity";
-import { GalleryApi } from "azure-devops-node-api/GalleryApi";
-import { getBasicHandler } from "azure-devops-node-api/WebApi";
 
 /** Identity and version of the extension, read from package.json. */
 export interface ExtensionManifest {

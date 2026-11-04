@@ -1,14 +1,14 @@
-import { describe, it } from "mocha";
 import { expect } from "chai";
+import { describe, it } from "mocha";
 import * as vscode from "vscode";
 import {
   Directive,
+  getDirectiveAndErrors,
+  isValidCompletionPosition,
   KEEP_SORTED_OPTS,
   KeepSortedOption,
   KeepSortedOptionCategory,
-  getDirectiveAndErrors,
   validateOptionsInFile,
-  isValidCompletionPosition,
 } from "../keepsortedopt";
 
 // Expected option keys based on google/keep-sorted

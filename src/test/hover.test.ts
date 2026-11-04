@@ -1,5 +1,5 @@
-import { describe, it } from "mocha";
 import { expect } from "chai";
+import { describe, it } from "mocha";
 import * as sinon from "sinon";
 import * as vscode from "vscode";
 import { KeepSortedHoverProvider } from "../hover";

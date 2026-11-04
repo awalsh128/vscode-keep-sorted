@@ -1,12 +1,12 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
+import { afterEach, beforeEach, describe, it } from "mocha";
+import * as path from "path";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import * as workspace from "../workspace";
 import * as configuration from "../configuration";
-import * as path from "path";
 import { KeepSorted } from "../keepsorted";
+import * as workspace from "../workspace";
 
 use(sinonChai);
 

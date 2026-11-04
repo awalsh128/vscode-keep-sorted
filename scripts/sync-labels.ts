@@ -8,9 +8,9 @@
  * - GITHUB_REPOSITORY: Repository in "owner/repo" format
  */
 
+import { Octokit } from "@octokit/rest";
 import * as fs from "fs";
 import * as yaml from "js-yaml";
-import { Octokit } from "@octokit/rest";
 
 interface LabelConfig {
   name: string;

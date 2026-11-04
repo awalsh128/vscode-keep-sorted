@@ -1,9 +1,7 @@
-// keep-sorted start
 import * as vscode from "vscode";
-import * as workspace from "./workspace";
 import { CommandHandlers } from "./commands";
 import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
-// keep-sorted end
+import * as workspace from "./workspace";
 
 /**
  * Provides code actions (quick fixes and source actions) for keep-sorted diagnostics. Integrates

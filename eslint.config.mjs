@@ -5,8 +5,9 @@
  */
 // @ts-check
 import js from "@eslint/js";
-import tseslint from "typescript-eslint";
 import stylistic from "@stylistic/eslint-plugin";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
@@ -18,9 +19,12 @@ export default tseslint.config(
   {
     plugins: {
       "@stylistic": stylistic,
+      "simple-import-sort": simpleImportSort,
     },
     rules: {
       curly: "warn",
+      // A single group keeps imports contiguous: side effects, packages, absolute, then relative.
+      "simple-import-sort/imports": ["warn", { groups: [["^\\u0000", "^@?\\w", "^", "^\\."]] }],
       "@stylistic/semi": ["warn", "always"],
       "@stylistic/max-len": [
         "warn",
