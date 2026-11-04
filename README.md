@@ -161,7 +161,7 @@ is normalized and used directly. Prefer a workspace-relative path such as `logs/
 
 The extension is an editor front end for keep-sorted and adds no sorting rules of its own, so CI
 should run the [keep-sorted CLI](https://github.com/google/keep-sorted#usage) directly. Pin the same
-version the extension bundles, `v0.10.0`, so CI and the editor agree.
+version the extension bundles (e.g.`v0.10.0`) so CI and the editor agree.
 
 In lint mode, keep-sorted exits with status 1 when any block is unsorted. This workflow fails the
 check:
