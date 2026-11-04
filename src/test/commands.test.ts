@@ -1,14 +1,14 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
-import sinonChai from "sinon-chai";
-import * as sinon from "sinon";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as path from "path";
+import * as sinon from "sinon";
+import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
+import { extensionId } from "../instrumentation";
+import { KeepSorted } from "../keepsorted";
 import * as workspace from "../workspace";
 import { EditFactory } from "../workspace";
-import { KeepSorted } from "../keepsorted";
-import { EXT_NAME } from "../instrumentation";
 
 use(sinonChai);
 
@@ -73,7 +73,7 @@ describe("commands", () => {
 
   beforeEach(() => {
     linter = new KeepSorted(process.cwd());
-    diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
+    diagnostics = vscode.languages.createDiagnosticCollection(extensionId.name);
     editFactory = new EditFactory(linter, diagnostics);
 
     // Stub vscode.workspace.applyEdit to prevent actual edits during tests
@@ -181,7 +181,7 @@ describe("commands", () => {
         "Lines are not sorted",
         vscode.DiagnosticSeverity.Warning
       );
-      diagnostic.source = EXT_NAME;
+      diagnostic.source = extensionId.name;
       diagnostics.set(document.uri, [diagnostic]);
 
       applyEditStub.resolves(true);
@@ -263,7 +263,7 @@ describe("commands", () => {
           "Lines are not sorted",
           vscode.DiagnosticSeverity.Warning
         );
-        diagnostic.source = EXT_NAME;
+        diagnostic.source = extensionId.name;
         diagnostics.set(activeDoc.uri, [diagnostic]);
         applyEditStub.resolves(true);
 
@@ -309,7 +309,7 @@ describe("commands", () => {
           "Lines are not sorted",
           vscode.DiagnosticSeverity.Warning
         );
-        diagnostic.source = EXT_NAME;
+        diagnostic.source = extensionId.name;
         diagnostics.set(visibleDoc.uri, [diagnostic]);
         applyEditStub.resolves(true);
 
@@ -508,7 +508,7 @@ describe("commands", () => {
       "Lines are not sorted",
       vscode.DiagnosticSeverity.Warning
     );
-    diagnostic.source = EXT_NAME;
+    diagnostic.source = extensionId.name;
     diagnostics.set(document.uri, [diagnostic]);
 
     applyEditStub.resolves(true);

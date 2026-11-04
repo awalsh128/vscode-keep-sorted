@@ -1,17 +1,15 @@
-// keep-sorted start
+import { spawnSync } from "child_process";
 import * as crypto from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
-import { hasDirectives } from "./keepsortedopt";
-import { spawnSync } from "child_process";
 import {
-  EXT_NAME,
-  logger,
-  contextualizeLogger,
-  logAndGetError,
   Benchmark,
+  contextualizeLogger,
+  extensionId,
+  logAndGetError,
+  logger,
 } from "./instrumentation";
-// keep-sorted end
+import { hasDirectives } from "./keepsortedopt";
 
 /** Default process timeout for keep-sorted CLI execution. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
@@ -106,7 +104,7 @@ export class KeepSorted {
   /** Gets the platform specific binary based on the extension runner's OS. */
   private getBundledBinaryPath() {
     const linuxBinary = "keep-sorted-linux-amd64";
-    let binaryPath = "";
+    let binaryPath: string;
     switch (process.platform) {
       case "win32":
         binaryPath = path.win32.join(this.extensionPath, "bin", "keep-sorted.exe");
@@ -221,7 +219,7 @@ export class KeepSorted {
         finding.message,
         vscode.DiagnosticSeverity.Warning
       );
-      diagnostic.source = EXT_NAME;
+      diagnostic.source = extensionId.name;
       diagnostic.code = {
         value: "docs",
         target: vscode.Uri.parse("https://github.com/google/keep-sorted/blob/main/README.md"),

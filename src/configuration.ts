@@ -1,13 +1,8 @@
-// keep-sorted start
+import globRegex from "glob-regex";
 import * as path from "path";
 import * as vscode from "vscode";
-import globRegex from "glob-regex";
-import { EXT_NAME, logger } from "./instrumentation";
+import { extensionId, logger } from "./instrumentation";
 import { toJson } from "./workspace";
-// keep-sorted end
-
-/** Configuration namespace for the Keep Sorted extension. */
-const CONFIGURATION_SECTION = EXT_NAME;
 
 /** Configuration settings for the Keep Sorted extension. */
 export interface KeepSortedConfiguration {
@@ -36,8 +31,17 @@ interface Context {
   regexs: RegExp[];
 }
 
-/** The internal current Keep Sorted configuration with runtime objects as a mutable object. */
-let context = loadContext();
+/**
+ * The internal current Keep Sorted configuration with runtime objects as a mutable object. Loaded
+ * on first use because `extensionId` is unassigned while the instrumentation import cycle loads.
+ */
+let context: Context | undefined;
+
+/** Returns the current context, loading it on first use. */
+function currentContext(): Context {
+  context ??= loadContext();
+  return context;
+}
 
 /**
  * Gets the Keep Sorted configuration matching the latest serialized representation.
@@ -47,7 +51,7 @@ let context = loadContext();
  * @returns The current configuration object
  */
 export function getConfig() {
-  return context.config;
+  return currentContext().config;
 }
 
 /**
@@ -56,18 +60,18 @@ export function getConfig() {
  * @returns Configuration object with all Keep Sorted settings
  */
 function loadContext(): Context {
-  const config = vscode.workspace.getConfiguration(CONFIGURATION_SECTION);
+  const config = vscode.workspace.getConfiguration(extensionId.name);
 
   function getValue<T>(key: string): T {
     const meta = config.inspect<T>(key);
     if (!meta) {
       throw new Error(
-        `${CONFIGURATION_SECTION} option "${key}" is not a valid configuration setting. This should not happen and is a bug in the extension.`
+        `${extensionId.name} option "${key}" is not a valid configuration setting. This should not happen and is a bug in the extension.`
       );
     }
     if (meta.defaultValue === undefined) {
       throw new Error(
-        `${CONFIGURATION_SECTION} option "${key}" does not have a default value. This should not happen and is a bug in the extension.`
+        `${extensionId.name} option "${key}" does not have a default value. This should not happen and is a bug in the extension.`
       );
     }
     return config.get<T>(key, meta.defaultValue);
@@ -111,7 +115,7 @@ export function excluded(uri: vscode.Uri): RegExp | null {
   const fullPath = uri.fsPath;
   const baseName = path.basename(fullPath);
 
-  for (const regex of context.regexs) {
+  for (const regex of currentContext().regexs) {
     if (regex.test(filePath) || regex.test(fullPath) || regex.test(baseName)) {
       return regex;
     }
@@ -171,27 +175,24 @@ export function scanExclude(): string | undefined {
  * @returns True if the configuration was reloaded, otherwise false.
  */
 export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent): boolean {
-  if (!event.affectsConfiguration(CONFIGURATION_SECTION)) {
+  if (!event.affectsConfiguration(extensionId.name)) {
     return false;
   }
 
-  const previousEnabled = context.config.enabled;
-  const previousAutoComplete = context.config.autoComplete;
-  const previousLogFilepath = context.config.logFilepath;
-  const previousExclude = context.config.exclude;
+  const previous = currentContext().config;
 
   context = loadContext();
-  if (context.config.enabled !== previousEnabled) {
+  if (context.config.enabled !== previous.enabled) {
     onEnabledChangeEmitter.fire(context.config.enabled);
   }
-  if (context.config.autoComplete !== previousAutoComplete) {
+  if (context.config.autoComplete !== previous.autoComplete) {
     onAutoCompleteChangeEmitter.fire(context.config.autoComplete);
   }
-  if (context.config.logFilepath !== previousLogFilepath) {
+  if (context.config.logFilepath !== previous.logFilepath) {
     onLogFilepathChangeEmitter.fire(context.config.logFilepath);
   }
   // Compare arrays by value; unlike join(","), JSON keeps patterns containing commas distinct.
-  if (JSON.stringify(context.config.exclude) !== JSON.stringify(previousExclude)) {
+  if (JSON.stringify(context.config.exclude) !== JSON.stringify(previous.exclude)) {
     onExcludeChangeEmitter.fire(context.config.exclude);
   }
   return true;

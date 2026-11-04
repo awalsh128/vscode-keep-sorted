@@ -1,13 +1,7 @@
-// keep-sorted start
 import * as vscode from "vscode";
-import * as workspace from "./workspace";
 import { ActionProvider } from "./actions";
-import { KeepSorted } from "./keepsorted";
-import { KeepSortedCompletionProvider } from "./completion";
-import { KeepSortedHoverProvider } from "./hover";
-import { LintScheduler } from "./scheduler";
 import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
-import { logger, EXT_NAME, contextualizeLogger, setFileLogging } from "./instrumentation";
+import { KeepSortedCompletionProvider } from "./completion";
 import {
   getConfig,
   handleConfigurationChange,
@@ -16,14 +10,20 @@ import {
   onExcludeChange,
   onLogFilepathChange,
 } from "./configuration";
-// keep-sorted end
+import { KeepSortedHoverProvider } from "./hover";
+import { contextualizeLogger, extensionId, logger, setFileLogging } from "./instrumentation";
+import { KeepSorted } from "./keepsorted";
+import { LintScheduler } from "./scheduler";
+import * as workspace from "./workspace";
 
 export async function activate(context: vscode.ExtensionContext) {
   // Create output channel
-  logger.info(`Activating extension ${EXT_NAME}...`);
+  logger.info(`Activating extension ${extensionId.value}-${extensionId.version}...`);
+
+  // TODO(#24): Extension ID checks.
 
   const linter = new KeepSorted(context.extensionPath);
-  const diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
+  const diagnostics = vscode.languages.createDiagnosticCollection(extensionId.name);
   context.subscriptions.push(diagnostics);
   const editFactory = new workspace.EditFactory(linter, diagnostics);
   const editCommandHandlers = {
@@ -150,12 +150,12 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   if (!getConfig().enabled) {
-    logger.info(`Extension ${EXT_NAME} activated in disabled state.`);
+    logger.info(`Extension ${extensionId.value} activated in disabled state.`);
     return;
   }
   await extSubsHandler.registerAllEnabled();
 
-  logger.info(`Extension ${EXT_NAME} activated.`);
+  logger.info(`Extension ${extensionId.value} activated.`);
   // Lint the workspace in the background; the scan yields between files and logs a summary.
   void scanner.scan();
 }

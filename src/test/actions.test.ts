@@ -1,14 +1,14 @@
-import { describe, it, beforeEach, afterEach } from "mocha";
 import { expect, use } from "chai";
-import sinonChai from "sinon-chai";
+import { afterEach, beforeEach, describe, it } from "mocha";
 import * as path from "path";
+import * as sinon from "sinon";
+import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import { ActionProvider } from "../actions";
-import { EditFactory } from "../workspace";
-import { KeepSorted } from "../keepsorted";
-import { EXT_NAME } from "../instrumentation";
-import * as sinon from "sinon";
 import { CommandHandlers, SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
+import { extensionId } from "../instrumentation";
+import { KeepSorted } from "../keepsorted";
+import { EditFactory } from "../workspace";
 
 use(sinonChai);
 
@@ -42,7 +42,7 @@ describe("actions", () => {
       // Arrange - Use real objects
       sandbox = sinon.createSandbox();
       linter = new KeepSorted(process.cwd());
-      diagnostics = vscode.languages.createDiagnosticCollection(EXT_NAME);
+      diagnostics = vscode.languages.createDiagnosticCollection(extensionId.name);
       editFactory = new EditFactory(linter, diagnostics);
       editCommandHandlers = {
         sortFile: new SortFileCommandHandler(diagnostics, editFactory),

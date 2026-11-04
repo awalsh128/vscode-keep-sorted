@@ -1,15 +1,13 @@
-// keep-sorted start
 import * as vscode from "vscode";
-import * as workspace from "./workspace";
-import { contextualizeLogger, EXT_NAME } from "./instrumentation";
+import { contextualizeLogger, extensionId } from "./instrumentation";
 import {
   Directive,
-  KeepSortedOption,
-  KEEP_SORTED_OPTS,
   isValidCompletionPosition,
+  KEEP_SORTED_OPTS,
+  KeepSortedOption,
   KeepSortedOptionCategory,
 } from "./keepsortedopt";
-// keep-sorted end
+import * as workspace from "./workspace";
 
 /**
  * Characters that open suggestions while typing. VS Code disables quick suggestions inside comments
@@ -100,7 +98,7 @@ export class KeepSortedCompletionProvider
       }
 
       const item = new vscode.CompletionItem(key, vscode.CompletionItemKind.Property);
-      item.detail = `${EXT_NAME} option (${option.valueType})`;
+      item.detail = `${extensionId.name} option (${option.valueType})`;
       item.documentation = new vscode.MarkdownString(option.documentation);
 
       item.insertText = this.getOptionSnippet(option);
@@ -147,7 +145,7 @@ export class KeepSortedCompletionProvider
     return option.values.map((optionValue, i) => {
       const item = new vscode.CompletionItem(optionValue, vscode.CompletionItemKind.EnumMember);
       item.detail =
-        `${EXT_NAME} ${option.key} value` +
+        `${extensionId.name} ${option.key} value` +
         (optionValue === option.defaultValue ? " (default)" : "");
       item.documentation = new vscode.MarkdownString(option.documentation);
       item.range = value.range;

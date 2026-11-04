@@ -1,14 +1,6 @@
-// keep-sorted start
 import * as vscode from "vscode";
+import { contextualizeLogger, extensionId, logAndGetError, logger } from "./instrumentation";
 import * as workspace from "./workspace";
-import {
-  EXT_DISPLAY_NAME,
-  EXT_NAME,
-  contextualizeLogger,
-  logAndGetError,
-  logger,
-} from "./instrumentation";
-// keep-sorted end
 
 /**
  * Abstract base class for all command handlers in Keep Sorted. Encapsulates the registration and
@@ -108,7 +100,7 @@ export abstract class EditCommandHandler extends CommandHandler {
     isPreferred = false,
     kind = vscode.CodeActionKind.QuickFix
   ): vscode.CodeAction {
-    const action = new vscode.CodeAction(`${this.command.tooltip} (${EXT_NAME})`, kind);
+    const action = new vscode.CodeAction(`${this.command.tooltip} (${extensionId.name})`, kind);
     action.diagnostics = diagnostics;
     action.isPreferred = isPreferred;
     action.command = { ...this.command, arguments: [document] };
@@ -156,8 +148,8 @@ export class SortFileCommandHandler extends EditCommandHandler {
     diagnostics: vscode.DiagnosticCollection,
     editFactory: workspace.EditFactory,
     command: vscode.Command = {
-      title: `${EXT_DISPLAY_NAME}: Sort Current File`,
-      command: `${EXT_NAME}.fixFile`,
+      title: `${extensionId.displayName}: Sort Current File`,
+      command: `${extensionId.name}.fixFile`,
       tooltip: `Sort all lines in file`,
     }
   ) {
@@ -218,8 +210,8 @@ export class SortWorkspaceCommandHandler extends CommandHandler {
     diagnostics: vscode.DiagnosticCollection,
     editFactory: workspace.EditFactory,
     command: vscode.Command = {
-      title: `${EXT_DISPLAY_NAME}: Sort All Files with Problems`,
-      command: `${EXT_NAME}.fixWorkspace`,
+      title: `${extensionId.displayName}: Sort All Files with Problems`,
+      command: `${extensionId.name}.fixWorkspace`,
       tooltip: "Sort all files with problems",
     }
   ) {
@@ -235,7 +227,7 @@ export class SortWorkspaceCommandHandler extends CommandHandler {
    */
   asCodeAction(diagnostics: vscode.Diagnostic[]): vscode.CodeAction {
     const action = new vscode.CodeAction(
-      `${this.command.tooltip} (${EXT_NAME})`,
+      `${this.command.tooltip} (${extensionId.name})`,
       vscode.CodeActionKind.QuickFix
     );
     action.diagnostics = diagnostics;
@@ -282,7 +274,7 @@ export class SortWorkspaceCommandHandler extends CommandHandler {
       if (failedUris.length > 0) {
         throw new Error(`Could not sort ${failedUris.length} file(s).`);
       }
-      vscode.window.showInformationMessage(`${EXT_DISPLAY_NAME}: No files need sorting.`);
+      vscode.window.showInformationMessage(`${extensionId.displayName}: No files need sorting.`);
       return;
     }
     logger.info(`Sorting ${documents.length} file(s) with keep-sorted diagnostics`);
@@ -293,7 +285,7 @@ export class SortWorkspaceCommandHandler extends CommandHandler {
     documents.forEach((document) => this.editFactory.refreshDiagnostics(document));
     if (failedUris.length > 0) {
       vscode.window.showWarningMessage(
-        `${EXT_DISPLAY_NAME}: Sorted ${documents.length} file(s); ` +
+        `${extensionId.displayName}: Sorted ${documents.length} file(s); ` +
           `${failedUris.length} could not be sorted.`
       );
     }

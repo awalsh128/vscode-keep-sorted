@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { EXT_NAME } from "./instrumentation";
+import { extensionId } from "./instrumentation";
 
 /**
  * Matches a block's start directive after one of these comment markers:
@@ -478,7 +478,7 @@ function createDiagnostic(range: vscode.Range, message: string): vscode.Diagnost
     message + "\n" + PARSE_ERRORMSG_SUFFIX,
     vscode.DiagnosticSeverity.Warning
   );
-  diagnostic.source = EXT_NAME;
+  diagnostic.source = extensionId.name;
   return diagnostic;
 }
 
