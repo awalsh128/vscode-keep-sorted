@@ -218,8 +218,10 @@ upstream's [pre-commit configuration](https://github.com/google/keep-sorted#pre-
 
 ## Language Specific Solutions
 
-Many language formatters and linters sort imports without directives. Prefer them for imports and
-use keep-sorted for lists those tools do not cover or when you need its sorting options.
+Many language formatters and linters already perform sorting implicitly and automatically. Prefer
+these as they have syntactic awareness and don't usually require inline code directives as comments.
+Keep in mind that only some syntax is supported (e.g. import statements) and `keep-sorted` may still
+be a viable option (e.g. lists, class ordering).
 
 - **C/C++:** [clang-format](https://clang.llvm.org/docs/ClangFormatStyleOptions.html#sortincludes)
   `SortIncludes`
