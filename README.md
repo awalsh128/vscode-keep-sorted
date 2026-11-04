@@ -216,6 +216,30 @@ Pushes made with the default `GITHUB_TOKEN` do not start new workflow runs, and 
 cannot push to pull requests from forks; use the lint workflow to check those. For local hooks, see
 upstream's [pre-commit configuration](https://github.com/google/keep-sorted#pre-commit).
 
+## Language Specific Solutions
+
+Many language formatters and linters sort imports without directives. Prefer them for imports and
+use keep-sorted for lists those tools do not cover or when you need its sorting options.
+
+- **C/C++:** [clang-format](https://clang.llvm.org/docs/ClangFormatStyleOptions.html#sortincludes)
+  `SortIncludes`
+- **C#:** [dotnet format](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-format)
+- **Go:** [gofmt](https://pkg.go.dev/cmd/gofmt) or
+  [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)
+- **Java:** [google-java-format](https://github.com/google/google-java-format)
+- **JavaScript/TypeScript:**
+  [eslint-plugin-simple-import-sort](https://www.npmjs.com/package/eslint-plugin-simple-import-sort)
+  or VS Code's
+  [Organize Imports](https://code.visualstudio.com/docs/languages/typescript#_organize-imports)
+- **Kotlin:** [ktlint](https://ktlint.github.io/ktlint/latest/rules/standard/#import-ordering)
+  `import-ordering`
+- **Python:** [Ruff](https://docs.astral.sh/ruff/rules/#isort-i) `I` rules or
+  [isort](https://pycqa.github.io/isort/)
+- **Rust:** [rustfmt](https://rust-lang.github.io/rustfmt/#reorder_imports) `reorder_imports`
+- **Swift:**
+  [swift-format](https://github.com/swiftlang/swift-format/blob/main/Documentation/RuleDocumentation.md#orderedimports)
+  `OrderedImports`
+
 ## Troubleshooting
 
 - **No warnings or sorting:** Check `keep-sorted.enabled`, exclusion patterns, and that every start
