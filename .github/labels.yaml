@@ -3,7 +3,7 @@
 # deletes them. Names match the labels GitHub, the issue forms, CI, and Dependabot apply.
 
 labels:
-  # Issue Types (applied by the issue forms)
+  # Issue Types (the issue forms apply bug and enhancement; the rest are applied by hand)
   - name: bug
     color: "#d73a4a"
     description: Something isn't working

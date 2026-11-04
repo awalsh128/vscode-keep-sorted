@@ -175,8 +175,9 @@ After CI passes, a release run:
    comment and the `released` label.
 
 `pre_release` publishes on the odd minor line and marks the release as a pre-release on both
-registries and on GitHub. Registries accept only `major.minor.patch` versions, so the odd minor,
-rather than a suffix like `-beta.1`, is what separates pre-releases.
+registries and on GitHub. Its issues and pull requests also get the `released` label, so a later
+release does not label them again. Registries accept only `major.minor.patch` versions, so the odd
+minor, rather than a suffix like `-beta.1`, is what separates pre-releases.
 
 Open VSX uses trusted publishing: the `awalsh128` namespace registers this repository and
 `publish.yml` at [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers), and
