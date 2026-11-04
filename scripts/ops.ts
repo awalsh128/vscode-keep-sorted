@@ -14,7 +14,7 @@
  */
 
 import { spawn } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { appendFileSync, existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { parseArgs } from "util";
 import { DeviceCodeCredential } from "@azure/identity";
@@ -44,6 +44,8 @@ export interface OpsContext {
   registries: readonly Registry[];
   /** Packages the extension and returns the VSIX path. */
   packageVsix(preRelease: boolean): Promise<string>;
+  /** Exports a trusted publishing Open VSX token to later GitHub Actions steps. */
+  exportOpenVsxToken(): Promise<void>;
   log(message: string): void;
 }
 
@@ -69,7 +71,9 @@ Commands:
                                     Permanently delete old versions. Without --yes, only shows
                                     what would be deleted.
   deprecate [--replacement <publisher.extension> | --setting <setting.id>] [--reason <text>]
-                                    Print deprecation requests to submit to each registry.`;
+                                    Print deprecation requests to submit to each registry.
+  openvsx-token                     In GitHub Actions, exchange the job's OIDC token for an Open
+                                    VSX publishing token and export it to later steps as OVSX_PAT.`;
 
 /** Options each command accepts; `--help` works with any of them. */
 const commandOptions: Readonly<Record<string, readonly string[]>> = {
@@ -77,6 +81,7 @@ const commandOptions: Readonly<Record<string, readonly string[]>> = {
   publish: ["dry-run", "pre-release", "help"],
   "delete-versions": ["before", "yes", "help"],
   deprecate: ["replacement", "setting", "reason", "help"],
+  "openvsx-token": ["help"],
 };
 
 const marketplaceDiscussionUrl = "https://github.com/microsoft/vscode-discussions/discussions/1";
@@ -123,11 +128,31 @@ export interface PublishOptions {
 }
 
 /**
+ * Checks VS Code's pre-release convention, which semantic-release follows through
+ * `release-version.ts`: releases use even minor versions and pre-releases odd ones.
+ *
+ * @param version The version to publish.
+ * @param preRelease Whether it is published as a pre-release.
+ *
+ * @throws Error when the minor version does not match the channel.
+ */
+export function checkReleaseChannel(version: string, preRelease: boolean): void {
+  const [, minor] = parseVersion(version);
+  if (minor % 2 !== (preRelease ? 1 : 0)) {
+    throw new Error(
+      `${version} has an ${minor % 2 ? "odd" : "even"} minor version, but ` +
+        `${preRelease ? "pre-releases use odd" : "releases use even"} minor versions.`
+    );
+  }
+}
+
+/**
  * Packages the package.json version once and publishes that VSIX to every registry missing it.
  * Rerunning after a partial failure only publishes to the registries that still need it.
  */
 export async function publishVersion(ctx: OpsContext, options: PublishOptions): Promise<void> {
   const { version } = ctx.manifest;
+  checkReleaseChannel(version, options.preRelease);
   const pending: Registry[] = [];
   for (const registry of ctx.registries) {
     if ((await registry.listVersions()).includes(version)) {
@@ -319,6 +344,8 @@ export async function main(argv: readonly string[], ctx: OpsContext): Promise<vo
     case "deprecate":
       ctx.log(deprecationRequests(ctx.manifest, values));
       return;
+    case "openvsx-token":
+      return ctx.exportOpenVsxToken();
     default:
       throw new Error(command ? `Unknown command "${command}".\n\n${usage}` : usage);
   }
@@ -399,6 +426,32 @@ export function openVsxTrustedPublishing(
     })();
     return token;
   };
+}
+
+/**
+ * Exports an Open VSX token to the later steps of a GitHub Actions job as `OVSX_PAT`, for tools
+ * that only read a token from the environment, such as semantic-release-vsce.
+ *
+ * @param provider Issues the token, such as `openVsxTrustedPublishing()`.
+ * @param env The process environment; `GITHUB_ENV` names the file later steps read.
+ * @param appendFile Appends to a file.
+ * @param log Writes a line to the job log.
+ */
+export async function exportOpenVsxToken(
+  provider: TokenProvider,
+  env: NodeJS.ProcessEnv,
+  appendFile: (file: string, data: string) => void = appendFileSync,
+  log: (message: string) => void = console.log
+): Promise<void> {
+  const envFile = env.GITHUB_ENV;
+  if (!envFile) {
+    throw new Error("openvsx-token only runs in GitHub Actions, which sets GITHUB_ENV.");
+  }
+  const token = await provider();
+  // Mask the token first so no later log line can reveal it.
+  log(`::add-mask::${token}`);
+  appendFile(envFile, `OVSX_PAT=${token}\n`);
+  log("Exported a trusted publishing Open VSX token as OVSX_PAT.");
 }
 
 /** The JSON fields ops.ts reads from Open VSX responses. */
@@ -645,6 +698,8 @@ export function createContext(root: string, env: NodeJS.ProcessEnv = process.env
       await runCommand("npx", preRelease ? [...args, "--pre-release"] : args);
       return vsixPath;
     },
+    exportOpenVsxToken: (): Promise<void> =>
+      exportOpenVsxToken(openVsxTrustedPublishing(manifest, env), env),
     log: (message): void => console.log(message),
   };
 }

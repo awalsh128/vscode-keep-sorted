@@ -46,6 +46,7 @@ REJECTED.**
 - `scripts/test/create-binaries.test.ts` - E2E test for binary creation
 - `scripts/test/dev.test.ts` - development launcher, consistency checks, setup
 - `scripts/test/ops.test.ts` - Release operations against fake registries
+- `scripts/test/release-version.test.ts` - release and pre-release version bumps
 - `scripts/test/packaging.test.ts` - Bundle inlines runtime packages; VSIX excludes development
   files
 - `scripts/test/sync-labels.test.ts` - label synchronization

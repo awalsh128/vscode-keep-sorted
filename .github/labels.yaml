@@ -72,6 +72,15 @@ labels:
     color: "#000000"
     description: Pull requests that update GitHub Actions
 
+  # Releases (applied by semantic-release)
+  - name: released
+    color: "#0e8a16"
+    description: Included in a published release
+
+  - name: semantic-release
+    color: "#b60205"
+    description: An automated release failed
+
   # Automation (applied by the CI npm audit job)
   - name: vulnerability
     color: "#b60205"

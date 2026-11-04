@@ -59,6 +59,16 @@ Match the surrounding code's documentation and structure, following the Document
 [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Compare new code with a neighbor in the same module
 before finishing.
 
+## Commit Messages
+
+Write [Conventional Commits](https://www.conventionalcommits.org/): semantic-release derives the
+next version and release notes from them, and the `commit-msg` hook rejects other messages. Use
+`fix:` and `feat:` only for changes users of the extension see, since they trigger a release; use
+`docs:`, `ci:`, `chore:`, `refactor:`, `test:`, or `build:` otherwise. Mark breaking changes with
+`!` or a `BREAKING CHANGE:` footer. Releases use even minor versions and pre-releases odd ones, so
+`feat` commits ship as a pre-release before a release (see the Publishing section of
+[CONTRIBUTING.md](CONTRIBUTING.md#publishing)).
+
 ## Validation
 
 Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Code changes

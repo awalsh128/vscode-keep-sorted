@@ -47,7 +47,8 @@ actions to maintain sorted content.
 ### Repository Layout
 
 ```
-.githooks/       — Git hooks enabled by npm run setup; pre-commit runs npm run check
+.githooks/       — Git hooks enabled by npm run setup; pre-commit runs npm run check, commit-msg
+                   runs commitlint
 bin/             — Bundled keep-sorted binaries and checksums
 docs/            — Architecture (this file) and AI development guidelines
 images/          — Extension icon (logo.png, from logo.svg) and README media
@@ -93,10 +94,17 @@ API. Each registry sits behind a small `Registry` interface: Open VSX uses its R
 Actions), and the Marketplace uses the public gallery query, `vsce publish` (trusted publishing
 through the GitHub Actions OIDC token when `VSCE_PAT` is unset in Actions), and
 `azure-devops-node-api` for per-version deletion. `publish` packages one VSIX and skips registries
-that already have the version, so the Publish Extension workflow can be rerun after a partial
-failure. `delete-versions` is a dry run without `--yes` and refuses the package.json version and
-each registry's latest version. [scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the
-operations with fake registries and the registry adapters with stubbed HTTP.
+that already have the version, so it can finish a release that failed partway. Automated releases
+use semantic-release instead: the Publish Extension workflow installs semantic-release,
+semantic-release-vsce, and `@semantic-release/git` in the job (not in `package.json`, since
+semantic-release bundles an npm CLI that the audit flags), configured by the `release` key in
+`package.json`, with [scripts/release-version.ts](../scripts/release-version.ts) in place of the
+commit analyzer so releases stay on even minor versions and pre-releases on odd ones. Before it
+runs, `openvsx-token` (`exportOpenVsxToken()`) exports a trusted publishing token as `OVSX_PAT`,
+since semantic-release-vsce reads Open VSX credentials only from that variable. `delete-versions` is
+a dry run without `--yes` and refuses the package.json version and each registry's latest version.
+[scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the operations with fake registries
+and the registry adapters with stubbed HTTP.
 
 ### Agent Configuration
 

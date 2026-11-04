@@ -1,15 +1,21 @@
 name: Publish Extension
 
+# semantic-release picks the next version from Conventional Commits since the last v* tag, then
+# publishes the VSIX to both registries, pushes the version commit and tag, and creates the GitHub
+# release. Runs that find no release-worthy commits publish nothing.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Perform a dry run without actual publishing
+        description: Show the next version and release notes without publishing
         required: true
         type: boolean
         default: true
+      pre_release:
+        description: Publish a pre-release on the next odd minor version (1.1.x, 1.3.x)
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   ci:
@@ -21,17 +27,23 @@ jobs:
       pull-requests: write
       checks: write
 
-  publish:
+  release:
     runs-on: ubuntu-24.04
     needs: ci
     permissions:
-      contents: read
-      # Registries whose token secret is unset get a short-lived publish credential in exchange for
-      # this job's OIDC token (trusted publishing).
+      # Push the version commit and tag, and create the GitHub release.
+      contents: write
+      # Comment on and label the issues and pull requests a release resolves.
+      issues: write
+      pull-requests: write
+      # Exchange the job's OIDC token for an Open VSX publishing token (trusted publishing).
       id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
+        with:
+          # semantic-release reads every commit and tag since the last release.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, Node 24
@@ -41,27 +53,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Packages one VSIX and publishes it to every registry that does not have this version yet,
-      # so rerunning after a partial failure is safe. Releases are never dry runs.
-      - name: Publish to Open VSX and Visual Studio Marketplace
+      # The release configuration loads scripts/release-version.ts from out/.
+      - name: Compile the release plugin
+        run: npx tsc -b
+
+      # semantic-release-vsce reads Open VSX credentials only from OVSX_PAT, so this exports a
+      # short-lived token issued for the repository and workflow registered as a trusted publisher.
+      - name: Get an Open VSX publishing token
+        run: npm run ops -- openvsx-token
+
+      # The release tools are installed here rather than in package.json: semantic-release always
+      # bundles an npm CLI whose dependencies can carry advisories, and it is never run because the
+      # npm plugin is not configured.
+      - name: Release
         env:
-          # Delete OPEN_VSX_TOKEN once this repository and publish.yml are registered at
-          # https://open-vsx.org/user-settings/trusted-publishers.
-          OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Must be a PAT for all accessible organizations with Marketplace (Manage) scope. Azure
-          # DevOps retires those on December 1, 2026; delete the secret once trusted publishing works.
+          # DevOps retires those on December 1, 2026.
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-        run:
-          npm run ops -- publish ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+          VSCE_PRE_RELEASE: ${{ inputs.pre_release }}
+          DRY_RUN_FLAG: ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          npx --yes \
+            --package semantic-release@25.0.9 \
+            --package semantic-release-vsce@6.1.8 \
+            --package @semantic-release/git@11.0.1 \
+            --package conventional-changelog-conventionalcommits@9.3.1 \
+            semantic-release $DRY_RUN_FLAG
 
-      - name: Setup Environment
-        run:
-          node -e "console.log('PACKAGE_VERSION=' + require('./package.json').version +
-          '\nPACKAGE_NAME=' + require('./package.json').name + '-' +
-          require('./package.json').version)" >> $GITHUB_ENV
-
-      - name: Publish artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6, Node 24
-        with:
-          name: ${{ env.PACKAGE_NAME }}.vsix
-          path: ./${{ env.PACKAGE_NAME }}.vsix
+      # semantic-release only marks releases from prerelease branches, which would add a -suffix
+      # that the registries reject, so the GitHub release is marked here instead.
+      - name: Mark the GitHub release as a pre-release
+        if: inputs.pre_release && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*')
+          if [ -n "$tag" ]; then
+            gh release edit "$tag" --prerelease
+          fi

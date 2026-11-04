@@ -6,10 +6,12 @@ import chaiAsPromised from "chai-as-promised";
 import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
 import {
+  checkReleaseChannel,
   compareVersions,
   deleteVersions,
   deprecationRequests,
   ExtensionManifest,
+  exportOpenVsxToken,
   main,
   MarketplaceRegistry,
   OpenVsxRegistry,
@@ -47,6 +49,7 @@ function fakeContext(registries: Registry[]): OpsContext & { messages: string[] 
     manifest,
     registries,
     packageVsix: sinon.stub().resolves(vsixPath),
+    exportOpenVsxToken: sinon.stub().resolves(),
     log: (message: string): void => {
       messages.push(message);
     },
@@ -125,9 +128,9 @@ describe("ops", (): void => {
     });
 
     it("should package without publishing on a dry run", async (): Promise<void> => {
-      // Arrange
+      // Arrange - Pre-releases use odd minor versions
       const openVsx = fakeRegistry("Open VSX", []);
-      const ctx = fakeContext([openVsx]);
+      const ctx = { ...fakeContext([openVsx]), manifest: { ...manifest, version: "2.1.0" } };
 
       // Act
       await publishVersion(ctx, { dryRun: true, preRelease: true });
@@ -136,8 +139,21 @@ describe("ops", (): void => {
       expect(openVsx.publish.called).to.equal(false);
       expect((ctx.packageVsix as sinon.SinonStub).calledOnceWithExactly(true)).to.equal(true);
       expect(ctx.messages).to.deep.equal([
-        `Dry run: packaged ${vsixPath}; would publish 2.0.0 to Open VSX.`,
+        `Dry run: packaged ${vsixPath}; would publish 2.1.0 to Open VSX.`,
       ]);
+    });
+
+    it("should refuse a pre-release on an even minor before packaging", async () => {
+      // Arrange
+      const openVsx = fakeRegistry("Open VSX", []);
+      const ctx = fakeContext([openVsx]);
+
+      // Act
+      const result = publishVersion(ctx, { dryRun: false, preRelease: true });
+
+      // Assert
+      await expect(result).to.be.rejectedWith(/pre-releases use odd minor versions/);
+      expect((ctx.packageVsix as sinon.SinonStub).called).to.equal(false);
     });
 
     it("should still publish to other registries when one fails", async (): Promise<void> => {
@@ -387,6 +403,73 @@ describe("ops", (): void => {
 
       // Assert
       expect(fetchFn.firstCall.args[0]).to.equal("https://open-vsx.org/api/-/publish?token=issued");
+    });
+  });
+
+  describe("checkReleaseChannel", (): void => {
+    [
+      { version: "1.2.0", preRelease: false },
+      { version: "1.3.4", preRelease: true },
+    ].forEach(({ version, preRelease }): void => {
+      it(`should accept ${version} as a ${preRelease ? "pre-release" : "release"}`, (): void => {
+        // Act & Assert
+        expect(() => checkReleaseChannel(version, preRelease)).to.not.throw();
+      });
+    });
+
+    [
+      { version: "1.2.0", preRelease: true, error: /even minor.*pre-releases use odd/ },
+      { version: "1.3.0", preRelease: false, error: /odd minor.*releases use even/ },
+    ].forEach(({ version, preRelease, error }): void => {
+      it(`should refuse ${version} as a ${preRelease ? "pre-release" : "release"}`, (): void => {
+        // Act & Assert
+        expect(() => checkReleaseChannel(version, preRelease)).to.throw(error);
+      });
+    });
+  });
+
+  describe("exportOpenVsxToken", (): void => {
+    it("should mask the token and export it as OVSX_PAT", async (): Promise<void> => {
+      // Arrange
+      const appendFile = sinon.stub();
+      const lines: string[] = [];
+
+      // Act
+      await exportOpenVsxToken(
+        sinon.stub().resolves("issued"),
+        { GITHUB_ENV: "/runner/env" },
+        appendFile,
+        (line: string): void => {
+          lines.push(line);
+        }
+      );
+
+      // Assert
+      expect(lines[0]).to.equal("::add-mask::issued");
+      expect(appendFile.args).to.deep.equal([["/runner/env", "OVSX_PAT=issued\n"]]);
+    });
+
+    it("should require GitHub Actions", async (): Promise<void> => {
+      // Arrange
+      const provider = sinon.stub().resolves("issued");
+
+      // Act
+      const result = exportOpenVsxToken(provider, {}, sinon.stub(), sinon.stub());
+
+      // Assert
+      await expect(result).to.be.rejectedWith(/GITHUB_ENV/);
+      expect(provider.called).to.equal(false);
+    });
+
+    it("should run from main as openvsx-token", async (): Promise<void> => {
+      // Arrange
+      const ctx = fakeContext([]);
+
+      // Act
+      await main(["openvsx-token"], ctx);
+
+      // Assert
+      expect((ctx.exportOpenVsxToken as sinon.SinonStub).calledOnce).to.equal(true);
     });
   });
 

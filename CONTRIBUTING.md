@@ -21,8 +21,9 @@ Before contributing, ensure you have:
    cd vscode-keep-sorted
    ```
 
-2. **Set up the clone**. This installs dependencies, enables the pre-commit hook that runs
-   `npm run check`, installs the recommended VS Code extensions, and builds the project:
+2. **Set up the clone**. This installs dependencies, enables the Git hooks (pre-commit runs
+   `npm run check`; commit-msg checks for Conventional Commits), installs the recommended VS Code
+   extensions, and builds the project:
 
    ```bash
    npm run setup
@@ -126,32 +127,75 @@ This downloads and builds binaries for all supported platforms.
 
 ## Publishing
 
-Prefer the
-[Publish Extension workflow](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/publish.yml),
-which runs `npm run ops -- publish` for each GitHub release (manual runs default to a dry run).
-Verify the `package.json` version first: published versions are immutable, and a deleted version
-number can never be reused.
+Releases are versioned by [semantic-release](https://semantic-release.gitbook.io/) from commit
+messages, so commits must follow [Conventional Commits](https://www.conventionalcommits.org/); the
+`commit-msg` hook installed by `npm run setup` checks them with commitlint.
 
-The workflow uses trusted publishing (no stored token) for each registry whose token secret is
-unset, exchanging the job's GitHub OIDC token for a short-lived publish credential:
+| Commit                                                       | Calls for |
+| ------------------------------------------------------------ | --------- |
+| `fix: ...`, `perf: ...`                                      | patch     |
+| `feat: ...`                                                  | minor     |
+| `feat!: ...` or a `BREAKING CHANGE:` footer                  | major     |
+| `docs:`, `ci:`, `chore:`, `refactor:`, `test:`, `build:` ... | none      |
 
-- **Open VSX:** available. Register the `awalsh128/vscode-keep-sorted` repository and the
-  `publish.yml` workflow for the `awalsh128` namespace at
-  [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers), then delete the
-  `OPEN_VSX_TOKEN` secret.
-- **Visual Studio Marketplace:** not yet released; its token endpoint still answers "Trusted
-  Publishing is not supported." Until then, `VS_MARKETPLACE_TOKEN` must be an Azure DevOps PAT
-  created for **All accessible organizations** with the **Marketplace (Manage)** scope (a PAT for
-  one organization fails with `TF400813`). Azure DevOps stops supporting such PATs on December
-  1, 2026. Once the Marketplace supports
-  [trusted publishing](https://github.com/microsoft/vscode-vsce#trusted-publishing), add a policy
-  for the same repository and workflow on the
-  [awalsh128 publisher](https://marketplace.visualstudio.com/manage/publishers/awalsh128) and delete
-  the secret.
+Versions follow VS Code's
+[pre-release convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions):
+releases use even minor versions (1.0.x, 1.2.x) and pre-releases odd ones (1.1.x, 1.3.x).
+[scripts/release-version.ts](scripts/release-version.ts) turns the commits into a bump that keeps
+that split:
+
+| Last version | Run         | Commits             | Next version    |
+| ------------ | ----------- | ------------------- | --------------- |
+| 1.0.2        | pre-release | `fix` or `feat`     | 1.1.0           |
+| 1.1.0        | pre-release | `fix` or `feat`     | 1.1.1           |
+| 1.1.1        | release     | any, including none | 1.2.0 (promote) |
+| 1.2.0        | release     | `fix`               | 1.2.1           |
+| any          | release     | breaking            | next major      |
+
+Features go out as a pre-release first: a release run refuses `feat` commits after a release, since
+it would have to skip an odd minor. Breaking changes ship as a release, not a pre-release.
+
+Start the
+[Publish Extension workflow](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/publish.yml)
+by hand. It defaults to a dry run that prints the next version and release notes:
+
+```bash
+gh workflow run publish.yml -f dry_run=false                     # release
+gh workflow run publish.yml -f dry_run=false -f pre_release=true # pre-release
+```
+
+After CI passes, a release run:
+
+1. Computes the version from the commits since the last `v*` tag. With no `fix` or `feat` commits,
+   it publishes nothing.
+2. Packages the VSIX with that version and publishes it to the Visual Studio Marketplace and Open
+   VSX ([semantic-release-vsce](https://github.com/felipecrs/semantic-release-vsce)).
+3. Commits the new `package.json` version as `chore(release): X.Y.Z [skip ci]`, tags it `vX.Y.Z`,
+   and creates a GitHub release with the notes and the VSIX. Released issues and pull requests get a
+   comment and the `released` label.
+
+`pre_release` publishes on the odd minor line and marks the release as a pre-release on both
+registries and on GitHub. Registries accept only `major.minor.patch` versions, so the odd minor,
+rather than a suffix like `-beta.1`, is what separates pre-releases.
+
+Open VSX uses trusted publishing: the `awalsh128` namespace registers this repository and
+`publish.yml` at [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers), and
+`npm run ops -- openvsx-token` exchanges the job's GitHub OIDC token for a short-lived publishing
+token that semantic-release-vsce reads as `OVSX_PAT`. No Open VSX secret is stored.
+
+The Marketplace does not offer trusted publishing yet, so it uses the `VS_MARKETPLACE_TOKEN` secret.
+`VS_MARKETPLACE_TOKEN` must be an Azure DevOps PAT created for **All accessible organizations** with
+the **Marketplace (Manage)** scope (a PAT for one organization fails with `TF400813`). Azure DevOps
+stops supporting such PATs on December 1, 2026.
+
+If publishing fails after the tag is pushed, rerunning the workflow does not publish again, because
+the version is already tagged. Check out the tag and run `npm run ops -- publish` (add
+`--pre-release` for an odd minor), which publishes only to registries that do not have the version
+yet.
 
 ### Manual
 
-[scripts/ops.ts](scripts/ops.ts) handles the other release operations; see
+[scripts/ops.ts](scripts/ops.ts) handles manual publishing and the other release operations; see
 [scripts/README.md](scripts/README.md#opsts) for details.
 
 ```bash

@@ -27,8 +27,9 @@ problem:
 - Commands in `package.json` are in the Command Palette menu and named in the README by ID and
   title.
 
-The `.githooks/pre-commit` hook runs it before each commit, and CI runs it on pushes and pull
-requests to `main`. The check reads the working tree, not only staged changes.
+The `.githooks/pre-commit` hook runs it before each commit (and `.githooks/commit-msg` checks for
+Conventional Commits with commitlint), and CI runs it on pushes and pull requests to `main`. The
+check reads the working tree, not only staged changes.
 
 `npm run setup` (`npm install`, then `dev.ts setup`) prepares a fresh clone: it sets
 `core.hooksPath` to `.githooks`, installs the extensions recommended in `.vscode/extensions.json`
@@ -68,8 +69,10 @@ with Go 1.26, and commits `bin/`. Regular CI runs only the script's Go-free unit
 
 ### `ops.ts`
 
-Release operations for Open VSX and the Visual Studio Marketplace. The **Publish Extension**
-workflow runs `publish`; the other commands are for maintainers.
+Release operations for Open VSX and the Visual Studio Marketplace, for maintainers. The **Publish
+Extension** workflow releases with semantic-release instead (see
+[CONTRIBUTING.md](../CONTRIBUTING.md#publishing)); use `publish` here to publish by hand or to
+finish a release that failed partway.
 
 ```bash
 npm run ops -- list                          # versions on each registry
@@ -77,10 +80,13 @@ npm run ops -- publish --dry-run             # package only; add --pre-release i
 npm run ops -- delete-versions --before 1.0.0  # show older versions that would be deleted
 npm run ops -- delete-versions 0.0.1 --yes   # delete specific versions
 npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
+npm run ops -- openvsx-token                 # GitHub Actions only: export an Open VSX token
 ```
 
 - `publish` packages the `package.json` version once and publishes that VSIX to each registry that
-  does not have it yet, so a rerun after a partial failure only fills the gap.
+  does not have it yet, so a rerun after a partial failure only fills the gap. It refuses a
+  pre-release on an even minor version and a release on an odd one, matching
+  [`release-version.ts`](#release-versionts).
 - `delete-versions` deletes permanently: neither registry can hide a single version, and a deleted
   version number can never be published again. Without `--yes` it only prints the plan. It refuses
   the `package.json` version and each registry's latest version.
@@ -88,6 +94,10 @@ npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
   API: a comment on the Marketplace
   [Deprecated extensions discussion](https://github.com/microsoft/vscode-discussions/discussions/1)
   and an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new).
+- `openvsx-token` runs in GitHub Actions only. It exchanges the job's OIDC ID token for a
+  short-lived Open VSX publishing token, masks it in the log, and exports it as `OVSX_PAT` to later
+  steps through `$GITHUB_ENV`. The Publish Extension workflow uses it so semantic-release-vsce can
+  publish with trusted publishing.
 
 `publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX). In
 GitHub Actions, `publish` uses trusted publishing for a registry whose variable is unset: Open VSX
@@ -96,6 +106,14 @@ exchanges the job's OIDC ID token for a short-lived publishing token, and the Ma
 `VSCE_PAT`, both commands print a Microsoft device-code sign-in for Azure DevOps. Personal Microsoft
 accounts can only sign in through a Microsoft Entra directory they belong to: set `AZURE_TENANT_ID`
 to it, since the default `common` tenant accepts only work or school accounts.
+
+### `release-version.ts`
+
+A semantic-release plugin that replaces `@semantic-release/commit-analyzer` in the `release`
+configuration of `package.json`. It reads the Conventional Commits since the last release and
+chooses the bump that keeps releases on even minor versions and pre-releases (`VSCE_PRE_RELEASE`) on
+odd ones; see [CONTRIBUTING.md](../CONTRIBUTING.md#publishing) for the rules. semantic-release loads
+it from `out/scripts/release-version.js`, so the Publish Extension workflow compiles first.
 
 ### `sync-labels.ts`
 
@@ -125,6 +143,7 @@ Scripts have corresponding test files in the `test/` subdirectory:
 - `test/dev.test.ts`
 - `test/ops.test.ts`
 - `test/packaging.test.ts`
+- `test/release-version.test.ts`
 - `test/sync-labels.test.ts`
 - `test/ops.test.ts`
 - `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one
