@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://badgen.net/vs-marketplace/v/awalsh128.keep-sorted?label=Marketplace" alt="Marketplace version"></a>
-  <a href="https://open-vsx.org/extension/awalsh128/keep-sorted"><img src="https://img.shields.io/open-vsx/v/awalsh128/keep-sorted?label=Open%20VSX" alt="Open VSX version"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://vsmarketplacebadges.dev/version/awalsh128.keep-sorted.svg?label=Version" alt="Version"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted"><img src="https://vsmarketplacebadges.dev/downloads/awalsh128.keep-sorted.svg?label=Marketplace%20downloads" alt="Marketplace downloads"></a>
   <a href="https://open-vsx.org/extension/awalsh128/keep-sorted"><img src="https://img.shields.io/open-vsx/dt/awalsh128/keep-sorted?label=Open%20VSX%20downloads" alt="Open VSX downloads"></a>
-  <a href="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml"><img src="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0 license"></a>
+  <a href="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml"><img src="https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
 </p>
 
 <!-- prettier-ignore -->
