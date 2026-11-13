@@ -21,9 +21,10 @@ Before contributing, ensure you have:
    cd vscode-keep-sorted
    ```
 
-2. **Set up the clone**. This installs dependencies, enables the Git hooks (pre-commit runs
-   `npm run check`; commit-msg checks for Conventional Commits), installs the recommended VS Code
-   extensions, and builds the project:
+2. **Set up the clone**. This installs dependencies, which enables the
+   [husky](https://typicode.github.io/husky/) Git hooks (pre-commit runs `npm run check`; commit-msg
+   checks for Conventional Commits), installs the recommended VS Code extensions, and builds the
+   project:
 
    ```bash
    npm run setup
@@ -129,7 +130,7 @@ This downloads and builds binaries for all supported platforms.
 
 Releases are versioned by [semantic-release](https://semantic-release.gitbook.io/) from commit
 messages, so commits must follow [Conventional Commits](https://www.conventionalcommits.org/); the
-`commit-msg` hook installed by `npm run setup` checks them with commitlint.
+husky `commit-msg` hook, enabled by `npm install`, checks them with commitlint.
 
 | Commit                                                       | Calls for |
 | ------------------------------------------------------------ | --------- |

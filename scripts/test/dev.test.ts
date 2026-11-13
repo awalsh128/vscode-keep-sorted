@@ -346,7 +346,7 @@ describe("consistency checks", (): void => {
 describe("development setup", (): void => {
   const read: ReadFile = () => JSON.stringify({ recommendations: ["a.one", "b.two"] });
 
-  it("should enable hooks, install extensions, and compile", (): void => {
+  it("should install extensions and compile", (): void => {
     // Arrange
     const run = sinon.stub();
 
@@ -355,7 +355,6 @@ describe("development setup", (): void => {
 
     // Assert
     expect(run.args).to.deep.equal([
-      ["git", ["config", "core.hooksPath", ".githooks"]],
       ["code", ["--install-extension", "a.one"]],
       ["code", ["--install-extension", "b.two"]],
       ["npm", ["run", "compile"]],
@@ -374,15 +373,5 @@ describe("development setup", (): void => {
     // Assert
     expect(run.lastCall.args).to.deep.equal(["npm", ["run", "compile"]]);
     expect(log.args.flat().join("\n")).to.contain("Extensions view instead: a.one, b.two.");
-  });
-
-  it("should stop when Git hooks cannot be enabled", (): void => {
-    // Arrange
-    const run = sinon.stub();
-    run.withArgs("git").throws(new Error("not a git repository"));
-
-    // Act & Assert
-    expect(() => setupDev(read, run, (): void => {})).to.throw("not a git repository");
-    expect(run.calledOnce).to.equal(true);
   });
 });

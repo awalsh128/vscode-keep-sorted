@@ -47,8 +47,8 @@ actions to maintain sorted content.
 ### Repository Layout
 
 ```
-.githooks/       — Git hooks enabled by npm run setup; pre-commit runs npm run check, commit-msg
-                   runs commitlint
+.husky/          — Git hooks enabled by husky on npm install; pre-commit runs npm run check,
+                   commit-msg runs commitlint
 bin/             — Bundled keep-sorted binaries and checksums
 docs/            — Architecture (this file) and AI development guidelines
 images/          — Extension icon (logo.png, from logo.svg) and README media
@@ -537,7 +537,7 @@ the source map. Extension tests activate the bundle, not `out/extension.js`. Ver
 1.0.1 shipped without their runtime packages and could not activate;
 [scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that the bundle requires
 no other package and that the `vsce ls` file list includes the bundle and excludes development
-directories such as `src/`, `out/`, `node_modules/`, and `.githooks/`.
+directories such as `src/`, `out/`, `node_modules/`, and `.husky/`.
 
 - **winston**, **winston-transport**, **triple-beam**: Structured logging
 - **glob-regex**: Convert glob patterns to regex

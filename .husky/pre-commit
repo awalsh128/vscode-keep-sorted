@@ -1,0 +1,2 @@
+# Installed by husky through the npm prepare script.
+npm run --silent check

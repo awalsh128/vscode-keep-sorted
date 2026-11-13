@@ -1,3 +1,0 @@
-#!/bin/sh
-# Enabled by npm run setup, which sets core.hooksPath to .githooks.
-exec npm run --silent check

@@ -264,22 +264,16 @@ export function checkConsistency(read: ReadFile, sourceFiles: string[] = []): st
 /** Runs a command in the repository and throws if it cannot start or fails. */
 export type CommandRunner = (command: string, args: string[]) => void;
 
-/** Git hooks directory, committed so every clone shares the same hooks. */
-export const HOOKS_PATH = ".githooks";
-
 /**
- * Prepares a fresh clone for development: enables the repository's Git hooks, installs the
- * recommended VS Code extensions, and builds the extension. Dependencies must already be installed;
- * `npm run setup` installs them first.
+ * Prepares a fresh clone for development: installs the recommended VS Code extensions and builds
+ * the extension. Dependencies must already be installed; `npm run setup` installs them first, which
+ * also enables the Git hooks through husky's `prepare` script.
  */
 export function setupDev(
   read: ReadFile,
   run: CommandRunner,
   log: (message: string) => void = console.log
 ): void {
-  run("git", ["config", "core.hooksPath", HOOKS_PATH]);
-  log(`Git hooks enabled from ${HOOKS_PATH}/.`);
-
   const { recommendations = [] }: { recommendations?: string[] } = JSON.parse(
     read(".vscode/extensions.json")
   );

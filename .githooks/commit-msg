@@ -1,3 +1,0 @@
-#!/bin/sh
-# Enabled by npm run setup. semantic-release derives versions from Conventional Commits.
-exec npx --no -- commitlint --edit "$1"

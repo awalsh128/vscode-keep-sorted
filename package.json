@@ -149,6 +149,7 @@
     "create-binaries": "tsx scripts/create-binaries.ts",
     "clean": "rimraf out/ dist/",
     "refreshlock": "npm i --package-lock-only",
+    "prepare": "husky",
     "setup": "npm install && tsx scripts/dev.ts setup",
     "sync-labels": "tsx scripts/sync-labels.ts"
   },
@@ -178,6 +179,7 @@
     "eslint": "^10.0.1",
     "eslint-plugin-mocha": "^11.2.0",
     "eslint-plugin-simple-import-sort": "^14.0.0",
+    "husky": "^9.1.7",
     "js-yaml": "^5.4.3",
     "logform": "^2.7.0",
     "mocha": "^11.7.5",
