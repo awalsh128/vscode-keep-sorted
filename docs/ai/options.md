@@ -1,6 +1,6 @@
 # keep-sorted option reference
 
-<!-- Generated from KEEP_SORTED_OPTS in src/keepsortedopt.ts by npm run gen:ai-docs. -->
+<!-- Generated from KEEP_SORTED_OPTS in src/keepsortedopt.ts by npm run gen:ai. -->
 
 This lists every option the bundled keep-sorted accepts.
 

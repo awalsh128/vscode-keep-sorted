@@ -34,8 +34,9 @@ REJECTED.**
 - `src/test/actions.test.ts` - ActionProvider quick fixes and fix-all source action
 - `src/test/ai/docs.test.ts` - shipped agent docs: generated parts, verified examples, options,
   links
-- `src/test/ai/docscli.test.ts` - `npm run gen:ai-docs` entry point
+- `src/test/ai/gencli.test.ts` - `npm run gen:ai` entry point and its `--check`
 - `src/test/ai/instructions.test.ts` - Add AI Instructions command and its file merges
+- `src/test/ai/manifest.test.ts` - generated package.json parts and the schema's `$ref`
 - `src/test/ai/lmtools.test.ts` - VS Code language model tools on real documents
 - `src/test/ai/mcp.test.ts` - MCP server disk host and the bundled server over stdio
 - `src/test/ai/mcpinstall.test.ts` - MCP server install and state files

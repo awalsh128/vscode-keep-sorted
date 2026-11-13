@@ -86,8 +86,8 @@ links, and configuration syntax; do not claim that runtime tests were run unless
 ## User-Facing Agent Docs
 
 [docs/ai/](docs/ai) ships in the VSIX for agents helping users of the extension; the tools return
-it. Keep contributor policy out of it, and keep it out of this file. `npm run gen:ai-docs`
-regenerates its generated parts.
+it. Keep contributor policy out of it, and keep it out of this file. `npm run gen:ai` regenerates
+its generated parts, and the AI parts of `package.json`.
 
 ## Agent Layout
 

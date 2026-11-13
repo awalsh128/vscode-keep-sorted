@@ -91,8 +91,10 @@ separately when testing sort-on-save.
   sort-on-save test may wait up to 90 seconds while VS Code finishes installing save participants in
   an unfocused window.
 - Use VS Code's test runner for debugging tests
-- After changing the option metadata or the language table, run `npm run gen:ai-docs` to regenerate
-  `docs/ai/options.md` and the comment syntax table; `npm run check` fails until you do
+- After changing the option metadata, the language table, or the AI tool specs, run `npm run gen:ai`
+  to regenerate `docs/ai/options.md`, the comment syntax table, and the
+  `keep-sorted.wrap.preferences` schema and `languageModelTools` in `package.json`; `npm run check`
+  fails until you do
 - Agent evals live in `src/test/ai/evals/`: `npm run test:ai-evals` runs the automated layer, and
   its README describes manual agent runs
 

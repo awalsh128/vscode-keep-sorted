@@ -400,11 +400,17 @@ tools.ts (TOOL_SPECS, runTool, ToolHost)  ── no vscode ──┬─> lmtools
 - **wrap.ts**: `LANGUAGES` (VS Code exposes no comment configuration), `wrapLines()` (refuses
   comment-less formats, partial overlaps with blocks, and files with unpaired markers, which sorting
   would delete), and `keep-sorted.wrap.preferences` parsing, merging, resolution, and its JSON
-  schema (the manifest copy is checked against `wrapPreferencesSchema()`). Globs use picomatch's
-  `isMatch`, since a bundled namespace import cannot be called.
-- **docs.ts / docscli.ts**: Guide lookup, plus `docs/ai/options.md` and the comment syntax table
-  generated from code. `docscli.ts` is the `npm run gen:ai-docs` entry point, kept apart because a
-  `require.main` guard in a bundled module would run in the MCP server.
+  schema. Globs use picomatch's `isMatch`, since a bundled namespace import cannot be called.
+- **docs.ts**: Guide lookup, plus `docs/ai/options.md` and the comment syntax table generated from
+  code.
+- **manifest.ts**: Renders the AI parts of `package.json` from code: `languageModelTools` from
+  `TOOL_SPECS`, and the `keep-sorted.wrap.preferences` schema. The option layer is written once,
+  under `options`; `languages` and `files` refer to it with
+  `$ref: "#/properties/keep-sorted.wrap.preferences/properties/options"`, which VS Code resolves
+  against its settings schema in user and workspace `settings.json` files.
+- **gencli.ts**: `npm run gen:ai` writes the generated docs and manifest parts; `--check` (part of
+  `npm run check`) fails when any is stale. Kept apart because a `require.main` guard in a bundled
+  module would run in the MCP server.
 - **mcp.ts**: Resolves files under one root (`--root`, `CLAUDE_PROJECT_DIR`, or the working
   directory), reads the mirrored user settings and the workspace's `.vscode/settings.json` (merging
   wrap preferences key by key; a workspace `exclude` replaces the user one, as in VS Code), refuses

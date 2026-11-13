@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import * as fs from "fs";
 import { describe, it } from "mocha";
-import * as os from "os";
 import * as path from "path";
 import {
   GUIDE_TOPICS,
@@ -10,7 +9,6 @@ import {
   readGuide,
   renderLanguageTable,
   renderOptionReference,
-  runAiDocsCli,
   staleGeneratedDocs,
 } from "../../ai/docs";
 import { bundledBinaryPath, KeepSortedBinary } from "../../keepsortedbin";
@@ -68,7 +66,7 @@ describe("aidocs", () => {
       const stale = staleGeneratedDocs(DOCS_DIR);
 
       // Assert
-      expect(stale, "run npm run gen:ai-docs").to.deep.equal([]);
+      expect(stale, "run npm run gen:ai").to.deep.equal([]);
     });
 
     it("should have a guide topic for every doc", () => {
@@ -198,27 +196,6 @@ describe("aidocs", () => {
 
       // Assert
       expect(table).to.match(/none: cannot hold markers +\| `json`/);
-    });
-  });
-
-  describe("runAiDocsCli", () => {
-    it("should pass the check for current docs", () => {
-      // Act & Assert
-      expect(runAiDocsCli(["--check"], DOCS_DIR)).to.equal(0);
-    });
-
-    it("should fail the check for a stale doc", () => {
-      // Arrange
-      const copy = fs.mkdtempSync(path.join(os.tmpdir(), "keep-sorted-docs-"));
-      fs.cpSync(DOCS_DIR, copy, { recursive: true });
-      fs.writeFileSync(path.join(copy, "options.md"), "stale\n");
-
-      // Act
-      const code = runAiDocsCli(["--check"], copy);
-
-      // Assert
-      fs.rmSync(copy, { recursive: true, force: true });
-      expect(code).to.equal(1);
     });
   });
 });

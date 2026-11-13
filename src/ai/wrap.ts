@@ -529,11 +529,16 @@ export function wrapLines(text: string, request: WrapRequest): WrapResult {
 
 /**
  * Builds the JSON schema for `keep-sorted.wrap.preferences` from `KEEP_SORTED_OPTS`, so settings
- * editors suggest every option and its values. The manifest's copy is checked against it by tests.
+ * editors suggest every option and its values. `npm run gen:ai` writes it to package.json.
+ *
+ * The option layer is written once, under `options`; `languages` and `files` refer to it with
+ * `$ref`, which VS Code resolves against the settings schema, where each setting is a property.
+ *
+ * @param settingName The setting's full name, which locates `options` for the references.
  *
  * @returns The setting's JSON schema, without its description, default, or order.
  */
-export function wrapPreferencesSchema(): Record<string, unknown> {
+export function wrapPreferencesSchema(settingName: string): Record<string, unknown> {
   const defaultNote = (value: string | undefined): string =>
     value ? ` keep-sorted default: \`${value}\`.` : "";
   const values = (option: { valueType: string; values?: readonly string[] }): unknown => {
@@ -566,6 +571,7 @@ export function wrapPreferencesSchema(): Record<string, unknown> {
       ])
     ),
   };
+  const layerRef = { $ref: `#/properties/${settingName}/properties/options` };
   return {
     type: "object",
     additionalProperties: false,
@@ -574,14 +580,14 @@ export function wrapPreferencesSchema(): Record<string, unknown> {
       languages: {
         type: "object",
         markdownDescription: "Options by VS Code language ID, applied after `options`.",
-        additionalProperties: layer,
+        additionalProperties: layerRef,
       },
       files: {
         type: "object",
         markdownDescription: oneLine`
           Options by workspace-relative glob such as \`**/go.mod\`, applied after \`languages\` in
           the order written.`,
-        additionalProperties: layer,
+        additionalProperties: layerRef,
       },
     },
   };

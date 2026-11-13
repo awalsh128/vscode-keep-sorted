@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { wrapPreferencesSchema } from "../ai/wrap";
 import {
   excluded as pathExcluded,
   getConfig,
@@ -862,25 +861,6 @@ describe("configuration", () => {
   });
 
   describe("wrap.preferences", () => {
-    it("should declare the schema generated from the option metadata", () => {
-      // Arrange
-      const property = packageJson.contributes.configuration.properties[
-        "keep-sorted.wrap.preferences"
-      ] as Record<string, unknown>;
-
-      // Act
-      const schema = Object.fromEntries(
-        Object.entries(property).filter(
-          ([key]) => !["default", "order", "markdownDescription", "examples"].includes(key)
-        )
-      );
-
-      // Assert
-      expect(schema, "regenerate the manifest schema from wrapPreferencesSchema()").to.deep.equal(
-        wrapPreferencesSchema()
-      );
-    });
-
     it("should merge user and workspace values key by key", async function () {
       // Arrange
       this.timeout(10000);

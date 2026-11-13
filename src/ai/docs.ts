@@ -6,7 +6,7 @@ import { LANGUAGES } from "./wrap";
 
 /*
  * The agent docs shipped in docs/ai/: topic lookup for the guide tools, and the sections generated
- * from code so they cannot drift. aidocscli.ts runs the generator. Free of `vscode` imports for the
+ * from code so they cannot drift. gencli.ts runs the generator. Free of `vscode` imports for the
  * MCP server.
  */
 
@@ -95,7 +95,7 @@ export function renderOptionReference(): string {
   const intro = dedent`
     # keep-sorted option reference
 
-    <!-- Generated from KEEP_SORTED_OPTS in src/keepsortedopt.ts by npm run gen:ai-docs. -->
+    <!-- Generated from KEEP_SORTED_OPTS in src/keepsortedopt.ts by npm run gen:ai. -->
 
     This lists every option the bundled keep-sorted accepts.
 
@@ -208,25 +208,4 @@ export function writeGeneratedDocs(docsDir: string): void {
   for (const [file, content] of renderGeneratedDocs(docsDir)) {
     fs.writeFileSync(path.join(docsDir, file), content, "utf8");
   }
-}
-
-/**
- * Regenerates the docs, or with `--check` reports stale ones.
- *
- * @param argv The command-line arguments.
- * @param docsDir The docs/ai directory.
- *
- * @returns The process exit code.
- */
-export function runAiDocsCli(argv: readonly string[], docsDir: string): number {
-  if (!argv.includes("--check")) {
-    writeGeneratedDocs(docsDir);
-    return 0;
-  }
-  const stale = staleGeneratedDocs(docsDir);
-  if (stale.length > 0) {
-    console.error(`Generated agent docs are stale: ${stale.join(", ")}. Run npm run gen:ai-docs.`);
-    return 1;
-  }
-  return 0;
 }

@@ -12,7 +12,6 @@ import {
   READ_ONLY_TOOLS,
   runTool,
   SortWorkspaceResult,
-  TOOL_SPECS,
   ToolFile,
   ToolHost,
   ToolInputError,
@@ -23,9 +22,6 @@ import { bundledBinaryPath, KeepSortedBinary } from "../../keepsortedbin";
 import { EXT_WORKSPACE_DIR } from "../testing";
 
 use(chaiAsPromised);
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const packageJson = require("../../../package.json");
 
 const BINARY = new KeepSortedBinary(bundledBinaryPath(EXT_WORKSPACE_DIR));
 const UNSORTED_PY = "DEPS = [\n    'requests',\n    'attrs',\n]\n";
@@ -112,36 +108,6 @@ describe("aitools", () => {
       expect(error.message).to.equal(
         "gen/a.py is excluded by keep-sorted.exclude; leave it unchanged."
       );
-    });
-  });
-
-  describe("TOOL_SPECS", () => {
-    it("should match the languageModelTools contribution in package.json", () => {
-      // Arrange
-      const contributed = packageJson.contributes.languageModelTools as Record<string, unknown>[];
-
-      // Act
-      const declared = contributed.map((tool) => ({
-        name: tool.name,
-        displayName: tool.displayName,
-        toolReferenceName: tool.toolReferenceName,
-        userDescription: tool.userDescription,
-        modelDescription: tool.modelDescription,
-        inputSchema: tool.inputSchema,
-      }));
-
-      // Assert
-      expect(declared, "regenerate languageModelTools from TOOL_SPECS").to.deep.equal(TOOL_SPECS);
-    });
-
-    it("should hide the tools while the extension is disabled", () => {
-      // Act
-      const whens = (packageJson.contributes.languageModelTools as { when: string }[]).map(
-        (tool) => tool.when
-      );
-
-      // Assert
-      expect(new Set(whens)).to.deep.equal(new Set(["config.keep-sorted.enabled"]));
     });
   });
 
