@@ -119,7 +119,7 @@ export function nextReleaseType(
   if (change === "minor") {
     throw new Error(
       `Features after ${lastVersion} would skip a minor version; publish them as a pre-release ` +
-        "first (pre_release), then release."
+        "first (pre-release), then release."
     );
   }
   return change;

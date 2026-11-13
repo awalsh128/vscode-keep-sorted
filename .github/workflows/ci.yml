@@ -8,7 +8,6 @@ on:
   schedule:
     - cron: "0 18 * * *"
   workflow_dispatch:
-  workflow_call:
 
 jobs:
   test:
@@ -23,15 +22,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, Node 24
-        with:
-          node-version: "24"
-          cache: "npm"
-
-      - name: Install dependencies
-        shell: bash
-        run: npm ci
+      - name: Setup
+        uses: ./.github/actions/setup
 
       # Runtime dependencies are bundled into dist/extension.js and ship to users, so any advisory
       # fails the build.

@@ -1,0 +1,60 @@
+name: "semantic-release"
+description: >-
+  Runs semantic-release with the release tools locked in this action's package-lock.json. Tags are
+  pushed with an Octo STS token, which the job's OIDC token is exchanged for under the trust policy
+  in .github/chainguard/<identity>.sts.yaml, so the job needs id-token: write. Check out the
+  repository with fetch-depth: 0 and persist-credentials: false first.
+
+inputs:
+  working-directory:
+    description: "Directory holding the package's release.config.cjs."
+    required: true
+  identity:
+    description: "Octo STS trust policy that issues the token for pushing tags."
+    required: false
+    default: "release"
+  args:
+    description: "Extra semantic-release arguments, such as --extends semantic-release-monorepo."
+    required: false
+    default: ""
+  dry-run:
+    description: "Preview the next version and release notes without tagging or publishing."
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    # The release tools are locked here rather than in the root package.json: semantic-release
+    # bundles an npm CLI whose dependencies can carry advisories, and the job can mint publishing
+    # tokens, so neither their install scripts nor unlocked versions run in it.
+    - name: Install release tools
+      shell: bash
+      run: npm ci --ignore-scripts --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+
+    # GitHub rejects tag creation by GITHUB_TOKEN when a ruleset restricts creations, so tags are
+    # pushed with a token from the Octo STS app, which the ruleset lets through.
+    - name: Create tag token
+      id: octo-sts
+      uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+      with:
+        scope: ${{ github.repository }}
+        identity: ${{ inputs.identity }}
+
+    - name: Run semantic-release
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        # semantic-release pushes the tag with GIT_CREDENTIALS and calls the GitHub API with
+        # GITHUB_TOKEN.
+        GIT_CREDENTIALS: x-access-token:${{ steps.octo-sts.outputs.token }}
+        GITHUB_TOKEN: ${{ github.token }}
+        ARGS: ${{ inputs.args }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        set -euo pipefail
+        read -ra args <<< "$ARGS"
+        if [[ "$DRY_RUN" == "true" ]]; then
+          args+=(--dry-run)
+        fi
+        "$GITHUB_ACTION_PATH/node_modules/.bin/semantic-release" "${args[@]}"

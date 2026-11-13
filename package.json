@@ -47,48 +47,6 @@
       "@commitlint/config-conventional"
     ]
   },
-  "release": {
-    "branches": [
-      "main"
-    ],
-    "tagFormat": "v${version}",
-    "plugins": [
-      "./out/scripts/release-version.js",
-      [
-        "@semantic-release/release-notes-generator",
-        {
-          "preset": "conventionalcommits"
-        }
-      ],
-      [
-        "semantic-release-vsce",
-        {
-          "packageVsix": true
-        }
-      ],
-      [
-        "@semantic-release/github",
-        {
-          "assets": [
-            {
-              "path": "*.vsix",
-              "label": "Extension package (VSIX)"
-            }
-          ]
-        }
-      ],
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "package.json",
-            "package-lock.json"
-          ],
-          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        }
-      ]
-    ]
-  },
   "keywords": [
     "sort",
     "lines",
@@ -177,7 +135,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm ci && npm run compile",
+    "vscode:prepublish": "npm run compile",
     "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --minify --keep-names --sourcemap --outfile=dist/extension.js",
     "compile": "npm run clean && tsc -b --clean && tsc -b && npm run bundle",
     "check": "tsx scripts/dev.ts check",
@@ -195,7 +153,6 @@
     "sync-labels": "tsx scripts/sync-labels.ts"
   },
   "devDependencies": {
-    "@azure/identity": "^4.14.0",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10.0.1",
@@ -215,7 +172,6 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^4.0.0",
-    "azure-devops-node-api": "12.5.0",
     "chai": "^6.2.2",
     "chai-as-promised": "^8.0.2",
     "esbuild": "^0.28.2",

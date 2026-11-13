@@ -1,94 +1,138 @@
 name: Publish Extension
 
-# semantic-release picks the next version from Conventional Commits since the last v* tag, then
-# publishes the VSIX to both registries, pushes the version commit and tag, and creates the GitHub
-# release. Runs that find no release-worthy commits publish nothing.
+# semantic-release picks the extension's next version from Conventional Commits since the last v*
+# tag, then tags it and creates the GitHub release with the VSIX; the publish job then publishes
+# that VSIX to both registries with scripts/ops.ts. Releases never commit; the version is written
+# into package.json in the CI workspace only. Runs that find no release-worthy commits publish
+# nothing. See release.config.cjs and CONTRIBUTING.md#publishing.
+#
+# No secrets: each job's OIDC token is exchanged for its credentials. The jobs are split so that
+# semantic-release and its plugins never run where a registry would accept the OIDC token:
+# - release: no environment. Pushes the tag with an Octo STS token
+#   (.github/chainguard/release.sts.yaml).
+# - publish: the 'release' environment, which the Marketplace and Open VSX trusted publishers name.
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
+      dry-run:
         description: Show the next version and release notes without publishing
         required: true
         type: boolean
         default: true
-      pre_release:
+      pre-release:
         description: Publish a pre-release on the next odd minor version (1.1.x, 1.3.x)
         required: true
         type: boolean
         default: false
 
-jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-      checks: write
+permissions: {}
 
+jobs:
   release:
+    # release.config.cjs only releases from main.
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
-    needs: ci
+    timeout-minutes: 30
+    concurrency:
+      group: release-extension
+      cancel-in-progress: false
     permissions:
-      # Push the version commit and tag, and create the GitHub release.
-      contents: write
-      # Comment on and label the issues and pull requests a release resolves.
-      issues: write
-      pull-requests: write
-      # Exchange the job's OIDC token for an Open VSX publishing token (trusted publishing).
-      id-token: write
+      actions: read # For checking CI results
+      contents: write # For the GitHub release
+      id-token: write # For OIDC: the Octo STS tag token
+      issues: write # For semantic-release comments
+      pull-requests: write # For semantic-release comments
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
         with:
-          # semantic-release reads every commit and tag since the last release.
-          fetch-depth: 0
+          fetch-depth: 0 # semantic-release reads every commit and tag since the last release
+          persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, Node 24
+      # CI runs on every push to main, so this checks the result rather than running CI again.
+      - name: Require CI success
+        uses: ./.github/actions/require-ci-success
         with:
-          node-version: "24"
+          sha: ${{ github.sha }}
+          token: ${{ github.token }}
 
-      - name: Install dependencies
-        run: npm ci
+      # This job can mint a GitHub token, so dependencies' install scripts don't run.
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          ignore-scripts: true
 
-      # The release configuration loads scripts/release-version.ts from out/.
-      - name: Compile the release plugin
-        run: npx tsc -b
+      # Builds out/scripts/release-version.js, which release.config.cjs loads.
+      - name: Compile
+        run: npm run compile
 
-      # semantic-release-vsce reads Open VSX credentials only from OVSX_PAT, so this exports a
-      # short-lived token issued for the repository and workflow registered as a trusted publisher.
-      - name: Get an Open VSX publishing token
-        run: npm run ops -- openvsx-token
-
-      # The release tools are installed here rather than in package.json: semantic-release always
-      # bundles an npm CLI whose dependencies can carry advisories, and it is never run because the
-      # npm plugin is not configured.
+      # semantic-release-vsce packages the VSIX for the GitHub release (publish: false), as a
+      # pre-release when VSCE_PRE_RELEASE is set.
       - name: Release
+        uses: ./.github/actions/semantic-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Must be a PAT for all accessible organizations with Marketplace (Manage) scope. Azure
-          # DevOps retires those on December 1, 2026.
-          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          VSCE_PRE_RELEASE: ${{ inputs.pre_release }}
-          DRY_RUN_FLAG: ${{ inputs.dry_run && '--dry-run' || '' }}
-        run: |
-          npx --yes \
-            --package semantic-release@25.0.9 \
-            --package semantic-release-vsce@6.1.8 \
-            --package @semantic-release/git@11.0.1 \
-            --package conventional-changelog-conventionalcommits@9.3.1 \
-            semantic-release $DRY_RUN_FLAG
+          VSCE_PRE_RELEASE: ${{ inputs.pre-release }}
+        with:
+          working-directory: .
+          dry-run: ${{ inputs.dry-run }}
+
+      # The newest v* tag on HEAD is this run's release, or, when a run is retried after a partial
+      # failure, the release it made.
+      - name: Find the release tag
+        id: tag
+        if: ${{ !inputs.dry-run }}
+        run:
+          echo "tag=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -n 1)" >>
+          "$GITHUB_OUTPUT"
 
       # semantic-release only marks releases from prerelease branches, which would add a -suffix
       # that the registries reject, so the GitHub release is marked here instead.
       - name: Mark the GitHub release as a pre-release
-        if: inputs.pre_release && !inputs.dry_run
+        if: ${{ inputs.pre-release && steps.tag.outputs.tag != '' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release edit "$TAG" --prerelease
+
+  # Publishes the GitHub release's VSIX, so the registries get the file the release carries. ops.ts
+  # skips registries that already have the version, so after a partial failure, Re-run failed jobs
+  # publishes to the rest.
+  publish:
+    needs: release
+    if: ${{ needs.release.outputs.tag != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    concurrency:
+      group: publish-extension
+      cancel-in-progress: false
+    permissions:
+      contents: read # For downloading the release's VSIX
+      id-token: write # For OIDC: Marketplace and Open VSX trusted publishing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
+        with:
+          persist-credentials: false
+
+      # This job can mint registry tokens, so dependencies' install scripts don't run.
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          ignore-scripts: true
+
+      - name: Publish the release's VSIX
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          PRE_RELEASE_FLAG: ${{ inputs.pre-release && '--pre-release' || '' }}
         run: |
-          tag=$(git tag --points-at HEAD --list 'v*')
-          if [ -n "$tag" ]; then
-            gh release edit "$tag" --prerelease
-          fi
+          set -euo pipefail
+          version="${TAG#v}"
+          vsix="$RUNNER_TEMP/keep-sorted-$version.vsix"
+          gh release download "$TAG" --pattern "keep-sorted-$version.vsix" --output "$vsix"
+          # ops.ts reads the version from package.json to find the registries that lack it.
+          npm pkg set version="$version"
+          npm run ops -- publish $PRE_RELEASE_FLAG --vsix "$vsix"

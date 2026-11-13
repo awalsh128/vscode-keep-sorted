@@ -1,23 +1,16 @@
 #!/usr/bin/env npx tsx
 /**
  * Release operations for the Visual Studio Marketplace and Open VSX: listing published versions,
- * publishing the package.json version, deleting old versions, and preparing deprecation requests.
+ * publishing the extension's package.json version, and preparing deprecation requests.
  *
- * Environment variables (only `publish` and `delete-versions --yes` need them):
- *
- * - VSCE_PAT: Visual Studio Marketplace personal access token. Without it, `publish` in GitHub
- *   Actions uses Marketplace trusted publishing (`vsce publish --oidc`), and elsewhere both
- *   commands sign in with a Microsoft account through a device code.
- * - AZURE_TENANT_ID: Microsoft Entra tenant for that sign-in (default: common)
- * - OVSX_PAT: Open VSX access token. Without it, `publish` in GitHub Actions uses Open VSX trusted
- *   publishing instead.
+ * Publishing uses trusted publishing only, so it runs in a GitHub Actions job with `id-token:
+ * write` and no stored tokens: Open VSX exchanges the job's OIDC ID token for a short-lived
+ * publishing token, and the Marketplace accepts `vsce publish --oidc`. Each registry must list this
+ * repository and the Publish workflow as a trusted publisher.
  */
 
-import { DeviceCodeCredential } from "@azure/identity";
-import { GalleryApi } from "azure-devops-node-api/GalleryApi";
-import { getBasicHandler } from "azure-devops-node-api/WebApi";
 import { spawn } from "child_process";
-import { appendFileSync, existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import * as path from "path";
 import { parseArgs } from "util";
 
@@ -34,54 +27,46 @@ export interface Registry {
   /** Returns the published versions in any order, or none when the extension is unpublished. */
   listVersions(): Promise<string[]>;
   publish(vsixPath: string): Promise<void>;
-  /** Permanently deletes one version. Its number can never be published again. */
-  deleteVersion(version: string): Promise<void>;
 }
 
 /** Process and output boundaries of the operations, replaced in tests. */
 export interface OpsContext {
   manifest: ExtensionManifest;
   registries: readonly Registry[];
+  /** Whether the job can request an OIDC ID token, which trusted publishing exchanges. */
+  trustedPublishing: boolean;
   /** Packages the extension and returns the VSIX path. */
   packageVsix(preRelease: boolean): Promise<string>;
-  /** Exports a trusted publishing Open VSX token to later GitHub Actions steps. */
-  exportOpenVsxToken(): Promise<void>;
   log(message: string): void;
 }
 
-/** Runs a command with inherited output and extra environment, and rejects when it fails. */
+/** Runs a command with inherited output in a directory, and rejects when it fails. */
 export type CommandRunner = (
   command: string,
   args: readonly string[],
-  env?: NodeJS.ProcessEnv
+  cwd?: string
 ) => Promise<void>;
 
-/** Returns a Marketplace access token, signing the user in when needed. */
+/** Returns a short-lived publishing token. */
 export type TokenProvider = () => Promise<string>;
 
 export const usage = `Usage: npm run ops -- <command> [options]
 
 Commands:
   list                              Show the versions published to each registry.
-  publish [--dry-run] [--pre-release]
-                                    Package the package.json version and publish it to every
-                                    registry that does not have it yet.
-  delete-versions <version...> [--yes]
-  delete-versions --before <version> [--yes]
-                                    Permanently delete old versions. Without --yes, only shows
-                                    what would be deleted.
+  publish [--dry-run] [--pre-release] [--vsix <path>]
+                                    Package the package.json version, or take the VSIX at --vsix,
+                                    and publish it to every registry that does not have it yet,
+                                    with trusted publishing from GitHub Actions. --dry-run only
+                                    packages and reports.
   deprecate [--replacement <publisher.extension> | --setting <setting.id>] [--reason <text>]
-                                    Print deprecation requests to submit to each registry.
-  openvsx-token                     In GitHub Actions, exchange the job's OIDC token for an Open
-                                    VSX publishing token and export it to later steps as OVSX_PAT.`;
+                                    Print deprecation requests to submit to each registry.`;
 
 /** Options each command accepts; `--help` works with any of them. */
 const commandOptions: Readonly<Record<string, readonly string[]>> = {
   list: ["help"],
-  publish: ["dry-run", "pre-release", "help"],
-  "delete-versions": ["before", "yes", "help"],
+  publish: ["dry-run", "pre-release", "vsix", "help"],
   deprecate: ["replacement", "setting", "reason", "help"],
-  "openvsx-token": ["help"],
 };
 
 const marketplaceDiscussionUrl = "https://github.com/microsoft/vscode-discussions/discussions/1";
@@ -125,6 +110,8 @@ export async function listVersions(ctx: OpsContext): Promise<void> {
 export interface PublishOptions {
   dryRun: boolean;
   preRelease: boolean;
+  /** An already packaged VSIX of the version, such as a GitHub release's, to publish as is. */
+  vsixPath?: string;
 }
 
 /**
@@ -147,12 +134,19 @@ export function checkReleaseChannel(version: string, preRelease: boolean): void 
 }
 
 /**
- * Packages the package.json version once and publishes that VSIX to every registry missing it.
- * Rerunning after a partial failure only publishes to the registries that still need it.
+ * Packages the package.json version once, unless `options.vsixPath` names a VSIX of it, and
+ * publishes that VSIX to every registry missing it. Rerunning after a partial failure only
+ * publishes to the registries that still need it.
  */
 export async function publishVersion(ctx: OpsContext, options: PublishOptions): Promise<void> {
   const { version } = ctx.manifest;
   checkReleaseChannel(version, options.preRelease);
+  if (!options.dryRun && !ctx.trustedPublishing) {
+    throw new Error(
+      "Publishing uses trusted publishing only: run it in the Publish workflow, whose job has " +
+        "`id-token: write`. Use --dry-run to package and check the registries elsewhere."
+    );
+  }
   const pending: Registry[] = [];
   for (const registry of ctx.registries) {
     if ((await registry.listVersions()).includes(version)) {
@@ -161,11 +155,12 @@ export async function publishVersion(ctx: OpsContext, options: PublishOptions): 
       pending.push(registry);
     }
   }
-  // Package even when nothing is pending so the workflow can always upload the VSIX.
-  const vsixPath = await ctx.packageVsix(options.preRelease);
+  // Package even when nothing is pending so a dry run always checks packaging.
+  const vsixPath = options.vsixPath ?? (await ctx.packageVsix(options.preRelease));
   if (options.dryRun) {
     const targets = pending.map((registry): string => registry.name).join(", ") || "no registry";
-    ctx.log(`Dry run: packaged ${vsixPath}; would publish ${version} to ${targets}.`);
+    const source = options.vsixPath ? "using" : "packaged";
+    ctx.log(`Dry run: ${source} ${vsixPath}; would publish ${version} to ${targets}.`);
     return;
   }
   // One registry failing should not stop the other from getting the release.
@@ -180,79 +175,6 @@ export async function publishVersion(ctx: OpsContext, options: PublishOptions): 
   }
   if (failures.length > 0) {
     throw new Error(`Publishing ${version} failed. ${failures.join(" ")}`);
-  }
-}
-
-/** Options for {@link deleteVersions}; pass either `versions` or `before`. */
-export interface DeleteOptions {
-  versions: readonly string[];
-  before?: string;
-  confirm: boolean;
-}
-
-/**
- * Permanently deletes versions from every registry that has them. Refuses the package.json version
- * and each registry's latest version so users can always install the current release. Without
- * `confirm`, only logs the plan.
- */
-export async function deleteVersions(ctx: OpsContext, options: DeleteOptions): Promise<void> {
-  if (options.versions.length > 0 === (options.before !== undefined)) {
-    throw new Error("Pass the versions to delete or --before <version>, but not both.");
-  }
-  [...options.versions, ...(options.before ? [options.before] : [])].forEach(parseVersion);
-
-  const plans: { registry: Registry; versions: string[] }[] = [];
-  const found = new Set<string>();
-  for (const registry of ctx.registries) {
-    const published = sortVersionsDescending(await registry.listVersions());
-    const before = options.before;
-    const selected = before
-      ? published.filter((version): boolean => compareVersions(version, before) < 0)
-      : sortVersionsDescending(options.versions).filter((v): boolean => published.includes(v));
-    const kept = new Set([ctx.manifest.version, ...published.slice(0, 1)]);
-    const refused = selected.filter((version): boolean => kept.has(version));
-    if (refused.length > 0) {
-      throw new Error(
-        `Refusing to delete ${refused.join(", ")} from ${registry.name}: the latest published ` +
-          "version and the package.json version must stay installable. Nothing was deleted."
-      );
-    }
-    selected.forEach((version): Set<string> => found.add(version));
-    plans.push({ registry, versions: selected });
-  }
-
-  const missing = options.versions.filter((version): boolean => !found.has(version));
-  if (missing.length > 0) {
-    ctx.log(`Not published to any registry: ${missing.join(", ")}.`);
-  }
-  if (found.size === 0) {
-    ctx.log("Nothing to delete.");
-    return;
-  }
-  for (const { registry, versions } of plans) {
-    ctx.log(`${registry.name}: ${versions.length > 0 ? versions.join(", ") : "nothing to delete"}`);
-  }
-  if (!options.confirm) {
-    ctx.log(
-      "Dry run: deleting is permanent and the version numbers can never be reused. " +
-        "Rerun with --yes to delete."
-    );
-    return;
-  }
-
-  const failures: string[] = [];
-  for (const { registry, versions } of plans) {
-    for (const version of versions) {
-      try {
-        await registry.deleteVersion(version);
-        ctx.log(`Deleted ${version} from ${registry.name}.`);
-      } catch (error) {
-        failures.push(`${registry.name} ${version}: ${errorMessage(error)}`);
-      }
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(`Some versions were not deleted. ${failures.join(" ")}`);
   }
 }
 
@@ -311,11 +233,10 @@ export async function main(argv: readonly string[], ctx: OpsContext): Promise<vo
     options: {
       "dry-run": { type: "boolean", default: false },
       "pre-release": { type: "boolean", default: false },
-      yes: { type: "boolean", default: false },
-      before: { type: "string" },
       replacement: { type: "string" },
       setting: { type: "string" },
       reason: { type: "string" },
+      vsix: { type: "string" },
       help: { type: "boolean", default: false },
     },
   });
@@ -324,7 +245,7 @@ export async function main(argv: readonly string[], ctx: OpsContext): Promise<vo
     ctx.log(usage);
     return;
   }
-  if (command !== "delete-versions" && args.length > 0) {
+  if (args.length > 0) {
     throw new Error(`Unexpected arguments: ${args.join(" ")}\n\n${usage}`);
   }
   // Reject options meant for another command, e.g. --yes on publish, rather than ignore them.
@@ -338,33 +259,17 @@ export async function main(argv: readonly string[], ctx: OpsContext): Promise<vo
     case "list":
       return listVersions(ctx);
     case "publish":
-      return publishVersion(ctx, { dryRun: values["dry-run"], preRelease: values["pre-release"] });
-    case "delete-versions":
-      return deleteVersions(ctx, { versions: args, before: values.before, confirm: values.yes });
+      return publishVersion(ctx, {
+        dryRun: values["dry-run"],
+        preRelease: values["pre-release"],
+        vsixPath: values.vsix,
+      });
     case "deprecate":
       ctx.log(deprecationRequests(ctx.manifest, values));
       return;
-    case "openvsx-token":
-      return ctx.exportOpenVsxToken();
     default:
       throw new Error(command ? `Unknown command "${command}".\n\n${usage}` : usage);
   }
-}
-
-function requireToken(token: string | undefined, variable: string, registry: string): string {
-  if (!token) {
-    throw new Error(`Set ${variable} to a ${registry} access token.`);
-  }
-  return token;
-}
-
-/** Returns the access token, asking the provider for one when the registry has no fixed token. */
-async function resolveToken(
-  token: string | TokenProvider | undefined,
-  variable: string,
-  registry: string
-): Promise<string> {
-  return requireToken(typeof token === "function" ? await token() : token, variable, registry);
 }
 
 /** Requests a GitHub Actions OIDC ID token for `audience`; the job needs `id-token: write`. */
@@ -428,32 +333,6 @@ export function openVsxTrustedPublishing(
   };
 }
 
-/**
- * Exports an Open VSX token to the later steps of a GitHub Actions job as `OVSX_PAT`, for tools
- * that only read a token from the environment, such as semantic-release-vsce.
- *
- * @param provider Issues the token, such as `openVsxTrustedPublishing()`.
- * @param env The process environment; `GITHUB_ENV` names the file later steps read.
- * @param appendFile Appends to a file.
- * @param log Writes a line to the job log.
- */
-export async function exportOpenVsxToken(
-  provider: TokenProvider,
-  env: NodeJS.ProcessEnv,
-  appendFile: (file: string, data: string) => void = appendFileSync,
-  log: (message: string) => void = console.log
-): Promise<void> {
-  const envFile = env.GITHUB_ENV;
-  if (!envFile) {
-    throw new Error("openvsx-token only runs in GitHub Actions, which sets GITHUB_ENV.");
-  }
-  const token = await provider();
-  // Mask the token first so no later log line can reveal it.
-  log(`::add-mask::${token}`);
-  appendFile(envFile, `OVSX_PAT=${token}\n`);
-  log("Exported a trusted publishing Open VSX token as OVSX_PAT.");
-}
-
 /** The JSON fields ops.ts reads from Open VSX responses. */
 interface OpenVsxBody {
   error?: string;
@@ -463,16 +342,14 @@ interface OpenVsxBody {
   versions?: Record<string, string>;
 }
 
-/**
- * Open VSX through its REST API, which is what the ovsx CLI calls. See
- * https://github.com/eclipse-openvsx/openvsx/wiki/Deleting-Extensions.
- */
+/** Open VSX through its REST API, which is what the ovsx CLI calls. */
 export class OpenVsxRegistry implements Registry {
   readonly name = "Open VSX";
 
   constructor(
     private readonly manifest: ExtensionManifest,
-    private readonly token: string | TokenProvider | undefined,
+    /** Issues the publishing token, such as {@link openVsxTrustedPublishing}. */
+    private readonly token: TokenProvider,
     private readonly fetchFn: typeof fetch = fetch,
     private readonly baseUrl = OPEN_VSX_URL
   ) {}
@@ -481,7 +358,7 @@ export class OpenVsxRegistry implements Registry {
     const { publisher, name } = this.manifest;
     const versions: string[] = [];
     // The registry returns at most 100 versions per page.
-    for (let total = Infinity; versions.length < total; ) {
+    for (let total = Infinity; versions.length < total;) {
       const response = await this.fetchFn(
         `${this.baseUrl}/api/${publisher}/${name}/versions?size=100&offset=${versions.length}`
       );
@@ -500,7 +377,7 @@ export class OpenVsxRegistry implements Registry {
   }
 
   async publish(vsixPath: string): Promise<void> {
-    const token = await resolveToken(this.token, "OVSX_PAT", this.name);
+    const token = await this.token();
     const response = await this.fetchFn(
       `${this.baseUrl}/api/-/publish?token=${encodeURIComponent(token)}`,
       {
@@ -510,20 +387,6 @@ export class OpenVsxRegistry implements Registry {
       }
     );
     await this.readBody(response, "publish");
-  }
-
-  async deleteVersion(version: string): Promise<void> {
-    const { publisher, name } = this.manifest;
-    const token = await resolveToken(this.token, "OVSX_PAT", this.name);
-    const response = await this.fetchFn(
-      `${this.baseUrl}/api/${publisher}/${name}/delete?token=${encodeURIComponent(token)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{ version }]),
-      }
-    );
-    await this.readBody(response, `delete ${version}`);
   }
 
   /** Rejects failed requests without including the URL, which carries the token. */
@@ -542,39 +405,17 @@ export class OpenVsxRegistry implements Registry {
   }
 }
 
-/** Deletes a Marketplace version; separate so tests do not reach the gallery API. */
-export type MarketplaceVersionDeleter = (
-  token: string,
-  publisher: string,
-  name: string,
-  version: string
-) => Promise<void>;
-
-/** Deletes a version through the gallery API, authenticating the same way as vsce. */
-export const deleteMarketplaceVersion: MarketplaceVersionDeleter = async (
-  token,
-  publisher,
-  name,
-  version
-): Promise<void> => {
-  const gallery = new GalleryApi("https://marketplace.visualstudio.com", [
-    getBasicHandler("OAuth", token),
-  ]);
-  await gallery.deleteExtension(publisher, name, version);
-};
-
-/** The Visual Studio Marketplace, through its public gallery query and vsce. */
+/**
+ * The Visual Studio Marketplace, through its public gallery query and vsce, which publishes with a
+ * short-lived credential exchanged for the GitHub Actions OIDC ID token.
+ */
 export class MarketplaceRegistry implements Registry {
   readonly name = "Visual Studio Marketplace";
 
   constructor(
     private readonly manifest: ExtensionManifest,
-    private readonly token: string | TokenProvider | undefined,
     private readonly run: CommandRunner,
-    private readonly fetchFn: typeof fetch = fetch,
-    private readonly deleter: MarketplaceVersionDeleter = deleteMarketplaceVersion,
-    /** Publishes with a short-lived credential exchanged for the GitHub Actions OIDC token. */
-    private readonly trustedPublishing = false
+    private readonly fetchFn: typeof fetch = fetch
   ) {}
 
   async listVersions(): Promise<string[]> {
@@ -605,22 +446,7 @@ export class MarketplaceRegistry implements Registry {
   }
 
   async publish(vsixPath: string): Promise<void> {
-    const args = ["--no-install", "vsce", "publish", "--packagePath", vsixPath];
-    if (this.trustedPublishing) {
-      await this.run("npx", [...args, "--oidc"]);
-      return;
-    }
-    // vsce reads the token from VSCE_PAT, which keeps it out of the process arguments.
-    await this.run("npx", args, { VSCE_PAT: await this.resolveToken() });
-  }
-
-  async deleteVersion(version: string): Promise<void> {
-    const { publisher, name } = this.manifest;
-    await this.deleter(await this.resolveToken(), publisher, name, version);
-  }
-
-  private resolveToken(): Promise<string> {
-    return resolveToken(this.token, "VSCE_PAT", this.name);
+    await this.run("npx", ["--no-install", "vsce", "publish", "--packagePath", vsixPath, "--oidc"]);
   }
 }
 
@@ -634,10 +460,10 @@ export function readManifest(root: string): ExtensionManifest {
 }
 
 /** Spawns a command with inherited output. */
-export const runCommand: CommandRunner = (command, args, env = {}) =>
+export const runCommand: CommandRunner = (command, args, cwd) =>
   new Promise<void>((resolve, reject): void => {
     const child = spawn(command, args, {
-      env: { ...process.env, ...env },
+      cwd,
       stdio: "inherit",
       shell: process.platform === "win32",
     });
@@ -651,55 +477,24 @@ export const runCommand: CommandRunner = (command, args, env = {}) =>
     });
   });
 
-/** Azure DevOps, whose Microsoft Entra tokens the Marketplace accepts in place of a PAT. */
-const AZURE_DEVOPS_SCOPE = "499b84ac-1321-427f-aa17-267ca6975798/.default";
-
-/**
- * Signs the user in with a Microsoft account, once per run. A device code works without a local
- * browser, so the sign-in page can be opened on any device.
- */
-export function deviceCodeSignIn(tenantId = "common", log = console.log): TokenProvider {
-  let token: Promise<string> | undefined;
-  return (): Promise<string> => {
-    token ??= new DeviceCodeCredential({
-      tenantId,
-      userPromptCallback: (info): void => log(info.message),
-    })
-      .getToken(AZURE_DEVOPS_SCOPE)
-      .then((accessToken): string => accessToken.token);
-    return token;
-  };
-}
-
 /** Builds the production context for the repository at `root`. */
 export function createContext(root: string, env: NodeJS.ProcessEnv = process.env): OpsContext {
   const manifest = readManifest(root);
   return {
     manifest,
     registries: [
-      new OpenVsxRegistry(
-        manifest,
-        env.OVSX_PAT ||
-          (env.GITHUB_ACTIONS === "true" ? openVsxTrustedPublishing(manifest, env) : undefined)
-      ),
-      new MarketplaceRegistry(
-        manifest,
-        env.VSCE_PAT ||
-          (env.GITHUB_ACTIONS === "true" ? undefined : deviceCodeSignIn(env.AZURE_TENANT_ID)),
-        runCommand,
-        fetch,
-        deleteMarketplaceVersion,
-        env.GITHUB_ACTIONS === "true" && !env.VSCE_PAT
-      ),
+      new OpenVsxRegistry(manifest, openVsxTrustedPublishing(manifest, env)),
+      new MarketplaceRegistry(manifest, runCommand),
     ],
+    trustedPublishing: Boolean(
+      env.ACTIONS_ID_TOKEN_REQUEST_URL && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    ),
     packageVsix: async (preRelease): Promise<string> => {
       const vsixPath = path.join(root, `${manifest.name}-${manifest.version}.vsix`);
       const args = ["--no-install", "vsce", "package", "--out", vsixPath];
-      await runCommand("npx", preRelease ? [...args, "--pre-release"] : args);
+      await runCommand("npx", preRelease ? [...args, "--pre-release"] : args, root);
       return vsixPath;
     },
-    exportOpenVsxToken: (): Promise<void> =>
-      exportOpenVsxToken(openVsxTrustedPublishing(manifest, env), env),
     log: (message): void => console.log(message),
   };
 }
