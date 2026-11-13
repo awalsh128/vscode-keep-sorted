@@ -13,7 +13,10 @@ import {
   onEnabledChange,
   onExcludeChange,
   onLogFilepathChange,
+  onSettingsChange,
   scanExcludeGlob,
+  userSettings,
+  wrapPreferencesProblems,
 } from "../configuration";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -33,6 +36,11 @@ describe("configuration", () => {
 
   afterEach(() => {
     sandbox.restore();
+    // Reload the cached configuration from the real settings so stubbed values from this test
+    // never reach later suites, such as the language model tools reading wrap preferences.
+    handleConfigurationChange({
+      affectsConfiguration: (section: string) => section === KEEP_SORTED_CONFIG_NAMESPACE,
+    });
   });
 
   // VS Code configuration properties follow JSON Schema 7
@@ -88,6 +96,7 @@ describe("configuration", () => {
         "keep-sorted.autoComplete",
         "keep-sorted.exclude",
         "keep-sorted.logFilepath",
+        "keep-sorted.wrap.preferences",
       ]);
       expect(packageJson.contributes.configurationDefaults).to.equal(undefined);
     });
@@ -97,6 +106,7 @@ describe("configuration", () => {
       { key: "autoComplete", defaultValue: true, order: 2, guidance: "documentation tooltips" },
       { key: "exclude", defaultValue: [], order: 3, guidance: "regular expressions first" },
       { key: "logFilepath", defaultValue: "", order: 4, guidance: "first workspace folder" },
+      { key: "wrap.preferences", defaultValue: {}, order: 5, guidance: "`null` removes" },
     ].forEach(({ key, defaultValue, order, guidance }): void => {
       it(`should expose current defaults and guidance for ${key}`, (): void => {
         // Arrange
@@ -251,6 +261,11 @@ describe("configuration", () => {
         globalValue: undefined,
         workspaceValue: undefined,
       });
+      configStub.inspect.withArgs("wrap.preferences").returns({
+        defaultValue: {},
+        globalValue: undefined,
+        workspaceValue: undefined,
+      });
       // VS Code's get() handles type coercion - returns effective value
       configStub.get.callsFake((key: string, defaultVal: unknown) => {
         if (key === "enabled") {
@@ -277,6 +292,7 @@ describe("configuration", () => {
       configStub.inspect.withArgs("autoComplete").returns({ defaultValue: true });
       configStub.inspect.withArgs("exclude").returns({ defaultValue: [] });
       configStub.inspect.withArgs("logFilepath").returns({ defaultValue: "" });
+      configStub.inspect.withArgs("wrap.preferences").returns({ defaultValue: {} });
 
       // Valid glob patterns that would fail as RegExp but work with glob-regex
       const globPatterns = ["**/*.ts", "**/node_modules/**"];
@@ -301,6 +317,7 @@ describe("configuration", () => {
       configStub.inspect.withArgs("autoComplete").returns({ defaultValue: true });
       configStub.inspect.withArgs("exclude").returns({ defaultValue: [] });
       configStub.inspect.withArgs("logFilepath").returns({ defaultValue: "" });
+      configStub.inspect.withArgs("wrap.preferences").returns({ defaultValue: {} });
 
       // Invalid pattern: unclosed bracket is neither valid regex nor glob
       const invalidPatterns = ["[invalid"];
@@ -492,6 +509,7 @@ describe("configuration", () => {
         autoComplete?: boolean;
         exclude?: string[];
         logFilepath?: string;
+        wrapPreferences?: unknown;
       }): void {
         for (const [key, defaultValue] of PROPERTY_DEFAULTS) {
           configStub.inspect.withArgs(key).returns({ defaultValue: defaultValue });
@@ -508,6 +526,9 @@ describe("configuration", () => {
           }
           if (key === "logFilepath" && values.logFilepath !== undefined) {
             return values.logFilepath;
+          }
+          if (key === "wrap.preferences" && values.wrapPreferences !== undefined) {
+            return values.wrapPreferences;
           }
           return defaultVal;
         });
@@ -732,6 +753,28 @@ describe("configuration", () => {
         disposables.forEach((d) => d.dispose());
       });
 
+      it("should fire onSettingsChange and report problems for invalid parts", () => {
+        // Arrange
+        setupConfigStubs({});
+        const mockEvent = {
+          affectsConfiguration: (section: string) =>
+            section.startsWith(KEEP_SORTED_CONFIG_NAMESPACE),
+        } as vscode.ConfigurationChangeEvent;
+        handleConfigurationChange(mockEvent);
+        const spy = sandbox.spy();
+        const disposable = onSettingsChange(spy);
+        setupConfigStubs({ wrapPreferences: { options: { case: "no", sort: "yes" } } });
+
+        // Act
+        handleConfigurationChange(mockEvent);
+
+        // Assert
+        expect(spy).to.have.been.calledOnceWith(mockEvent);
+        expect(wrapPreferencesProblems().join(" ")).to.include('Unknown option "sort"');
+
+        disposable.dispose();
+      });
+
       it("should not fire any events when configuration section is not affected", () => {
         // Arrange
         const enabledChangeSpy = sandbox.spy();
@@ -770,6 +813,7 @@ describe("configuration", () => {
         enabled: true,
         autoComplete: true,
         exclude: ["pattern1", "pattern2"],
+        wrapPreferences: {},
       };
 
       // Assert
@@ -784,6 +828,7 @@ describe("configuration", () => {
         enabled: true,
         autoComplete: false,
         exclude: [],
+        wrapPreferences: {},
       };
 
       // Assert - TypeScript enforces readonly at compile time
@@ -800,16 +845,50 @@ describe("configuration", () => {
         autoComplete: true,
         exclude: [],
         logFilepath: "logs/keep-sorted.log",
+        wrapPreferences: {},
       };
       const configWithoutLog: KeepSortedConfiguration = {
         enabled: true,
         autoComplete: true,
         exclude: [],
+        wrapPreferences: {},
       };
 
       // Assert
       expect(configWithLog.logFilepath).to.equal("logs/keep-sorted.log");
       expect(configWithoutLog.logFilepath).to.equal(undefined);
+    });
+  });
+
+  describe("wrap.preferences", () => {
+    it("should merge user and workspace values key by key", async function () {
+      // Arrange
+      this.timeout(10000);
+      const config = vscode.workspace.getConfiguration(KEEP_SORTED_CONFIG_NAMESPACE);
+      const global = vscode.ConfigurationTarget.Global;
+      const folder = vscode.ConfigurationTarget.Workspace;
+      try {
+        await config.update(
+          "wrap.preferences",
+          { options: { case: "no", numeric: "yes" } },
+          global
+        );
+        await config.update("wrap.preferences", { options: { case: "yes" } }, folder);
+
+        // Act
+        const merged = vscode.workspace
+          .getConfiguration(KEEP_SORTED_CONFIG_NAMESPACE)
+          .get("wrap.preferences");
+
+        // Assert
+        expect(merged).to.deep.equal({ options: { case: "yes", numeric: "yes" } });
+        expect(userSettings(["wrap.preferences", "exclude"])).to.deep.equal({
+          "keep-sorted.wrap.preferences": { options: { case: "no", numeric: "yes" } },
+        });
+      } finally {
+        await config.update("wrap.preferences", undefined, folder);
+        await config.update("wrap.preferences", undefined, global);
+      }
     });
   });
 });

@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { excluded, getConfig, scanExclude } from "./configuration";
 import { Benchmark, contextualizeLogger, logger, relevantDiagnostics } from "./instrumentation";
 import { KeepSorted } from "./keepsorted";
+import { isLintableText, MAX_SCAN_BYTES } from "./keepsortedbin";
 import { hasDirectives } from "./keepsortedopt";
 
 /**
@@ -139,8 +140,8 @@ export function rootPath(): string | undefined {
   return undefined;
 }
 
-/** Files larger than this are not read by the workspace scan; open documents are always linted. */
-export const MAX_SCAN_BYTES = 1024 * 1024;
+// The scan's size limit is shared with the MCP server's workspace sort.
+export { MAX_SCAN_BYTES } from "./keepsortedbin";
 
 /** Result of a completed workspace scan. */
 export interface ScanResult {
@@ -268,7 +269,7 @@ export class WorkspaceScanner {
       }
       const text = new TextDecoder().decode(await this.host.readFile(uri));
       // Skip text without directives and binary content.
-      return hasDirectives(text) && !text.includes("\0") ? text : undefined;
+      return isLintableText(text) ? text : undefined;
     } catch (err: Error | unknown) {
       contextualizeLogger(uri).debug(`Skipping unreadable file: ${String(err)}`);
       return undefined;

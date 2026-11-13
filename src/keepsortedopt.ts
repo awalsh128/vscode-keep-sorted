@@ -1,5 +1,5 @@
-import * as vscode from "vscode";
-import { extensionId } from "./instrumentation";
+// Type-only so this module, which the standalone MCP server bundles, never loads `vscode`.
+import type * as vscode from "vscode";
 
 /**
  * Matches a block's start directive after one of these comment markers:
@@ -22,6 +22,12 @@ const directiveOptsRegex = () => /([\w_]+)=((?:\[[^\]]*\])|(?:[^\s]+))/g;
 
 /** Text that every keep-sorted directive contains. */
 const DIRECTIVE_MARKER = "keep-sorted";
+
+/** Keep-sorted recognizes a block's start by this exact text, whatever comment precedes it. */
+export const START_DIRECTIVE = `${DIRECTIVE_MARKER} start`;
+
+/** Keep-sorted recognizes a block's end by this exact text, whatever comment precedes it. */
+export const END_DIRECTIVE = `${DIRECTIVE_MARKER} end`;
 
 /**
  * Determines whether text could contain keep-sorted directives. Used as a fast check before parsing
@@ -55,6 +61,9 @@ const BOOL_VALUES: ReadonlyMap<string, boolean> = new Map([
   ["no", false],
   ["false", false],
 ]);
+
+/** Every spelling keep-sorted accepts for a bool value. */
+export const BOOL_SPELLINGS: readonly string[] = [...BOOL_VALUES.keys()];
 
 /** Values suggested for bool-like options; `true`/`false` are accepted but not suggested. */
 const BOOL_SUGGESTIONS = ["yes", "no"] as const;
@@ -471,77 +480,70 @@ export function isValidCompletionPosition(
   return position.character >= startEndIndex;
 }
 
-const PARSE_ERRORMSG_SUFFIX = "Linting and fixes will still work but option will be ignored.";
+/** Option values keyed by option name, written as they appear on a block's start line. */
+export type OptionValues = Readonly<Record<string, string>>;
 
-function createDiagnostic(range: vscode.Range, message: string): vscode.Diagnostic {
-  const diagnostic = new vscode.Diagnostic(
-    range,
-    message + "\n" + PARSE_ERRORMSG_SUFFIX,
-    vscode.DiagnosticSeverity.Warning
-  );
-  diagnostic.source = extensionId.name;
-  return diagnostic;
-}
-
-/** Parses keep-sorted options from a line and returns parsed options and diagnostics for issues. */
-export function getDirectiveAndErrors(
-  lineText: string,
-  lineNum: number
-): { directive: Directive; diagnostics: vscode.Diagnostic[] } | undefined {
-  // Fast check for keep-sorted since this call is on the critical path
-  if (!hasDirectives(lineText)) {
-    return undefined;
-  }
-
-  const directive = Directive.create(lineText);
-  if (!directive) {
-    return undefined;
-  }
-
-  const diagnostics: vscode.Diagnostic[] = [];
-
-  for (const token of directive.malformed) {
-    // No equals sign - skip empty parts or trailing text
-    diagnostics.push(
-      createDiagnostic(
-        new vscode.Range(lineNum, 0, lineNum, lineText.length),
-        `Invalid keep-sorted option format: "${token}". Expected format is key=value.`
-      )
-    );
-  }
-
-  for (const token of directive.wellformed) {
-    const option = KEEP_SORTED_OPTS.get(token.key);
+/**
+ * Validates options before they are written to a start line, so callers such as AI tools can report
+ * every problem at once with the valid choices.
+ *
+ * @param options Option values keyed by option name.
+ *
+ * @returns Problems found, each naming the valid keys or values; empty when all options are valid.
+ */
+export function validateOptions(options: OptionValues): string[] {
+  const problems: string[] = [];
+  const keys = Object.keys(options);
+  for (const key of keys) {
+    const option = KEEP_SORTED_OPTS.get(key);
     if (!option) {
-      diagnostics.push(
-        createDiagnostic(
-          new vscode.Range(lineNum, token.index, lineNum, token.index + token.text.length),
-          `Unrecognized keep-sorted option: "${token.key}"`
-        )
+      problems.push(
+        `Unknown option "${key}". Valid options: ${[...KEEP_SORTED_OPTS.keys()].join(", ")}.`
       );
       continue;
     }
-    if (option.parseValue(token.value) instanceof Error) {
-      diagnostics.push(
-        createDiagnostic(
-          new vscode.Range(lineNum, token.index, lineNum, lineText.length),
-          `Invalid value for keep-sorted option "${token.key}": "${token.value}".`
-        )
+    const value = options[key];
+    if (typeof value !== "string") {
+      problems.push(
+        `Option "${key}" must be a string such as ${option.examples?.[0] ?? "key=value"}.`
       );
+      continue;
+    }
+    // A start line separates options with whitespace, so only YAML lists may contain spaces.
+    if (/\s/.test(value) && !isYamlList(value)) {
+      problems.push(
+        `Option "${key}" value "${value}" contains whitespace; use a YAML list such as [a, b].`
+      );
+      continue;
+    }
+    const parsed = option.parseValue(value);
+    if (parsed instanceof Error) {
+      const valid = option.values ? ` Valid values: ${option.values.join(", ")}.` : "";
+      problems.push(`Option "${key}": ${parsed.message}${valid}`);
     }
   }
-
-  return { directive, diagnostics };
+  for (const key of keys) {
+    for (const conflict of KEEP_SORTED_OPTS.get(key)?.conflicts ?? []) {
+      // Report each conflicting pair once, from the key that sorts first.
+      if (key < conflict && keys.includes(conflict)) {
+        problems.push(`Options "${key}" and "${conflict}" conflict; use only one.`);
+      }
+    }
+  }
+  return problems;
 }
 
-/** Validates keep-sorted options and returns diagnostics for any issues found. */
-export function validateOptionsInFile(document: vscode.TextDocument): vscode.Diagnostic[] {
-  const diagnostics: vscode.Diagnostic[] = [];
-  for (let lineNum = 0; lineNum < document.lineCount; lineNum++) {
-    const result = getDirectiveAndErrors(document.lineAt(lineNum).text, lineNum);
-    if (result) {
-      diagnostics.push(...result.diagnostics);
-    }
-  }
-  return diagnostics;
+/**
+ * Formats options as they appear after `start` on a block's start line, in the order of
+ * `KEEP_SORTED_OPTS` so the same options always produce the same text.
+ *
+ * @param options Valid option values keyed by option name.
+ *
+ * @returns Space-separated `key=value` pairs, or an empty string when there are none.
+ */
+export function formatOptions(options: OptionValues): string {
+  return [...KEEP_SORTED_OPTS.keys()]
+    .filter((key) => options[key] !== undefined)
+    .map((key) => `${key}=${options[key]}`)
+    .join(" ");
 }

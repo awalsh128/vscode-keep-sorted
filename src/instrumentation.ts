@@ -3,6 +3,7 @@ import * as path from "path";
 import * as tb from "triple-beam";
 import * as vscode from "vscode";
 import * as winston from "winston";
+import { errorMessage } from "./common";
 import * as workspace from "./workspace";
 import TransportStream = require("winston-transport");
 import type { TransformableInfo } from "logform";
@@ -106,7 +107,7 @@ export class ExtensionId {
       logger.error(`Extension version check failed with HTTP response ${res.status} @ ${url}`);
       return true;
     } catch (err: Error | unknown) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       logger.error(`Extension version check failed with error message '${message}' @ ${url}`);
       return true; // network error / timeout → assume published
     }

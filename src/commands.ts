@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { errorMessage } from "./common";
 import { contextualizeLogger, extensionId, logAndGetError, logger } from "./instrumentation";
 import * as workspace from "./workspace";
 
@@ -38,9 +39,7 @@ export abstract class CommandHandler implements workspace.Registrant {
         await this.handle(...args);
       } catch (err: Error | unknown) {
         logger.error(err);
-        vscode.window.showErrorMessage(
-          `${this.command.title}: ${err instanceof Error ? err.message : String(err)}`
-        );
+        vscode.window.showErrorMessage(`${this.command.title}: ${errorMessage(err)}`);
       }
     });
   }

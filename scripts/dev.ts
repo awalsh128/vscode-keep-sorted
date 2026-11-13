@@ -100,8 +100,8 @@ export async function launchDevelopment(
 /** Reads a repository file by its path relative to the repository root. */
 export type ReadFile = (relativePath: string) => string;
 
-/** Documents whose `vX.Y.Z` versions must name the bundled keep-sorted version. */
-export const VERSIONED_DOCS = ["README.md", "docs/SOURCE_CODE.md"];
+/** Files whose `vX.Y.Z` versions must name the bundled keep-sorted version. */
+export const VERSIONED_DOCS = ["README.md", "docs/SOURCE_CODE.md", "src/keepsortedbin.ts"];
 
 /** Checks that the docs name the keep-sorted version that `create-binaries.ts` builds. */
 export function checkBundledVersion(read: ReadFile, docs: string[] = VERSIONED_DOCS): string[] {
@@ -119,6 +119,20 @@ export function checkBundledVersion(read: ReadFile, docs: string[] = VERSIONED_D
 }
 
 /**
+ * Gets the `KeepSortedConfiguration` member for a setting: dotted names such as
+ * `keep-sorted.wrap.preferences` become camel case (`wrapPreferences`).
+ *
+ * @param setting The full setting name.
+ *
+ * @returns The interface member name.
+ */
+export function interfaceKey(setting: string): string {
+  return setting
+    .replace(/^keep-sorted\./, "")
+    .replace(/\.(\w)/g, (_, letter: string) => letter.toUpperCase());
+}
+
+/**
  * Checks that the settings in `package.json` match the README settings table, including defaults,
  * and the `KeepSortedConfiguration` interface.
  */
@@ -128,7 +142,7 @@ export function checkSettings(read: ReadFile): string[] {
     manifest.contributes.configuration.properties;
   // Settings table rows start with "| `keep-sorted.name` | `default` |".
   const readmeDefaults = new Map(
-    [...read("README.md").matchAll(/^\| `(keep-sorted\.\w+)`\s*\| `([^`]*)`/gm)].map(
+    [...read("README.md").matchAll(/^\| `(keep-sorted\.[\w.]+)`\s*\| `([^`]*)`/gm)].map(
       ([, name, value]) => [name, value]
     )
   );
@@ -152,7 +166,7 @@ export function checkSettings(read: ReadFile): string[] {
         `README.md: ${name} default is ${documented}, but package.json has ${expected}.`
       );
     }
-    const key = name.replace(/^keep-sorted\./, "");
+    const key = interfaceKey(name);
     if (!interfaceKeys.has(key)) {
       problems.push(`src/configuration.ts: KeepSortedConfiguration is missing ${key}.`);
     }
@@ -162,8 +176,9 @@ export function checkSettings(read: ReadFile): string[] {
       problems.push(`README.md: settings table lists ${name}, which package.json does not define.`);
     }
   }
+  const definedKeys = new Set(Object.keys(properties).map(interfaceKey));
   for (const key of interfaceKeys) {
-    if (!(`keep-sorted.${key}` in properties)) {
+    if (!definedKeys.has(key)) {
       problems.push(
         `src/configuration.ts: KeepSortedConfiguration has ${key}, which package.json does not define.`
       );
@@ -232,15 +247,17 @@ export function checkSettingsAccess(read: ReadFile, sourceFiles: string[]): stri
 }
 
 /**
- * Lists the extension's non-test TypeScript sources.
+ * Lists the extension's non-test TypeScript sources, including those in subfolders.
  *
  * @param root The repository root.
  *
  * @returns Paths relative to the repository root.
  */
 export function extensionSources(root: string): string[] {
-  return readdirSync(path.join(root, "src"))
-    .filter((name) => name.endsWith(".ts"))
+  // Recurse so feature folders such as src/ai are checked; tests are not extension sources.
+  return readdirSync(path.join(root, "src"), { recursive: true, encoding: "utf8" })
+    .map((name) => name.split(path.sep).join("/"))
+    .filter((name) => name.endsWith(".ts") && !name.startsWith("test/"))
     .map((name) => `src/${name}`);
 }
 
@@ -264,22 +281,16 @@ export function checkConsistency(read: ReadFile, sourceFiles: string[] = []): st
 /** Runs a command in the repository and throws if it cannot start or fails. */
 export type CommandRunner = (command: string, args: string[]) => void;
 
-/** Git hooks directory, committed so every clone shares the same hooks. */
-export const HOOKS_PATH = ".githooks";
-
 /**
- * Prepares a fresh clone for development: enables the repository's Git hooks, installs the
- * recommended VS Code extensions, and builds the extension. Dependencies must already be installed;
- * `npm run setup` installs them first.
+ * Prepares a fresh clone for development: installs the recommended VS Code extensions and builds
+ * the extension. Dependencies must already be installed; `npm run setup` installs them first, which
+ * also enables the Git hooks through husky's `prepare` script.
  */
 export function setupDev(
   read: ReadFile,
   run: CommandRunner,
   log: (message: string) => void = console.log
 ): void {
-  run("git", ["config", "core.hooksPath", HOOKS_PATH]);
-  log(`Git hooks enabled from ${HOOKS_PATH}/.`);
-
   const { recommendations = [] }: { recommendations?: string[] } = JSON.parse(
     read(".vscode/extensions.json")
   );

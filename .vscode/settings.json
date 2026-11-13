@@ -69,6 +69,7 @@
     "**/test/**",
     "test-workspace/**",
     "README.md",
+    "docs/ai/**",
     ".github/ISSUE_TEMPLATE/bug_report.yml"
   ],
   "better-todo-tree.filtering.excludeGlobs": ["**/node_modules/*/**", "**/docs/*/**"]

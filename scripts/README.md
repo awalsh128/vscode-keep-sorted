@@ -27,13 +27,14 @@ problem:
 - Commands in `package.json` are in the Command Palette menu and named in the README by ID and
   title.
 
-The `.githooks/pre-commit` hook runs it before each commit (and `.githooks/commit-msg` checks for
-Conventional Commits with commitlint), and CI runs it on pushes and pull requests to `main`. The
-check reads the working tree, not only staged changes.
+The [husky](https://typicode.github.io/husky/) `.husky/pre-commit` hook runs it before each commit
+(and `.husky/commit-msg` checks for Conventional Commits with commitlint), and CI runs it on pushes
+and pull requests to `main`. The check reads the working tree, not only staged changes.
 
-`npm run setup` (`npm install`, then `dev.ts setup`) prepares a fresh clone: it sets
-`core.hooksPath` to `.githooks`, installs the extensions recommended in `.vscode/extensions.json`
-with the `code` CLI (listing them instead if the CLI is unavailable), and compiles.
+`npm run setup` (`npm install`, then `dev.ts setup`) prepares a fresh clone: `npm install` runs the
+`prepare` script, which enables the husky hooks, then `dev.ts setup` installs the extensions
+recommended in `.vscode/extensions.json` with the `code` CLI (listing them instead if the CLI is
+unavailable) and compiles.
 
 ### `create-binaries.ts`
 

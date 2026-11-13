@@ -21,9 +21,10 @@ Before contributing, ensure you have:
    cd vscode-keep-sorted
    ```
 
-2. **Set up the clone**. This installs dependencies, enables the Git hooks (pre-commit runs
-   `npm run check`; commit-msg checks for Conventional Commits), installs the recommended VS Code
-   extensions, and builds the project:
+2. **Set up the clone**. This installs dependencies, which enables the
+   [husky](https://typicode.github.io/husky/) Git hooks (pre-commit runs `npm run check`; commit-msg
+   checks for Conventional Commits), installs the recommended VS Code extensions, and builds the
+   project:
 
    ```bash
    npm run setup
@@ -68,7 +69,7 @@ requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
    npm run compile   # Check for TypeScript errors
    npm test          # Run all tests (must pass)
    npm run test:scripts # Also run when changing scripts
-   npm run check     # Check that docs, settings, and commands agree
+   npm run check     # Check that docs, settings, and commands agree; generated agent docs are current
    ```
 
 5. **Update documentation** if needed:
@@ -90,6 +91,12 @@ separately when testing sort-on-save.
   sort-on-save test may wait up to 90 seconds while VS Code finishes installing save participants in
   an unfocused window.
 - Use VS Code's test runner for debugging tests
+- After changing the option metadata, the language table, or the AI tool specs, run `npm run gen:ai`
+  to regenerate `docs/ai/options.md`, the comment syntax table, and the
+  `keep-sorted.wrap.preferences` schema and `languageModelTools` in `package.json`; `npm run check`
+  fails until you do
+- Agent evals live in `src/test/ai/evals/`: `npm run test:ai-evals` runs the automated layer, and
+  its README describes manual agent runs
 
 ### Building Binaries
 
@@ -129,7 +136,7 @@ This downloads and builds binaries for all supported platforms.
 
 Releases are versioned by [semantic-release](https://semantic-release.gitbook.io/) from commit
 messages, so commits must follow [Conventional Commits](https://www.conventionalcommits.org/); the
-`commit-msg` hook installed by `npm run setup` checks them with commitlint.
+husky `commit-msg` hook, enabled by `npm install`, checks them with commitlint.
 
 | Commit                                                       | Calls for |
 | ------------------------------------------------------------ | --------- |

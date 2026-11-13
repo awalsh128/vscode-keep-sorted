@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { before, describe, it } from "mocha";
 import { builtinModules } from "module";
 import * as path from "path";
@@ -58,14 +58,21 @@ describe("extension package", (): void => {
     expect(packages).to.deep.equal([]);
   });
 
-  ["dist/extension.js", "bin/keep-sorted-linux-amd64", "package.json", "LICENSE.md"].forEach(
-    (file): void => {
-      it(`should include ${file}`, (): void => {
-        // Act & Assert
-        expect(files).to.include(file);
-      });
-    }
-  );
+  [
+    "dist/extension.js",
+    "dist/mcp.js",
+    "bin/keep-sorted-linux-amd64",
+    "package.json",
+    "LICENSE.md",
+    ...readdirSync(path.join(projectRoot, "docs", "ai"), { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith(".md"))
+      .map((file) => `docs/ai/${file.split(path.sep).join("/")}`),
+  ].forEach((file): void => {
+    it(`should include ${file}`, (): void => {
+      // Act & Assert
+      expect(files).to.include(file);
+    });
+  });
 
   [
     "out/",
@@ -73,9 +80,10 @@ describe("extension package", (): void => {
     "dist/extension.js.map",
     "src/",
     "scripts/",
-    "docs/",
+    "docs/SOURCE_CODE.md",
+    "docs/AI_GUIDELINES.md",
     ".claude/",
-    ".githooks/",
+    ".husky/",
   ].forEach((prefix): void => {
     it(`should exclude ${prefix}`, (): void => {
       // Act
@@ -84,5 +92,52 @@ describe("extension package", (): void => {
       // Assert
       expect(matches).to.deep.equal([]);
     });
+  });
+
+  ["extension.js", "mcp.js"].forEach((bundle): void => {
+    it(`should not require files beside dist/${bundle}, since only the bundle ships`, (): void => {
+      // Arrange
+      const code = readFileSync(path.join(projectRoot, "dist", bundle), "utf-8");
+
+      // Act
+      const relative = [...code.matchAll(/require\("(\.[^"]*)"\)/g)].map((match) => match[1]);
+
+      // Assert
+      expect(relative).to.deep.equal([]);
+    });
+  });
+
+  it("should keep vscode out of the MCP server, which runs outside VS Code", (): void => {
+    // Act
+    const code = readFileSync(path.join(projectRoot, "dist", "mcp.js"), "utf-8");
+
+    // Assert
+    expect(code).to.not.include('require("vscode")');
+  });
+
+  it("should start the bundled MCP server", function (): void {
+    // Arrange
+    this.timeout(20000);
+    const initialize = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "t", version: "1" },
+      },
+    });
+
+    // Act
+    const output = execSync(`node ${path.join("dist", "mcp.js")} --root .`, {
+      cwd: projectRoot,
+      input: `${initialize}\n`,
+      encoding: "utf-8",
+      timeout: 15000,
+    });
+
+    // Assert
+    expect(JSON.parse(output.split("\n")[0]).result.serverInfo.name).to.equal("keep-sorted");
   });
 });

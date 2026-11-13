@@ -1,28 +1,9 @@
-import { spawnSync } from "child_process";
 import * as crypto from "crypto";
 import * as path from "path";
 import * as vscode from "vscode";
-import {
-  Benchmark,
-  contextualizeLogger,
-  extensionId,
-  logAndGetError,
-  logger,
-} from "./instrumentation";
-import { hasDirectives } from "./keepsortedopt";
-
-/** Default process timeout for keep-sorted CLI execution. */
-const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
-
-function outputToString(value: string | Buffer | null | undefined): string {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (Buffer.isBuffer(value)) {
-    return value.toString("utf8");
-  }
-  return "";
-}
+import { oneLine } from "./common";
+import { contextualizeLogger, extensionId, logAndGetError, logger } from "./instrumentation";
+import { bundledBinaryPath, KeepSortedBinary, KeepSortedFinding } from "./keepsortedbin";
 
 /** Hash contents and return last 8 characters of the hash for brevity. */
 function hash(value: string): string {
@@ -33,27 +14,7 @@ function hash(value: string): string {
     .slice(256 / 4 - 8); // = (256 bits / 4 bits per hex char) - 8 char
 }
 
-/**
- * Keep Sorted finding in the JSON format reported by it's binary. Uses casing matching the binary's
- * output for deserialization.
- */
-export interface KeepSortedFinding {
-  path: string;
-  lines: {
-    start: number;
-    end: number;
-  };
-  message: string;
-  fixes: {
-    replacements: {
-      lines: {
-        start: number;
-        end: number;
-      };
-      new_content: string;
-    }[];
-  }[];
-}
+export type { KeepSortedFinding };
 
 class KeepSortedRange {
   readonly start: number;
@@ -83,51 +44,24 @@ class KeepSortedRange {
  * content). The binary path is memoized to avoid repeated platform detection on every invocation.
  */
 export class KeepSorted {
-  private readonly extensionPath: string;
-  private readonly binaryPath: string;
+  private readonly binary: KeepSortedBinary;
   private readonly binaryFilename: string;
 
   constructor(extensionPath: string) {
-    this.extensionPath = extensionPath;
     // Allow override for test/CI environments
     const override = process.env.KEEP_SORTED_BINARY;
-    if (override) {
-      this.binaryPath = path.resolve(override);
-      this.binaryFilename = path.basename(this.binaryPath);
-    } else {
-      const binaryInfo = this.getBundledBinaryPath();
-      this.binaryPath = binaryInfo.fullPath;
-      this.binaryFilename = binaryInfo.filename;
-    }
-  }
-
-  /** Gets the platform specific binary based on the extension runner's OS. */
-  private getBundledBinaryPath() {
-    const linuxBinary = "keep-sorted-linux-amd64";
     let binaryPath: string;
-    switch (process.platform) {
-      case "win32":
-        binaryPath = path.win32.join(this.extensionPath, "bin", "keep-sorted.exe");
-        break;
-      case "darwin": {
-        // Detect architecture for macOS
-        const darwinArch = process.arch === "arm64" ? "arm64" : "amd64";
-        binaryPath = path.join(this.extensionPath, "bin", `keep-sorted-darwin-${darwinArch}`);
-        break;
-      }
-      case "linux":
-        binaryPath = path.join(this.extensionPath, "bin", linuxBinary);
-        break;
-      default:
-        // Fallback to linux binary for unsupported platforms
+    if (override) {
+      binaryPath = path.resolve(override);
+    } else {
+      if (!["win32", "darwin", "linux"].includes(process.platform)) {
         logger.warn(`Unsupported platform ${process.platform}, falling back to linux binary`);
-        binaryPath = path.join(this.extensionPath, "bin", linuxBinary);
+      }
+      binaryPath = bundledBinaryPath(extensionPath);
+      logger.info(`Using keep-sorted binary at path: ${binaryPath}`);
     }
-    logger.info(`Using keep-sorted binary at path: ${binaryPath}`);
-    return {
-      fullPath: binaryPath,
-      filename: path.basename(binaryPath),
-    };
+    this.binary = new KeepSortedBinary(binaryPath);
+    this.binaryFilename = this.binary.filename;
   }
 
   getSingleReplacement(findings: KeepSortedFinding[]): string | null {
@@ -235,162 +169,30 @@ export class KeepSorted {
     const kpLogger = contextualizeLogger(document.uri);
     const documentText = document.getText();
     const hashValue = hash(documentText);
-
-    const { code, stdout, stderr } = this.spawnCommand(
-      ["--mode", "fix", "-"],
-      document.uri,
-      documentText
-    );
-    if (code === 1) {
+    const fixed = this.binary.fix(documentText, document.uri.fsPath, kpLogger);
+    if (fixed === null) {
       kpLogger.info(
         `${this.binaryFilename} found no issues to fix for document with hash ${hashValue}`
       );
       return null;
-    } else if (code === 0 && stdout) {
-      // Issues found and fixed, return fixed content
-      const newHash = hash(stdout);
-      kpLogger.info(
-        `${this.binaryFilename} fixed content with ` +
-          `original hash ${hashValue}, and new hash: ${newHash}`
-      );
-      return stdout;
     }
-    throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
+    kpLogger.info(oneLine`
+      ${this.binaryFilename} fixed content with original hash ${hashValue}, and new hash:
+      ${hash(fixed)}`);
+    return fixed;
   }
 
   private getFindings(documentUri: vscode.Uri, documentText: string): KeepSortedFinding[] {
     const kpLogger = contextualizeLogger(documentUri);
-    if (!hasDirectives(documentText)) {
-      kpLogger.trace(`No keep-sorted directives; skipped ${this.binaryFilename}.`);
-      return [];
+    try {
+      const findings = this.binary.lint(documentText, documentUri.fsPath, kpLogger);
+      kpLogger.traceLazy(
+        () => `${this.binaryFilename} findings: ${JSON.stringify(findings, null, 2)}`
+      );
+      return findings;
+    } catch (err: Error | unknown) {
+      // The runner already logged the failure with this document's context.
+      throw err instanceof Error ? err : logAndGetError(kpLogger, err);
     }
-    const { code, stdout, stderr } = this.spawnCommand(
-      ["--mode", "lint", "-"],
-      documentUri,
-      documentText
-    );
-    if (code === 0) {
-      // No issues found
-      return [];
-    } else if (code === 1 && stdout) {
-      // Issues found, parse JSON output
-      try {
-        const findings = JSON.parse(stdout);
-        kpLogger.traceLazy(
-          () => `${this.binaryFilename} findings: ${JSON.stringify(findings, null, 2)}`
-        );
-        return findings;
-      } catch (parseError) {
-        throw logAndGetError(kpLogger, `Failed to parse command output: ${parseError}`);
-      }
-    }
-    throw logAndGetError(kpLogger, `${this.binaryFilename} failed with code ${code}: ${stderr}`);
-  }
-
-  // Usage: keep-sorted [flags] file1 [file2 ...]
-  //
-  // Note that '-' can be used to read from stdin, in which case the output is written to stdout.
-  //
-  // Flags:
-  //       --color string              Whether to color debug output. One of "always", "never", or
-  //                                   "auto" (default "auto")
-  //       --default-options options   The options keep-sorted will use to sort. Per-block
-  //                                   overrides apply on top of these options. Note: list options
-  //                                   like prefix_order are not merged with per-block overrides.
-  //                                   They are completely overridden. (default
-  //                                   allow_yaml_lists=yes case=yes group=yes
-  //                                   remove_duplicates=yes sticky_comments=yes)
-  //       --lines line_ranges         Line ranges of the form "start:end". Only processes
-  //                                   keep-sorted blocks that overlap with the given line ranges.
-  //                                   Can only be used when fixing a single file. This flag can
-  //                                   either be a comma-separated list of line ranges, or it can
-  //                                   be specified multiple times on the command line to specify
-  //                                   multiple line ranges. (default [])
-  //       --mode mode                 Determines what mode to run this tool in.
-  //                                   One of ["fix", "lint"] (default fix)
-  //   -v, --verbose count             Log more verbosely
-  //       --version                   Report the keep-sorted version.
-  private spawnCommand(
-    args: string[],
-    uri: vscode.Uri,
-    stdin: string
-  ): { code: number; stdout: string; stderr: string } {
-    const spawnLogger = contextualizeLogger(uri);
-    // <binary> <args> <document paths>...
-    const command = `${this.binaryFilename} ${args.join(" ")} <text from ${uri.fsPath}>`;
-    spawnLogger.trace(`Spawning "${command}"`);
-
-    const benchmark = new Benchmark();
-
-    const result = spawnSync(this.binaryPath, args, {
-      input: stdin,
-      encoding: "utf8",
-      timeout: DEFAULT_COMMAND_TIMEOUT_MS,
-    });
-
-    const code = result.status;
-    const signal = result.signal ?? undefined;
-    const stdout = outputToString(result.stdout);
-    const stderr = outputToString(result.stderr);
-
-    const commandError = (
-      exitCode: number,
-      errorStderr: string,
-      errorSignal?: NodeJS.Signals
-    ): Error => {
-      const signalText = errorSignal ? ` (signal: ${errorSignal})` : "";
-      return new Error(
-        `Command failed: ${this.binaryPath} ${args.join(" ")}\n` +
-          `  stdout: ${stdout}\n` +
-          `  stderr: ${errorStderr}\n` +
-          `  exit code: ${exitCode}${signalText}`
-      );
-    };
-
-    if (result.error) {
-      const signalExitCode = signal ? 128 : 1;
-      const spawnError = commandError(
-        code ?? signalExitCode,
-        stderr || result.error.message,
-        signal
-      );
-      throw logAndGetError(
-        spawnLogger,
-        `${command} failed to spawn: ${spawnError.message} (time: ${benchmark.getDeltaAsText()})`
-      );
-    }
-
-    if (signal) {
-      const spawnError = commandError(
-        code ?? 128,
-        stderr || `Terminated by signal ${signal}`,
-        signal
-      );
-      throw logAndGetError(
-        spawnLogger,
-        `${command} terminated by signal ${signal}: ${spawnError.message}`
-      );
-    }
-
-    if (typeof code !== "number") {
-      const spawnError = commandError(
-        signal ? 128 : 1,
-        stderr || "Process exited without status",
-        signal
-      );
-      throw logAndGetError(
-        spawnLogger,
-        `${command} exited without status: ${spawnError.message} (time: ${benchmark.getDeltaAsText()})`
-      );
-    }
-
-    spawnLogger.debug(
-      `${command} exited (time: ${benchmark.getDeltaAsText()}, code: ${code}${signal ? `, signal: ${signal}` : ""})`
-    );
-    if (code !== 0 && code !== 1) {
-      spawnLogger.error(`${command} error output: ${stderr}`);
-    }
-
-    return { code, stdout, stderr };
   }
 }

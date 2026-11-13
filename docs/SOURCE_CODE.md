@@ -47,13 +47,15 @@ actions to maintain sorted content.
 ### Repository Layout
 
 ```
-.githooks/       — Git hooks enabled by npm run setup; pre-commit runs npm run check, commit-msg
-                   runs commitlint
+.husky/          — Git hooks enabled by husky on npm install; pre-commit runs npm run check,
+                   commit-msg runs commitlint
 bin/             — Bundled keep-sorted binaries and checksums
-docs/            — Architecture (this file) and AI development guidelines
+docs/            — Architecture (this file) and AI development guidelines; docs/ai/ holds the
+                   user-facing agent docs that ship in the VSIX
 images/          — Extension icon (logo.png, from logo.svg) and README media
 scripts/         — Development, binary build, release, and label sync scripts (own tsconfig.json)
-src/             — Extension source and tests (own tsconfig.json)
+src/             — Extension source and tests (own tsconfig.json); src/ai/ holds the AI agent
+                   features
 test-workspace/  — Fixture workspace for tests and npm run dev
 tsconfig.json    — Build entry point referencing src/ and scripts/
 tsconfig.base.json — Compiler options shared by both projects
@@ -258,11 +260,10 @@ avoiding startup timing failures without a fixed delay.
   save-action setup, autocomplete tooltips, regex-first exclusions, and logging paths. The
   configuration tests guard metadata/defaults and keep editor-owned save settings out of the
   extension's configuration properties. AGENTS.md defines the shared synchronization policy.
-- **Error Handling** (FIXED):
-  - Handles both invalid RegExp patterns AND glob patterns gracefully
-  - Logs warnings for malformed patterns
-  - Uses fallback no-match pattern `/(?!.*)/ ` for invalid inputs
-- **Dependencies**: Uses `glob-regex` for glob pattern conversion
+- **Exclusions**: `excluded()` matches the patterns compiled by [exclusion.ts](../src/exclusion.ts),
+  which the MCP server shares
+- **User-level mirror**: `userSettings()` returns user-scope values alone, and `onSettingsChange`
+  fires after any Keep Sorted setting changes in any scope, so `mcpinstall.ts` can mirror them
 
 ---
 
@@ -329,6 +330,35 @@ avoiding startup timing failures without a fixed delay.
 
 ---
 
+#### **keepsortedbin.ts** — Binary Runner
+
+- **Purpose**: Spawns the keep-sorted binary in lint or fix mode without importing `vscode`, so the
+  extension (through `KeepSorted`) and the MCP server share one runner
+- **Key Exports**: `KeepSortedBinary` (`lint()`, `fix()`, `run()`), `bundledBinaryPath()`,
+  `BUNDLED_KEEP_SORTED_VERSION` (checked against `create-binaries.ts` by `npm run check`),
+  `isLintableText()` and `MAX_SCAN_BYTES`, which the workspace scan and the MCP workspace sort
+  share. The binary's fix mode exits 0 and echoes already-sorted input.
+
+---
+
+#### **common.ts** — Shared Helpers
+
+- **Purpose**: Helpers without `vscode` imports: `isRecord()`, `errorMessage()`, `prettyJson()`,
+  `readJsonc()`, `writeFileAtomic()` for files another process reads, and the `oneLine`/`dedent`
+  template tags used instead of string concatenation
+
+---
+
+#### **exclusion.ts** — Exclude Patterns
+
+- **Purpose**: `keep-sorted.exclude` matching without `vscode` imports, shared by `configuration.ts`
+  and the MCP server
+- **Key Exports**: `compileExcludePatterns()` (each pattern is a regex, or a glob through
+  `glob-regex` when it is not a valid regex; invalid patterns warn and match nothing) and
+  `matchingExclude()` (matches the workspace-relative path, full path, or file name)
+
+---
+
 #### **keepsortedopt.ts** — Option Parsing & Validation
 
 - **Purpose**: Describes and parses keep-sorted directive options for autocomplete
@@ -341,8 +371,63 @@ avoiding startup timing failures without a fixed delay.
     comma lists, YAML lists, Go inline regex flags dropped before JavaScript validation)
   - `Directive`: Splits a block's start line into well-formed and malformed option tokens
   - `isValidCompletionPosition()`: Checks that the cursor follows `start`
-- **Diagnostics**: Option warnings shown in the editor come from the keep-sorted binary;
-  `getDirectiveAndErrors()` and `validateOptionsInFile()` are not wired into linting
+- **Validation and formatting**: `validateOptions()` reports unknown keys, bad values (listing the
+  valid ones), and conflicts; `formatOptions()` writes a start line's options in a stable order.
+  `START_DIRECTIVE`, `END_DIRECTIVE`, and `BOOL_SPELLINGS` are the shared directive text.
+- **No runtime `vscode` import**: the module imports `vscode` types only, because the MCP server
+  bundles it. The editor diagnostics `getDirectiveAndErrors()` and `validateOptionsInFile()` live in
+  [optiondiagnostics.ts](../src/optiondiagnostics.ts) and are not wired into linting; option
+  warnings shown in the editor come from the keep-sorted binary.
+
+---
+
+#### **ai/** — AI Agent Features
+
+Agents get guidance, preferences, and four tools (`keepSorted_getGuide`,
+`keepSorted_getPreferences`, `keepSorted_wrapRange`, `keepSorted_run`) through two front ends that
+share one implementation:
+
+```
+tools.ts (TOOL_SPECS, runTool, ToolHost)  ── no vscode ──┬─> lmtools.ts: VscodeToolHost + vscode.lm.registerTool
+   ├─> wrap.ts: comment syntax table, markers,          │      (Copilot; editor buffers, WorkspaceEdit, sort commands)
+   │     preferences schema and resolution               └─> mcp.ts: DiskToolHost + stdio MCP server
+   └─> docs.ts: guide topics, generated docs/ai parts            (other agents; files on disk; bundled as dist/mcp.js)
+```
+
+- **tools.ts**: Tool definitions (mirrored by `contributes.languageModelTools`; a test keeps them
+  equal), input validation, handlers, and confirmation text. `ToolInputError` messages are written
+  for the model: the VS Code front end throws them, the MCP front end returns them as `isError`.
+- **wrap.ts**: `LANGUAGES` (VS Code exposes no comment configuration), `wrapLines()` (refuses
+  comment-less formats, partial overlaps with blocks, and files with unpaired markers, which sorting
+  would delete), and `keep-sorted.wrap.preferences` parsing, merging, resolution, and its JSON
+  schema. Globs use picomatch's `isMatch`, since a bundled namespace import cannot be called.
+- **docs.ts**: Guide lookup, plus `docs/ai/options.md` and the comment syntax table generated from
+  code.
+- **manifest.ts**: Renders the AI parts of `package.json` from code: `languageModelTools` from
+  `TOOL_SPECS`, and the `keep-sorted.wrap.preferences` schema. The option layer is written once,
+  under `options`; `languages` and `files` refer to it with
+  `$ref: "#/properties/keep-sorted.wrap.preferences/properties/options"`, which VS Code resolves
+  against its settings schema in user and workspace `settings.json` files.
+- **gencli.ts**: `npm run gen:ai` writes the generated docs and manifest parts; `--check` (part of
+  `npm run check`) fails when any is stale. Kept apart because a `require.main` guard in a bundled
+  module would run in the MCP server.
+- **mcp.ts**: Resolves files under one root (`--root`, `CLAUDE_PROJECT_DIR`, or the working
+  directory), reads the mirrored user settings and the workspace's `.vscode/settings.json` (merging
+  wrap preferences key by key; a workspace `exclude` replaces the user one, as in VS Code), refuses
+  excluded files and files a live VS Code window holds unsaved, and sorts the workspace through
+  `git ls-files` or a directory walk.
+- **mcpinstall.ts**: After the user opts in, copies the server, docs, and platform binary to global
+  storage when the version changes, mirrors the user-level settings the server reads
+  (`user-settings.json`), and writes this window's unsaved files (`dirty-<pid>.json`). State files
+  are written atomically, since the server reads them from another process.
+- **instructions.ts**: **Keep Sorted: Add AI Instructions to Workspace**. Workspace files hold only
+  path-free content (AGENTS.md section, `.claude/skills/keep-sorted/SKILL.md`); MCP registration
+  holds a machine path, so it goes to user-level configuration. Every write follows a diff and a
+  modal confirmation; the UI is injected for tests.
+- **Bundling**: one esbuild command builds `dist/extension.js` and `dist/mcp.js` with
+  `--main-fields=module,main` (jsonc-parser's UMD build has dynamic requires). The packaging test
+  checks that neither bundle requires sibling files, that `dist/mcp.js` never requires `vscode`, and
+  that the bundled server answers `initialize`.
 
 ---
 
@@ -537,7 +622,7 @@ the source map. Extension tests activate the bundle, not `out/extension.js`. Ver
 1.0.1 shipped without their runtime packages and could not activate;
 [scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that the bundle requires
 no other package and that the `vsce ls` file list includes the bundle and excludes development
-directories such as `src/`, `out/`, `node_modules/`, and `.githooks/`.
+directories such as `src/`, `out/`, `node_modules/`, and `.husky/`.
 
 - **winston**, **winston-transport**, **triple-beam**: Structured logging
 - **glob-regex**: Convert glob patterns to regex

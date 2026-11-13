@@ -49,9 +49,16 @@ than adding a parallel version. Each concern has one owning module:
   [src/configuration.ts](src/configuration.ts). Other modules call its accessors; `npm run check`
   fails on `getConfiguration()` anywhere else. Editor-owned settings get accessors there but stay
   out of `KeepSortedConfiguration`.
-- Directive text and option parsing, including `hasDirectives()`:
+- Directive text and option parsing, including `hasDirectives()` and option validation:
   [src/keepsortedopt.ts](src/keepsortedopt.ts).
-- Running the keep-sorted binary: [src/keepsorted.ts](src/keepsorted.ts).
+- Running the keep-sorted binary: [src/keepsortedbin.ts](src/keepsortedbin.ts) (no `vscode` import),
+  adapted to documents and diagnostics by [src/keepsorted.ts](src/keepsorted.ts).
+- Helpers shared with the MCP server, such as `oneLine`, `dedent`, `errorMessage`, and
+  `writeFileAtomic`: [src/common.ts](src/common.ts). `keep-sorted.exclude` matching:
+  [src/exclusion.ts](src/exclusion.ts).
+- AI agent features: [src/ai/](src/ai). `tools.ts` defines the tools once for both front ends,
+  `lmtools.ts` (VS Code) and `mcp.ts` (MCP server). Modules the MCP server bundles must not import
+  `vscode`.
 - Writing diagnostics: `EditFactory` in [src/workspace.ts](src/workspace.ts).
 - Logging: [src/instrumentation.ts](src/instrumentation.ts).
 
@@ -75,6 +82,12 @@ Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md
 require `npm test`, `npm run lint`, `npm run compile`, and `npm run check`; run
 `npm run test:scripts` when scripts change. For documentation-only changes, validate examples,
 links, and configuration syntax; do not claim that runtime tests were run unless they were.
+
+## User-Facing Agent Docs
+
+[docs/ai/](docs/ai) ships in the VSIX for agents helping users of the extension; the tools return
+it. Keep contributor policy out of it, and keep it out of this file. `npm run gen:ai` regenerates
+its generated parts, and the AI parts of `package.json`.
 
 ## Agent Layout
 
