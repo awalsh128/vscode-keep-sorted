@@ -3,7 +3,7 @@ import { isRecord, oneLine, prettyJson } from "../common";
 import { BUNDLED_KEEP_SORTED_VERSION, KeepSortedFinding } from "../keepsortedbin";
 import { KEEP_SORTED_OPTS, OptionValues, validateOptions } from "../keepsortedopt";
 import { GUIDE_TOPICS, isGuideTopic, readGuide } from "./docs";
-import { resolveOptions, WrapError, wrapLines, WrapPreferences } from "./wrap";
+import { PreferencesResult, resolveOptions, WrapError, wrapLines } from "./wrap";
 
 /*
  * The agent tools, defined once for both front ends: lmtools.ts registers them as VS Code language
@@ -11,11 +11,48 @@ import { resolveOptions, WrapError, wrapLines, WrapPreferences } from "./wrap";
  * imports; each front end supplies a `ToolHost` for file access and sorting.
  */
 
-/** The MCP state file holding the user-level `keep-sorted.wrap.preferences`, written by VS Code. */
-export const USER_PREFERENCES_FILE = "user-preferences.json";
+/** The settings namespace, which prefixes each setting's key in settings.json files. */
+export const SETTINGS_SECTION = "keep-sorted";
 
-/** Prefix of the per-window MCP state files listing files with unsaved changes in VS Code. */
-export const DIRTY_FILE_PREFIX = "dirty-";
+/** The settings the MCP server reads, without the `keep-sorted.` prefix. */
+export const MIRRORED_SETTINGS = {
+  wrapPreferences: "wrap.preferences",
+  exclude: "exclude",
+} as const;
+
+/**
+ * The MCP state file holding the user-level values of `MIRRORED_SETTINGS`, written by VS Code in
+ * settings.json form, since the server reads workspace settings but cannot see user settings.
+ */
+export const USER_SETTINGS_FILE = "user-settings.json";
+
+const DIRTY_FILE = /^dirty-(\d+)\.json$/;
+
+/**
+ * Names the MCP state file listing a VS Code window's files with unsaved changes.
+ *
+ * @param pid The window's extension host process ID.
+ *
+ * @returns The file name.
+ */
+export function dirtyFileName(pid: number): string {
+  return `dirty-${pid}.json`;
+}
+
+/**
+ * Reads the process ID back from a state file name.
+ *
+ * @param name A file name in the state directory.
+ *
+ * @returns The process ID, or undefined when the file is not an unsaved-files list.
+ */
+export function dirtyFilePid(name: string): number | undefined {
+  const match = DIRTY_FILE.exec(name);
+  return match ? Number(match[1]) : undefined;
+}
+
+/** A Windows path's drive letter, such as `C:\`, which would otherwise look like a URI scheme. */
+const WINDOWS_DRIVE = /^[a-z]:[\\/]/i;
 
 /** One tool's definition, mirrored by `contributes.languageModelTools` in package.json. */
 export interface ToolSpec {
@@ -171,6 +208,22 @@ export interface BlockProblem {
   readonly message: string;
 }
 
+/** A file's remaining problems. */
+export interface FileProblems {
+  /** The workspace-relative path. */
+  readonly file: string;
+  /** The problems. */
+  readonly problems: BlockProblem[];
+}
+
+/** The result of sorting the workspace. */
+export interface SortWorkspaceResult {
+  /** The workspace-relative paths of the files that changed. */
+  readonly changed: string[];
+  /** The files with problems after sorting. */
+  readonly remaining: FileProblems[];
+}
+
 /** A file the tools act on. */
 export interface ToolFile {
   /** The identifier the host uses, such as a URI string. */
@@ -198,16 +251,13 @@ export interface ToolHost {
   /** Replaces a file's text. */
   writeText(file: ToolFile, text: string): Promise<void>;
   /** The wrap preferences in effect and problems found reading them. */
-  preferences(): Promise<{ preferences: WrapPreferences; problems: readonly string[] }>;
+  preferences(): Promise<PreferencesResult>;
   /** The keep-sorted findings for a file's current text. */
   problems(file: ToolFile): Promise<BlockProblem[]>;
   /** Sorts one file and returns whether it changed. */
   sortFile(file: ToolFile): Promise<boolean>;
   /** Sorts every file with findings and returns the files changed and remaining findings. */
-  sortWorkspace(): Promise<{
-    changed: string[];
-    remaining: { file: string; problems: BlockProblem[] }[];
-  }>;
+  sortWorkspace(): Promise<SortWorkspaceResult>;
 }
 
 /** Input the agent can fix, reported back to it as the tool's error message. */
@@ -221,6 +271,17 @@ export class ToolInputError extends Error {
     super(message);
     this.name = "ToolInputError";
   }
+}
+
+/**
+ * The error for a file `keep-sorted.exclude` excludes, so both front ends refuse it the same way.
+ *
+ * @param input The tool input naming the file.
+ *
+ * @returns The error.
+ */
+export function excludedFileError(input: string): ToolInputError {
+  return new ToolInputError(`${input} is excluded by keep-sorted.exclude; leave it unchanged.`);
 }
 
 /** How a tool's file input was written. */
@@ -239,11 +300,10 @@ export type ToolInputTarget =
  * @throws ToolInputError when a relative path is given without a workspace root.
  */
 export function resolveToolInput(input: string, root: string | undefined): ToolInputTarget {
-  // A Windows drive letter such as C:\ looks like a URI scheme.
-  if (/^[a-z][\w+.-]+:/i.test(input) && !/^[a-z]:[\\/]/i.test(input)) {
+  if (/^[a-z][\w+.-]+:/i.test(input) && !WINDOWS_DRIVE.test(input)) {
     return { kind: "uri", uri: input };
   }
-  if (path.isAbsolute(input) || /^[a-z]:[\\/]/i.test(input)) {
+  if (path.isAbsolute(input) || WINDOWS_DRIVE.test(input)) {
     return { kind: "path", path: input };
   }
   if (!root) {

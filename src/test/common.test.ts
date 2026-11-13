@@ -3,7 +3,15 @@ import * as fs from "fs";
 import { describe, it } from "mocha";
 import * as os from "os";
 import * as path from "path";
-import { dedent, errorMessage, isRecord, oneLine, prettyJson, readJsonc } from "../common";
+import {
+  dedent,
+  errorMessage,
+  isRecord,
+  oneLine,
+  prettyJson,
+  readJsonc,
+  writeFileAtomic,
+} from "../common";
 
 describe("common", () => {
   describe("isRecord", () => {
@@ -57,6 +65,30 @@ describe("common", () => {
     it("should return undefined for a missing file", () => {
       // Act & Assert
       expect(readJsonc(path.join(os.tmpdir(), "missing-keep-sorted.json"))).to.equal(undefined);
+    });
+  });
+
+  describe("writeFileAtomic", () => {
+    [
+      { name: "a new file in a missing directory", existing: undefined },
+      { name: "an existing file", existing: "old\n" },
+    ].forEach(({ name, existing }) => {
+      it(`should write ${name} without leaving a temporary file`, () => {
+        // Arrange
+        const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "keep-sorted-")), "nested");
+        const file = path.join(dir, "state.json");
+        if (existing !== undefined) {
+          fs.mkdirSync(dir);
+          fs.writeFileSync(file, existing);
+        }
+
+        // Act
+        writeFileAtomic(file, "new\n");
+
+        // Assert
+        expect(fs.readFileSync(file, "utf8")).to.equal("new\n");
+        expect(fs.readdirSync(dir)).to.deep.equal(["state.json"]);
+      });
     });
   });
 

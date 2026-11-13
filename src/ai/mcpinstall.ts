@@ -1,24 +1,32 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { prettyJson } from "../common";
-import { onWrapPreferencesChange, userWrapPreferences } from "../configuration";
+import { prettyJson, writeFileAtomic } from "../common";
+import { onSettingsChange, userSettings } from "../configuration";
 import { extensionId, logAndGetError, logger } from "../instrumentation";
 import { bundledBinaryPath } from "../keepsortedbin";
 import * as workspace from "../workspace";
-import { DIRTY_FILE_PREFIX, USER_PREFERENCES_FILE } from "./tools";
+import { dirtyFileName, MIRRORED_SETTINGS, SETTINGS_SECTION, USER_SETTINGS_FILE } from "./tools";
 
 /** The server name written to MCP client configurations. */
 export const MCP_SERVER_NAME = "keep-sorted";
+
+/** How an MCP client starts the server. */
+export interface LaunchCommand {
+  /** The executable. */
+  readonly command: string;
+  /** Its arguments. */
+  readonly args: string[];
+}
 
 /** Records which extension version the installed server copy came from. */
 const VERSION_FILE = "version.txt";
 
 /**
  * Installs the MCP server to a path that survives extension updates, and keeps the state it reads
- * from VS Code: the user-level wrap preferences and this window's unsaved files. Nothing is written
- * until `enable()` runs, which the AI setup command does; later activations then keep the copy and
- * state current.
+ * from VS Code: the user-level settings it reads and this window's unsaved files. Nothing is
+ * written until `enable()` runs, which the AI setup command does; later activations then keep the
+ * copy and state current.
  */
 export class McpServerInstaller implements workspace.Registrant {
   readonly id = "mcpServer";
@@ -56,14 +64,14 @@ export class McpServerInstaller implements workspace.Registrant {
    *
    * @returns The executable and its arguments.
    */
-  launchCommand(): { command: string; args: string[] } {
+  launchCommand(): LaunchCommand {
     return { command: "node", args: [this.serverScript] };
   }
 
   /** Installs the server and starts keeping its state current. */
   enable(): void {
     this.install();
-    this.writeUserPreferences(userWrapPreferences());
+    this.writeUserSettings();
     this.writeDirtyFiles(true);
   }
 
@@ -82,7 +90,15 @@ export class McpServerInstaller implements workspace.Registrant {
       vscode.workspace.onDidChangeTextDocument(update),
       vscode.workspace.onDidSaveTextDocument(update),
       vscode.workspace.onDidCloseTextDocument(update),
-      onWrapPreferencesChange(() => this.writeUserPreferences(userWrapPreferences())),
+      onSettingsChange((event) => {
+        if (
+          Object.values(MIRRORED_SETTINGS).some((key) =>
+            event.affectsConfiguration(`${SETTINGS_SECTION}.${key}`)
+          )
+        ) {
+          this.writeUserSettings();
+        }
+      }),
       new vscode.Disposable(() => fs.rmSync(this.dirtyFile(), { force: true }))
     );
   }
@@ -115,19 +131,12 @@ export class McpServerInstaller implements workspace.Registrant {
     logger.info(`Installed the Keep Sorted MCP server ${extensionId.version} to ${this.serverDir}`);
   }
 
-  /**
-   * Mirrors the user-level wrap preferences for the server.
-   *
-   * @param value The raw user-level setting, or undefined when unset.
-   */
-  writeUserPreferences(value: unknown): void {
-    const file = path.join(this.stateDir, USER_PREFERENCES_FILE);
-    if (value === undefined) {
-      fs.rmSync(file, { force: true });
-      return;
-    }
-    fs.mkdirSync(this.stateDir, { recursive: true });
-    fs.writeFileSync(file, prettyJson(value));
+  /** Mirrors the user-level values of the settings the server reads. */
+  writeUserSettings(): void {
+    writeFileAtomic(
+      path.join(this.stateDir, USER_SETTINGS_FILE),
+      prettyJson(userSettings(Object.values(MIRRORED_SETTINGS)))
+    );
   }
 
   /**
@@ -146,14 +155,13 @@ export class McpServerInstaller implements workspace.Registrant {
     }
     this.lastDirty = serialized;
     try {
-      fs.mkdirSync(this.stateDir, { recursive: true });
-      fs.writeFileSync(this.dirtyFile(), serialized);
+      writeFileAtomic(this.dirtyFile(), serialized);
     } catch (err: Error | unknown) {
       logAndGetError(logger, err);
     }
   }
 
   private dirtyFile(): string {
-    return path.join(this.stateDir, `${DIRTY_FILE_PREFIX}${process.pid}.json`);
+    return path.join(this.stateDir, dirtyFileName(process.pid));
   }
 }

@@ -186,7 +186,10 @@ describe("lmtools", () => {
       sandbox.stub(configuration, "excluded").returns(/lmtools-/);
 
       // Act & Assert
-      await expect(host.resolve(uri.toString())).to.be.rejectedWith(ToolInputError, /out of scope/);
+      await expect(host.resolve(uri.toString())).to.be.rejectedWith(
+        ToolInputError,
+        /excluded by keep-sorted.exclude/
+      );
     });
   });
 

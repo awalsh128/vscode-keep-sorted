@@ -6,7 +6,7 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { McpServerInstaller } from "../../ai/mcpinstall";
-import { DIRTY_FILE_PREFIX, USER_PREFERENCES_FILE } from "../../ai/tools";
+import { dirtyFileName, USER_SETTINGS_FILE } from "../../ai/tools";
 import { extensionId } from "../../instrumentation";
 import { bundledBinaryPath } from "../../keepsortedbin";
 import { EXT_WORKSPACE_DIR, TEST_WORKSPACE_DIR } from "../testing";
@@ -83,18 +83,40 @@ describe("mcpinstall", () => {
     });
   });
 
-  it("should mirror user preferences and remove them when unset", () => {
+  it("should mirror the user-level settings the server reads", async function () {
+    this.timeout(10000);
     // Arrange
-    const file = path.join(installer.stateDir, USER_PREFERENCES_FILE);
+    const file = path.join(installer.stateDir, USER_SETTINGS_FILE);
+    const config = vscode.workspace.getConfiguration("keep-sorted");
+    const global = vscode.ConfigurationTarget.Global;
+    try {
+      await config.update("wrap.preferences", { options: { case: "no" } }, global);
+      await config.update("exclude", ["generated/"], global);
 
+      // Act
+      installer.writeUserSettings();
+      const written = JSON.parse(fs.readFileSync(file, "utf8"));
+
+      // Assert
+      expect(written).to.deep.equal({
+        "keep-sorted.wrap.preferences": { options: { case: "no" } },
+        "keep-sorted.exclude": ["generated/"],
+      });
+    } finally {
+      await config.update("wrap.preferences", undefined, global);
+      await config.update("exclude", undefined, global);
+    }
+  });
+
+  it("should mirror nothing when no user-level settings are set", () => {
     // Act
-    installer.writeUserPreferences({ options: { case: "no" } });
-    const written = JSON.parse(fs.readFileSync(file, "utf8"));
-    installer.writeUserPreferences(undefined);
+    installer.writeUserSettings();
 
     // Assert
-    expect(written).to.deep.equal({ options: { case: "no" } });
-    expect(fs.existsSync(file)).to.equal(false);
+    const written = JSON.parse(
+      fs.readFileSync(path.join(installer.stateDir, USER_SETTINGS_FILE), "utf8")
+    );
+    expect(written).to.deep.equal({});
   });
 
   it("should record files with unsaved changes", async () => {
@@ -111,10 +133,7 @@ describe("mcpinstall", () => {
 
     // Assert
     const dirty = JSON.parse(
-      fs.readFileSync(
-        path.join(installer.stateDir, `${DIRTY_FILE_PREFIX}${process.pid}.json`),
-        "utf8"
-      )
+      fs.readFileSync(path.join(installer.stateDir, dirtyFileName(process.pid)), "utf8")
     );
     expect(dirty).to.include(document.uri.fsPath);
   });

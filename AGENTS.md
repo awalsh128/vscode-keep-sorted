@@ -53,8 +53,9 @@ than adding a parallel version. Each concern has one owning module:
   [src/keepsortedopt.ts](src/keepsortedopt.ts).
 - Running the keep-sorted binary: [src/keepsortedbin.ts](src/keepsortedbin.ts) (no `vscode` import),
   adapted to documents and diagnostics by [src/keepsorted.ts](src/keepsorted.ts).
-- Helpers shared with the MCP server, such as `oneLine`, `dedent`, and `errorMessage`:
-  [src/common.ts](src/common.ts).
+- Helpers shared with the MCP server, such as `oneLine`, `dedent`, `errorMessage`, and
+  `writeFileAtomic`: [src/common.ts](src/common.ts). `keep-sorted.exclude` matching:
+  [src/exclusion.ts](src/exclusion.ts).
 - AI agent features: [src/ai/](src/ai). `tools.ts` defines the tools once for both front ends,
   `lmtools.ts` (VS Code) and `mcp.ts` (MCP server). Modules the MCP server bundles must not import
   `vscode`.

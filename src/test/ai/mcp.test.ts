@@ -8,11 +8,11 @@ import * as os from "os";
 import * as path from "path";
 import { DiskToolHost, serverLayout, workspaceRoot } from "../../ai/mcp";
 import {
-  DIRTY_FILE_PREFIX,
+  dirtyFileName,
   runTool,
   TOOL_SPECS,
   ToolInputError,
-  USER_PREFERENCES_FILE,
+  USER_SETTINGS_FILE,
 } from "../../ai/tools";
 import { EXT_WORKSPACE_DIR } from "../testing";
 
@@ -112,8 +112,10 @@ describe("mcp", () => {
     it("should merge user and workspace preferences, workspace winning", async () => {
       // Arrange
       fs.writeFileSync(
-        path.join(stateDir, USER_PREFERENCES_FILE),
-        JSON.stringify({ options: { case: "no", numeric: "yes" } })
+        path.join(stateDir, USER_SETTINGS_FILE),
+        JSON.stringify({
+          "keep-sorted.wrap.preferences": { options: { case: "no", numeric: "yes" } },
+        })
       );
       write(
         ".vscode/settings.json",
@@ -131,10 +133,7 @@ describe("mcp", () => {
     it("should refuse to write a file with unsaved changes in a live window", async () => {
       // Arrange
       const file = write("a.py", UNSORTED);
-      fs.writeFileSync(
-        path.join(stateDir, `${DIRTY_FILE_PREFIX}${process.pid}.json`),
-        JSON.stringify([file])
-      );
+      fs.writeFileSync(path.join(stateDir, dirtyFileName(process.pid)), JSON.stringify([file]));
 
       // Act & Assert
       await expect(
@@ -147,10 +146,7 @@ describe("mcp", () => {
       // Arrange
       const file = write("a.py", UNSORTED);
       const deadPid = 2 ** 22 + 12345;
-      fs.writeFileSync(
-        path.join(stateDir, `${DIRTY_FILE_PREFIX}${deadPid}.json`),
-        JSON.stringify([file])
-      );
+      fs.writeFileSync(path.join(stateDir, dirtyFileName(deadPid)), JSON.stringify([file]));
 
       // Act
       await runTool("keepSorted_run", { scope: "file", uri: "a.py" }, host());
@@ -174,6 +170,61 @@ describe("mcp", () => {
       // Assert
       expect(result.changed.sort()).to.deep.equal(["nested/two.py", "one.py"]);
       expect(fs.readFileSync(path.join(root, "node_modules/skip.py"), "utf8")).to.equal(UNSORTED);
+    });
+
+    describe("keep-sorted.exclude", () => {
+      const userExclude = (patterns: string[]): void =>
+        fs.writeFileSync(
+          path.join(stateDir, USER_SETTINGS_FILE),
+          JSON.stringify({ "keep-sorted.exclude": patterns })
+        );
+      const workspaceExclude = (patterns: string[]): void => {
+        write(".vscode/settings.json", JSON.stringify({ "keep-sorted.exclude": patterns }));
+      };
+
+      [
+        { name: "workspace", setUp: () => workspaceExclude(["^generated/"]) },
+        { name: "user", setUp: () => userExclude(["^generated/"]) },
+      ].forEach(({ name, setUp }) => {
+        it(`should refuse a file the ${name} setting excludes`, async () => {
+          // Arrange
+          write("generated/deps.py", UNSORTED);
+          setUp();
+
+          // Act & Assert
+          await expect(host().resolve("generated/deps.py")).to.be.rejectedWith(
+            ToolInputError,
+            /excluded by keep-sorted.exclude/
+          );
+        });
+      });
+
+      it("should let the workspace value replace the user value, as VS Code does", async () => {
+        // Arrange
+        write("generated/deps.py", UNSORTED);
+        userExclude(["^generated/"]);
+        workspaceExclude(["^vendor/"]);
+
+        // Act
+        const resolved = await host().resolve("generated/deps.py");
+
+        // Assert
+        expect(resolved.relativePath).to.equal("generated/deps.py");
+      });
+
+      it("should skip excluded files when sorting the workspace", async () => {
+        // Arrange
+        write("one.py", UNSORTED);
+        write("docs/example.md", UNSORTED);
+        workspaceExclude(["docs/**"]);
+
+        // Act
+        const result = await host().sortWorkspace();
+
+        // Assert
+        expect(result.changed).to.deep.equal(["one.py"]);
+        expect(fs.readFileSync(path.join(root, "docs/example.md"), "utf8")).to.equal(UNSORTED);
+      });
     });
   });
 

@@ -291,8 +291,8 @@ written only after you confirm:
 - **MCP server** for Claude Code (types a `claude mcp add --scope user` command into a terminal for
   you to run), Cursor (`~/.cursor/mcp.json`), or any MCP client (copies the configuration). The
   server needs Node.js on `PATH`. It is installed in the extension's storage and updated with the
-  extension, works on saved files under the project root, and refuses files with unsaved changes in
-  VS Code.
+  extension, works on saved files under the project root, skips files `keep-sorted.exclude` matches,
+  and refuses files with unsaved changes in VS Code.
 
 Set default options for blocks that agents add with `keep-sorted.wrap.preferences`. Layers apply in
 order (`options`, then `languages`, then matching `files` globs), and `null` removes an earlier

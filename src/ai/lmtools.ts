@@ -2,20 +2,24 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { CommandHandlers } from "../commands";
 import { errorMessage } from "../common";
-import { getConfig, wrapPreferencesProblems } from "../configuration";
+import { excluded, getConfig, wrapPreferencesProblems } from "../configuration";
 import { extensionId, logAndGetError, logger } from "../instrumentation";
 import * as workspace from "../workspace";
 import {
   BlockProblem,
   confirmation,
+  excludedFileError,
+  FileProblems,
   resolveToolInput,
   runTool,
+  SortWorkspaceResult,
   TOOL_SPECS,
   ToolFile,
   ToolHost,
   ToolInputError,
   ToolSpec,
 } from "./tools";
+import { PreferencesResult } from "./wrap";
 
 /**
  * Converts the extension's diagnostics to tool problems with 1-based lines. Diagnostics end at the
@@ -79,10 +83,11 @@ export class VscodeToolHost implements ToolHost {
 
   async resolve(input: string): Promise<ToolFile> {
     const uri = toolInputUri(input, workspace.rootPath());
+    if (excluded(uri)) {
+      throw excludedFileError(input);
+    }
     if (!workspace.isInScope(uri)) {
-      throw new ToolInputError(
-        `${input} is out of scope: it is excluded by keep-sorted.exclude or is not a file.`
-      );
+      throw new ToolInputError(`${input} is not a file Keep Sorted can sort.`);
     }
     let document: vscode.TextDocument;
     try {
@@ -110,10 +115,7 @@ export class VscodeToolHost implements ToolHost {
     }
   }
 
-  async preferences(): Promise<{
-    preferences: ReturnType<typeof getConfig>["wrapPreferences"];
-    problems: readonly string[];
-  }> {
+  async preferences(): Promise<PreferencesResult> {
     return { preferences: getConfig().wrapPreferences, problems: wrapPreferencesProblems() };
   }
 
@@ -131,10 +133,7 @@ export class VscodeToolHost implements ToolHost {
     return (await this.document(file)).getText() !== before;
   }
 
-  async sortWorkspace(): Promise<{
-    changed: string[];
-    remaining: { file: string; problems: BlockProblem[] }[];
-  }> {
+  async sortWorkspace(): Promise<SortWorkspaceResult> {
     const before = new Map<string, string>();
     for (const uri of this.handlers.sortWorkspace.affectedUris()) {
       before.set(uri.toString(), (await vscode.workspace.openTextDocument(uri)).getText());
@@ -147,7 +146,7 @@ export class VscodeToolHost implements ToolHost {
         changed.push(vscode.workspace.asRelativePath(document.uri, false));
       }
     }
-    const remaining: { file: string; problems: BlockProblem[] }[] = [];
+    const remaining: FileProblems[] = [];
     this.diagnostics.forEach((uri, diagnostics) => {
       if (diagnostics.length > 0) {
         remaining.push({

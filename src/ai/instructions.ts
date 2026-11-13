@@ -4,10 +4,10 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { CommandHandler } from "../commands";
-import { isRecord, oneLine, prettyJson } from "../common";
+import { isRecord, oneLine, prettyJson, writeFileAtomic } from "../common";
 import { extensionId } from "../instrumentation";
 import * as workspace from "../workspace";
-import { MCP_SERVER_NAME, McpServerInstaller } from "./mcpinstall";
+import { LaunchCommand, MCP_SERVER_NAME, McpServerInstaller } from "./mcpinstall";
 
 /*
  * The opt-in "Add AI Instructions to Workspace" command. Workspace files get only path-free
@@ -84,7 +84,7 @@ export function withAgentsSection(
  */
 export function withMcpServer(
   current: string | undefined,
-  launch: { command: string; args: string[] }
+  launch: LaunchCommand
 ): string | undefined {
   const text = current ?? "{}\n";
   const parsed: unknown = parseJsonc(text);
@@ -108,7 +108,7 @@ export function withMcpServer(
  *
  * @returns The shell command.
  */
-export function claudeMcpAddCommand(launch: { command: string; args: string[] }): string {
+export function claudeMcpAddCommand(launch: LaunchCommand): string {
   const quote = (arg: string): string => (/^[\w./:-]+$/.test(arg) ? arg : JSON.stringify(arg));
   return [
     "claude mcp add --scope user",
@@ -317,8 +317,7 @@ export class AddAiInstructionsCommandHandler extends CommandHandler {
     if (!(await this.ui.confirmWrite({ path: file, label, current, proposed }))) {
       return this.ui.info(`Left ${label} unchanged.`);
     }
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, proposed, "utf8");
+    writeFileAtomic(file, proposed);
     this.ui.info(`Wrote ${label}.`);
   }
 

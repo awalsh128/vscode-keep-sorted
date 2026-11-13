@@ -260,11 +260,10 @@ avoiding startup timing failures without a fixed delay.
   save-action setup, autocomplete tooltips, regex-first exclusions, and logging paths. The
   configuration tests guard metadata/defaults and keep editor-owned save settings out of the
   extension's configuration properties. AGENTS.md defines the shared synchronization policy.
-- **Error Handling** (FIXED):
-  - Handles both invalid RegExp patterns AND glob patterns gracefully
-  - Logs warnings for malformed patterns
-  - Uses fallback no-match pattern `/(?!.*)/ ` for invalid inputs
-- **Dependencies**: Uses `glob-regex` for glob pattern conversion
+- **Exclusions**: `excluded()` matches the patterns compiled by [exclusion.ts](../src/exclusion.ts),
+  which the MCP server shares
+- **User-level mirror**: `userSettings()` returns user-scope values alone, and `onSettingsChange`
+  fires after any Keep Sorted setting changes in any scope, so `mcpinstall.ts` can mirror them
 
 ---
 
@@ -345,7 +344,18 @@ avoiding startup timing failures without a fixed delay.
 #### **common.ts** — Shared Helpers
 
 - **Purpose**: Helpers without `vscode` imports: `isRecord()`, `errorMessage()`, `prettyJson()`,
-  `readJsonc()`, and the `oneLine`/`dedent` template tags used instead of string concatenation
+  `readJsonc()`, `writeFileAtomic()` for files another process reads, and the `oneLine`/`dedent`
+  template tags used instead of string concatenation
+
+---
+
+#### **exclusion.ts** — Exclude Patterns
+
+- **Purpose**: `keep-sorted.exclude` matching without `vscode` imports, shared by `configuration.ts`
+  and the MCP server
+- **Key Exports**: `compileExcludePatterns()` (each pattern is a regex, or a glob through
+  `glob-regex` when it is not a valid regex; invalid patterns warn and match nothing) and
+  `matchingExclude()` (matches the workspace-relative path, full path, or file name)
 
 ---
 
@@ -396,12 +406,14 @@ tools.ts (TOOL_SPECS, runTool, ToolHost)  ── no vscode ──┬─> lmtools
   generated from code. `docscli.ts` is the `npm run gen:ai-docs` entry point, kept apart because a
   `require.main` guard in a bundled module would run in the MCP server.
 - **mcp.ts**: Resolves files under one root (`--root`, `CLAUDE_PROJECT_DIR`, or the working
-  directory), merges the mirrored user preferences with the workspace's `.vscode/settings.json`,
-  refuses files a live VS Code window holds unsaved, and sorts the workspace through `git ls-files`
-  or a directory walk.
+  directory), reads the mirrored user settings and the workspace's `.vscode/settings.json` (merging
+  wrap preferences key by key; a workspace `exclude` replaces the user one, as in VS Code), refuses
+  excluded files and files a live VS Code window holds unsaved, and sorts the workspace through
+  `git ls-files` or a directory walk.
 - **mcpinstall.ts**: After the user opts in, copies the server, docs, and platform binary to global
-  storage when the version changes, mirrors user-level preferences, and writes this window's unsaved
-  files (`dirty-<pid>.json`).
+  storage when the version changes, mirrors the user-level settings the server reads
+  (`user-settings.json`), and writes this window's unsaved files (`dirty-<pid>.json`). State files
+  are written atomically, since the server reads them from another process.
 - **instructions.ts**: **Keep Sorted: Add AI Instructions to Workspace**. Workspace files hold only
   path-free content (AGENTS.md section, `.claude/skills/keep-sorted/SKILL.md`); MCP registration
   holds a machine path, so it goes to user-level configuration. Every write follows a diff and a

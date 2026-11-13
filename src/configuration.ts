@@ -1,7 +1,6 @@
-import globRegex from "glob-regex";
-import * as path from "path";
 import * as vscode from "vscode";
 import { parseWrapPreferences, WrapPreferences } from "./ai/wrap";
+import { compileExcludePatterns, matchingExclude } from "./exclusion";
 import { extensionId, logger } from "./instrumentation";
 import { toJson } from "./workspace";
 
@@ -37,7 +36,7 @@ export interface KeepSortedConfiguration {
 interface Context {
   config: KeepSortedConfiguration;
   regexs: RegExp[];
-  wrapPreferencesProblems: string[];
+  wrapPreferencesProblems: readonly string[];
 }
 
 /**
@@ -104,22 +103,7 @@ function loadContext(): Context {
 
   // Use console during module loading to avoid circular dependency
   logger.info(`Fetched configuration: ${toJson(configuration)}`);
-  // Build regex objects from configured patterns. Prefer direct RegExp construction for
-  // patterns that are already valid regex literals (tests use strings like ".*\\.test\\.ts$")
-  const regexs = configuration.exclude.map((p) => {
-    try {
-      return new RegExp(p);
-    } catch (regexErr) {
-      try {
-        // Fall back to glob-regex for glob-style patterns
-        return globRegex(p);
-      } catch (globErr) {
-        logger.warn(`Invalid exclusion pattern "${p}": RegExp: ${regexErr}, Glob: ${globErr}`);
-        // Return a pattern that matches nothing
-        return /(?!.*)/;
-      }
-    }
-  });
+  const regexs = compileExcludePatterns(configuration.exclude, (message) => logger.warn(message));
 
   return { config: configuration, regexs, wrapPreferencesProblems: wrapPreferences.problems };
 }
@@ -135,15 +119,20 @@ export function wrapPreferencesProblems(): readonly string[] {
 }
 
 /**
- * Gets the user-level `keep-sorted.wrap.preferences` alone, without workspace values. The MCP
- * server runs outside VS Code and reads workspace settings from disk itself, so the extension
- * mirrors only this scope for it.
+ * Gets user-level values alone, without workspace values. The MCP server runs outside VS Code and
+ * reads workspace settings from disk itself, so the extension mirrors only this scope for it.
  *
- * @returns The raw user-level value, or undefined when unset.
+ * @param keys The settings to read, without the `keep-sorted.` prefix.
+ *
+ * @returns The set values by full setting name, as in a settings.json file.
  */
-export function userWrapPreferences(): unknown {
-  return vscode.workspace.getConfiguration(extensionId.name).inspect("wrap.preferences")
-    ?.globalValue;
+export function userSettings(keys: readonly string[]): Record<string, unknown> {
+  const config = vscode.workspace.getConfiguration(extensionId.name);
+  return Object.fromEntries(
+    keys
+      .map((key) => [`${extensionId.name}.${key}`, config.inspect(key)?.globalValue])
+      .filter(([, value]) => value !== undefined)
+  );
 }
 
 /**
@@ -151,16 +140,7 @@ export function userWrapPreferences(): unknown {
  * match is found.
  */
 export function excluded(uri: vscode.Uri): RegExp | null {
-  const filePath = vscode.workspace.asRelativePath(uri);
-  const fullPath = uri.fsPath;
-  const baseName = path.basename(fullPath);
-
-  for (const regex of currentContext().regexs) {
-    if (regex.test(filePath) || regex.test(fullPath) || regex.test(baseName)) {
-      return regex;
-    }
-  }
-  return null;
+  return matchingExclude(currentContext().regexs, vscode.workspace.asRelativePath(uri), uri.fsPath);
 }
 
 /**
@@ -235,10 +215,8 @@ export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent
   if (JSON.stringify(context.config.exclude) !== JSON.stringify(previous.exclude)) {
     onExcludeChangeEmitter.fire(context.config.exclude);
   }
-  // Also fires for user-scope changes the merged value hides, since the MCP mirror needs them.
-  if (event.affectsConfiguration(`${extensionId.name}.wrap.preferences`)) {
-    onWrapPreferencesChangeEmitter.fire(context.config.wrapPreferences);
-  }
+  // Also fires for user-scope changes the merged values hide, which the MCP mirror needs.
+  onSettingsChangeEmitter.fire(event);
   return true;
 }
 
@@ -263,8 +241,11 @@ const onExcludeChangeEmitter = new vscode.EventEmitter<string[]>();
 /** Event triggered when the exclusion patterns change. */
 export const onExcludeChange: vscode.Event<string[]> = onExcludeChangeEmitter.event;
 
-const onWrapPreferencesChangeEmitter = new vscode.EventEmitter<WrapPreferences>();
+const onSettingsChangeEmitter = new vscode.EventEmitter<vscode.ConfigurationChangeEvent>();
 
-/** Event triggered when the wrap preferences change in any scope. */
-export const onWrapPreferencesChange: vscode.Event<WrapPreferences> =
-  onWrapPreferencesChangeEmitter.event;
+/**
+ * Event triggered after any Keep Sorted setting changes in any scope, with VS Code's event so
+ * listeners can check which settings it affects.
+ */
+export const onSettingsChange: vscode.Event<vscode.ConfigurationChangeEvent> =
+  onSettingsChangeEmitter.event;

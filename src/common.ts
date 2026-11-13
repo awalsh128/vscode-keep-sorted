@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import { parse as parseJsonc } from "jsonc-parser";
+import * as path from "path";
 
 /*
  * Small helpers shared by the extension and the standalone MCP server, so free of `vscode` imports.
@@ -51,6 +52,20 @@ export function readJsonc(file: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Writes a file another process may be reading: writes a sibling, then renames it over the file, so
+ * a reader sees the old content or the new, never a partial write. Creates missing directories.
+ *
+ * @param file The file path.
+ * @param text The content.
+ */
+export function writeFileAtomic(file: string, text: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, text, "utf8");
+  fs.renameSync(temporary, file);
 }
 
 /** Joins a tagged template's literal parts with its values. */

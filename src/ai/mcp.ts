@@ -5,7 +5,8 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { errorMessage, oneLine, readJsonc } from "../common";
+import { errorMessage, isRecord, oneLine, readJsonc, writeFileAtomic } from "../common";
+import { compileExcludePatterns, matchingExclude } from "../exclusion";
 import {
   bundledBinaryPath,
   isLintableText,
@@ -14,22 +15,27 @@ import {
 } from "../keepsortedbin";
 import {
   BlockProblem,
-  DIRTY_FILE_PREFIX,
+  dirtyFilePid,
+  excludedFileError,
+  FileProblems,
   findingProblems,
+  MIRRORED_SETTINGS,
   READ_ONLY_TOOLS,
   resolveToolInput,
   runTool,
+  SETTINGS_SECTION,
+  SortWorkspaceResult,
   TOOL_SPECS,
   ToolFile,
   ToolHost,
   ToolInputError,
-  USER_PREFERENCES_FILE,
+  USER_SETTINGS_FILE,
 } from "./tools";
 import {
   languageIdForPath,
   mergeWrapPreferences,
   parseWrapPreferences,
-  WrapPreferences,
+  PreferencesResult,
 } from "./wrap";
 
 /*
@@ -63,6 +69,12 @@ export function serverLayout(serverDir: string): ServerLayout {
     ? serverDir
     : path.dirname(serverDir);
   return { installRoot, stateDir: path.join(path.dirname(serverDir), "state") };
+}
+
+/** Reads a settings.json-style file, or an empty object when it is missing or malformed. */
+function readSettings(file: string): Record<string, unknown> {
+  const settings = readJsonc(file);
+  return isRecord(settings) ? settings : {};
 }
 
 function isAlive(pid: number): boolean {
@@ -113,11 +125,11 @@ export class DiskToolHost implements ToolHost {
     if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) {
       throw new ToolInputError(`${input} is not a file.`);
     }
-    return {
-      id: absolute,
-      relativePath: relative.split(path.sep).join("/"),
-      languageId: languageIdForPath(absolute),
-    };
+    const relativePath = relative.split(path.sep).join("/");
+    if (this.isExcluded(relativePath)) {
+      throw excludedFileError(input);
+    }
+    return { id: absolute, relativePath, languageId: languageIdForPath(absolute) };
   }
 
   async readText(file: ToolFile): Promise<string> {
@@ -126,17 +138,14 @@ export class DiskToolHost implements ToolHost {
 
   async writeText(file: ToolFile, text: string): Promise<void> {
     this.ensureSaved(file);
-    // Write a sibling and rename it, so a reader never sees a partial file.
-    const temporary = `${file.id}.keep-sorted-${process.pid}.tmp`;
-    fs.writeFileSync(temporary, text, "utf8");
-    fs.renameSync(temporary, file.id);
+    writeFileAtomic(file.id, text);
   }
 
-  async preferences(): Promise<{ preferences: WrapPreferences; problems: readonly string[] }> {
-    const user = parseWrapPreferences(readJsonc(path.join(this.stateDir, USER_PREFERENCES_FILE)));
-    const settings = readJsonc(path.join(this.root, ".vscode", "settings.json")) as
-      Record<string, unknown> | undefined;
-    const workspace = parseWrapPreferences(settings?.["keep-sorted.wrap.preferences"]);
+  async preferences(): Promise<PreferencesResult> {
+    const user = parseWrapPreferences(this.userSetting(MIRRORED_SETTINGS.wrapPreferences));
+    const workspace = parseWrapPreferences(
+      this.workspaceSetting(MIRRORED_SETTINGS.wrapPreferences)
+    );
     return {
       preferences: mergeWrapPreferences(user.preferences, workspace.preferences),
       problems: [
@@ -163,23 +172,23 @@ export class DiskToolHost implements ToolHost {
     return true;
   }
 
-  async sortWorkspace(): Promise<{
-    changed: string[];
-    remaining: { file: string; problems: BlockProblem[] }[];
-  }> {
+  async sortWorkspace(): Promise<SortWorkspaceResult> {
     const changed: string[] = [];
-    const remaining: { file: string; problems: BlockProblem[] }[] = [];
-    for (const relativePath of this.candidateFiles()) {
+    const remaining: FileProblems[] = [];
+    const excludes = this.excludePatterns();
+    const candidates = this.candidateFiles().filter(
+      (relativePath) => !this.isExcluded(relativePath, excludes)
+    );
+    for (const relativePath of candidates) {
       const file = await this.resolve(relativePath);
       try {
         if (await this.sortFile(file)) {
           changed.push(file.relativePath);
         }
       } catch (err: Error | unknown) {
-        const message = err instanceof Error ? err.message : String(err);
         remaining.push({
           file: file.relativePath,
-          problems: [{ startLine: 1, endLine: 1, message }],
+          problems: [{ startLine: 1, endLine: 1, message: errorMessage(err) }],
         });
         continue;
       }
@@ -191,6 +200,34 @@ export class DiskToolHost implements ToolHost {
     return { changed, remaining };
   }
 
+  /** A setting's user-level value, as mirrored by VS Code. */
+  private userSetting(key: string): unknown {
+    return readSettings(path.join(this.stateDir, USER_SETTINGS_FILE))[`${SETTINGS_SECTION}.${key}`];
+  }
+
+  /** A setting's value in the workspace's .vscode/settings.json. */
+  private workspaceSetting(key: string): unknown {
+    return readSettings(path.join(this.root, ".vscode", "settings.json"))[
+      `${SETTINGS_SECTION}.${key}`
+    ];
+  }
+
+  /**
+   * The `keep-sorted.exclude` patterns. Like VS Code, which replaces array settings rather than
+   * merging them, a workspace value replaces the user value.
+   */
+  private excludePatterns(): RegExp[] {
+    const value =
+      this.workspaceSetting(MIRRORED_SETTINGS.exclude) ??
+      this.userSetting(MIRRORED_SETTINGS.exclude);
+    const patterns = Array.isArray(value) ? value.filter((p) => typeof p === "string") : [];
+    return compileExcludePatterns(patterns);
+  }
+
+  private isExcluded(relativePath: string, patterns = this.excludePatterns()): boolean {
+    return matchingExclude(patterns, relativePath, path.join(this.root, relativePath)) !== null;
+  }
+
   /** Throws when a VS Code window holds unsaved changes to the file. */
   private ensureSaved(file: ToolFile): void {
     let entries: string[];
@@ -199,10 +236,13 @@ export class DiskToolHost implements ToolHost {
     } catch {
       return;
     }
-    for (const entry of entries.filter((name) => name.startsWith(DIRTY_FILE_PREFIX))) {
-      const pid = Number(entry.slice(DIRTY_FILE_PREFIX.length).replace(/\.json$/, ""));
+    for (const entry of entries) {
+      const pid = dirtyFilePid(entry);
+      if (pid === undefined || !isAlive(pid)) {
+        continue;
+      }
       const dirty = readJsonc(path.join(this.stateDir, entry));
-      if (isAlive(pid) && Array.isArray(dirty) && dirty.includes(file.id)) {
+      if (Array.isArray(dirty) && dirty.includes(file.id)) {
         throw new ToolInputError(oneLine`
           ${file.relativePath} has unsaved changes in VS Code. Ask the user to save or revert it,
           then try again.`);

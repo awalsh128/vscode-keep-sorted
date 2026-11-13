@@ -5,14 +5,19 @@ import * as path from "path";
 import {
   BlockProblem,
   confirmation,
+  dirtyFileName,
+  dirtyFilePid,
+  excludedFileError,
+  findingProblems,
   READ_ONLY_TOOLS,
   runTool,
+  SortWorkspaceResult,
   TOOL_SPECS,
   ToolFile,
   ToolHost,
   ToolInputError,
 } from "../../ai/tools";
-import { languageIdForPath, WrapPreferences } from "../../ai/wrap";
+import { languageIdForPath, PreferencesResult, WrapPreferences } from "../../ai/wrap";
 import { dedent } from "../../common";
 import { bundledBinaryPath, KeepSortedBinary } from "../../keepsortedbin";
 import { EXT_WORKSPACE_DIR } from "../testing";
@@ -52,16 +57,12 @@ class FakeHost implements ToolHost {
     this.files.set(file.id, text);
   }
 
-  async preferences(): Promise<{ preferences: WrapPreferences; problems: string[] }> {
+  async preferences(): Promise<PreferencesResult> {
     return { preferences: this.prefs, problems: [] };
   }
 
   async problems(file: ToolFile): Promise<BlockProblem[]> {
-    return BINARY.lint(this.files.get(file.id)!, file.id).map((finding) => ({
-      startLine: finding.lines.start,
-      endLine: finding.lines.end,
-      message: finding.message,
-    }));
+    return findingProblems(BINARY.lint(this.files.get(file.id)!, file.id));
   }
 
   async sortFile(file: ToolFile): Promise<boolean> {
@@ -71,10 +72,7 @@ class FakeHost implements ToolHost {
     return after !== before;
   }
 
-  async sortWorkspace(): Promise<{
-    changed: string[];
-    remaining: { file: string; problems: BlockProblem[] }[];
-  }> {
+  async sortWorkspace(): Promise<SortWorkspaceResult> {
     const changed: string[] = [];
     for (const id of this.files.keys()) {
       if (await this.sortFile({ id, relativePath: id, languageId: undefined })) {
@@ -90,6 +88,33 @@ function parse(text: string): Record<string, unknown> {
 }
 
 describe("aitools", () => {
+  describe("dirty file names", () => {
+    it("should read back the process ID it was named with", () => {
+      // Act & Assert
+      expect(dirtyFilePid(dirtyFileName(4242))).to.equal(4242);
+    });
+
+    ["user-settings.json", "dirty-.json", "dirty-12.json.tmp", "dirty-abc.json"].forEach((name) => {
+      it(`should not read a process ID from ${name}`, () => {
+        // Act & Assert
+        expect(dirtyFilePid(name)).to.equal(undefined);
+      });
+    });
+  });
+
+  describe("excludedFileError", () => {
+    it("should name the file and the setting", () => {
+      // Act
+      const error = excludedFileError("gen/a.py");
+
+      // Assert
+      expect(error).to.be.instanceOf(ToolInputError);
+      expect(error.message).to.equal(
+        "gen/a.py is excluded by keep-sorted.exclude; leave it unchanged."
+      );
+    });
+  });
+
   describe("TOOL_SPECS", () => {
     it("should match the languageModelTools contribution in package.json", () => {
       // Arrange

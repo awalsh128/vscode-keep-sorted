@@ -14,9 +14,9 @@ import {
   onEnabledChange,
   onExcludeChange,
   onLogFilepathChange,
-  onWrapPreferencesChange,
+  onSettingsChange,
   scanExcludeGlob,
-  userWrapPreferences,
+  userSettings,
   wrapPreferencesProblems,
 } from "../configuration";
 
@@ -754,7 +754,7 @@ describe("configuration", () => {
         disposables.forEach((d) => d.dispose());
       });
 
-      it("should fire onWrapPreferencesChange and report problems for invalid parts", () => {
+      it("should fire onSettingsChange and report problems for invalid parts", () => {
         // Arrange
         setupConfigStubs({});
         const mockEvent = {
@@ -763,18 +763,14 @@ describe("configuration", () => {
         } as vscode.ConfigurationChangeEvent;
         handleConfigurationChange(mockEvent);
         const spy = sandbox.spy();
-        const disposable = onWrapPreferencesChange(spy);
+        const disposable = onSettingsChange(spy);
         setupConfigStubs({ wrapPreferences: { options: { case: "no", sort: "yes" } } });
 
         // Act
         handleConfigurationChange(mockEvent);
 
         // Assert
-        expect(spy).to.have.been.calledWith({
-          options: { case: "no", sort: "yes" },
-          languages: undefined,
-          files: undefined,
-        });
+        expect(spy).to.have.been.calledOnceWith(mockEvent);
         expect(wrapPreferencesProblems().join(" ")).to.include('Unknown option "sort"');
 
         disposable.dispose();
@@ -906,7 +902,9 @@ describe("configuration", () => {
 
         // Assert
         expect(merged).to.deep.equal({ options: { case: "yes", numeric: "yes" } });
-        expect(userWrapPreferences()).to.deep.equal({ options: { case: "no", numeric: "yes" } });
+        expect(userSettings(["wrap.preferences", "exclude"])).to.deep.equal({
+          "keep-sorted.wrap.preferences": { options: { case: "no", numeric: "yes" } },
+        });
       } finally {
         await config.update("wrap.preferences", undefined, folder);
         await config.update("wrap.preferences", undefined, global);

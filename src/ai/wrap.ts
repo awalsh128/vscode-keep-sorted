@@ -185,6 +185,14 @@ export interface WrapPreferences {
   readonly files?: Readonly<Record<string, PreferenceLayer>>;
 }
 
+/** Wrap preferences read from settings, with a problem for each dropped or invalid part. */
+export interface PreferencesResult {
+  /** The well-formed preferences. */
+  readonly preferences: WrapPreferences;
+  /** What was wrong with the rest. */
+  readonly problems: readonly string[];
+}
+
 /** Options resolved for one file, with the layer each value came from. */
 export interface ResolvedOptions {
   /** The merged option values. */
@@ -202,10 +210,7 @@ export interface ResolvedOptions {
  *
  * @returns The well-formed layers and a problem for each part that was dropped or is invalid.
  */
-export function parseWrapPreferences(raw: unknown): {
-  preferences: WrapPreferences;
-  problems: string[];
-} {
+export function parseWrapPreferences(raw: unknown): PreferencesResult {
   const problems: string[] = [];
   if (raw === undefined || raw === null) {
     return { preferences: {}, problems };

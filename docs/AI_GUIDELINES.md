@@ -43,10 +43,12 @@ REJECTED.**
 - `src/test/ai/wrap.test.ts` - marker insertion, comment syntax, and wrap preferences
 - `src/test/ai/evals/evals.test.ts` - agent eval cases replayed through the tools, and the grader
 - `src/test/commands.test.ts` - SortFileCommandHandler, SortWorkspaceCommandHandler
-- `src/test/common.test.ts` - shared helpers: `oneLine`, `dedent`, `errorMessage`, JSON helpers
+- `src/test/common.test.ts` - shared helpers: `oneLine`, `dedent`, `errorMessage`, JSON helpers,
+  `writeFileAtomic`
 - `src/test/completion.test.ts` - KeepSortedCompletionProvider
 - `src/test/configuration.test.ts` - getConfig, handleConfigurationChange, excluded,
   scanExcludeGlob, change events
+- `src/test/exclusion.test.ts` - `keep-sorted.exclude` pattern compiling and matching
 - `src/test/extension.test.ts` - activation, event listeners, sorting and save integration
 - `src/test/hover.test.ts` - KeepSortedHoverProvider
 - `src/test/instrumentation.test.ts` - logAndGetError, relevantDiagnostics, logging setup
