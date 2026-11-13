@@ -28,6 +28,8 @@ Content outside keep-sorted blocks is left unchanged.
 - :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
 - :floppy_disk: Optional sorting on save through a source fix-all action.
 - :information_source: Autocomplete and hover documentation for options on a block's start line.
+- :robot: [AI agent](#ai-agents) integration through an MCP server and Copilot tools, so agents know
+  when to add blocks and which options to use.
 
 ---
 
@@ -46,6 +48,7 @@ Content outside keep-sorted blocks is left unchanged.
   - [Order and Duplicates](#order-and-duplicates)
   - [Sorting Across Files](#sorting-across-files)
   - [Keybindings](#keybindings)
+- [AI Agents](#ai-agents)
 - [Settings](#settings)
 - [Continuous Integration](#continuous-integration)
 - [Language Specific Solutions](#language-specific-solutions)
@@ -266,14 +269,58 @@ Bind the command IDs `keep-sorted.fixFile` and `keep-sorted.fixWorkspace` in `ke
 The former `keep-sorted.sortFile` alias has been removed; update existing keybindings to
 `keep-sorted.fixFile`.
 
+## AI Agents
+
+Keep Sorted gives AI coding agents guidance that matches the installed version, and tools that add
+and sort blocks:
+
+| Tool                        | What it does                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `keepSorted_getGuide`       | Returns guidance: what not to wrap, options by content type, comment syntax.  |
+| `keepSorted_getPreferences` | Returns `keep-sorted.wrap.preferences`, optionally resolved for a file.       |
+| `keepSorted_wrapRange`      | Adds markers around lines, using the file's comment syntax and your defaults. |
+| `keepSorted_run`            | Sorts a file or the workspace and returns the problems that remain.           |
+
+GitHub Copilot agent mode can use the tools without setup; VS Code asks before running the ones that
+change files. For other agents, run **Keep Sorted: Add AI Instructions to Workspace**
+(`keep-sorted.addAiInstructions`) and choose what to set up. Each file change is shown as a diff and
+written only after you confirm:
+
+- **AGENTS.md section** and **agent skill** (`.claude/skills/keep-sorted/SKILL.md`, read by Claude
+  Code and Copilot): short workspace instructions, safe to commit.
+- **MCP server** for Claude Code (types a `claude mcp add --scope user` command into a terminal for
+  you to run), Cursor (`~/.cursor/mcp.json`), or any MCP client (copies the configuration). The
+  server needs Node.js on `PATH`. It is installed in the extension's storage and updated with the
+  extension, works on saved files under the project root, and refuses files with unsaved changes in
+  VS Code.
+
+Set default options for blocks that agents add with `keep-sorted.wrap.preferences`. Layers apply in
+order (`options`, then `languages`, then matching `files` globs), and `null` removes an earlier
+value:
+
+```json
+{
+  "keep-sorted.wrap.preferences": {
+    "options": { "case": "no" },
+    "languages": { "go": { "block": "yes", "newline_separated": "yes" } },
+    "files": { "**/requirements*.txt": { "remove_duplicates": "no" } }
+  }
+}
+```
+
+The tools refuse files without comments (JSON), ranges that cross another block, and invalid
+options, but they cannot tell whether an order matters. Review the diff of every block an agent
+adds: sorting middleware, CSS rules, or other order-dependent code changes behavior.
+
 ## Settings
 
-| Setting                    | Default | Description                                                             |
-| -------------------------- | ------- | ----------------------------------------------------------------------- |
-| `keep-sorted.enabled`      | `true`  | Enable diagnostics, sorting commands, and code actions.                 |
-| `keep-sorted.autoComplete` | `true`  | Suggest option names and values after `start`, with documentation.      |
-| `keep-sorted.exclude`      | `[]`    | Exclude files from diagnostics and sorting; regex first, glob fallback. |
-| `keep-sorted.logFilepath`  | `""`    | Add file logging alongside Output; empty disables file logging.         |
+| Setting                        | Default | Description                                                                |
+| ------------------------------ | ------- | -------------------------------------------------------------------------- |
+| `keep-sorted.enabled`          | `true`  | Enable diagnostics, sorting commands, and code actions.                    |
+| `keep-sorted.autoComplete`     | `true`  | Suggest option names and values after `start`, with documentation.         |
+| `keep-sorted.exclude`          | `[]`    | Exclude files from diagnostics and sorting; regex first, glob fallback.    |
+| `keep-sorted.logFilepath`      | `""`    | Add file logging alongside Output; empty disables file logging.            |
+| `keep-sorted.wrap.preferences` | `{}`    | Default options AI agents use for new blocks; see [AI agents](#ai-agents). |
 
 Sort-on-save is configured separately through VS Code's `editor.codeActionsOnSave`, as shown above;
 it is not enabled by default or controlled by an additional `keep-sorted` setting.

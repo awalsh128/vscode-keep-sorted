@@ -15,6 +15,7 @@ import {
   DEV_PROFILE_SETTINGS,
   devCachePath,
   extensionSources,
+  interfaceKey,
   launchDevelopment,
   ReadFile,
   setupDev,
@@ -259,7 +260,7 @@ describe("consistency checks", (): void => {
     const sources = extensionSources(repoRoot);
 
     // Assert
-    expect(sources).to.include("src/configuration.ts");
+    expect(sources).to.include.members(["src/configuration.ts", "src/ai/tools.ts"]);
     expect(sources.some((file) => file.startsWith("src/test/"))).to.equal(false);
   });
 
@@ -279,8 +280,8 @@ describe("consistency checks", (): void => {
     // Arrange
     edit("README.md", (contents) =>
       contents.replace(
-        "| `keep-sorted.enabled`      | `true` ",
-        "| `keep-sorted.enabled`      | `false`"
+        "| `keep-sorted.enabled`          | `true` ",
+        "| `keep-sorted.enabled`          | `false`"
       )
     );
 
@@ -301,6 +302,40 @@ describe("consistency checks", (): void => {
       "README.md: setting keep-sorted.extra is missing from the settings table.",
       "src/configuration.ts: KeepSortedConfiguration is missing extra.",
     ]);
+  });
+
+  [
+    { setting: "keep-sorted.enabled", expected: "enabled" },
+    { setting: "keep-sorted.wrap.preferences", expected: "wrapPreferences" },
+  ].forEach(({ setting, expected }): void => {
+    it(`should map ${setting} to the interface member ${expected}`, (): void => {
+      // Act & Assert
+      expect(interfaceKey(setting)).to.equal(expected);
+    });
+  });
+
+  it("should accept a dotted setting documented and typed under its camel-case name", (): void => {
+    // Arrange
+    editManifest((manifest): void => {
+      manifest.contributes.configuration.properties["keep-sorted.wrap.preferences"] = {
+        default: {},
+      };
+    });
+    edit("README.md", (contents) =>
+      contents.replace(
+        /(^\| `keep-sorted\.enabled`.*$)/m,
+        "$1\n| `keep-sorted.wrap.preferences` | `{}` | Defaults. |"
+      )
+    );
+    edit("src/configuration.ts", (contents) =>
+      contents.replace(
+        "export interface KeepSortedConfiguration {",
+        "export interface KeepSortedConfiguration {\n  readonly wrapPreferences: object;"
+      )
+    );
+
+    // Act & Assert
+    expect(checkSettings(read)).to.deep.equal([]);
   });
 
   it("should report settings documented or typed but not defined", (): void => {

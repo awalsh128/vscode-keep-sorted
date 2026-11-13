@@ -32,7 +32,18 @@ REJECTED.**
 **Current Test Files** (MAINTAIN OR DIE):
 
 - `src/test/actions.test.ts` - ActionProvider quick fixes and fix-all source action
+- `src/test/ai/docs.test.ts` - shipped agent docs: generated parts, verified examples, options,
+  links
+- `src/test/ai/docscli.test.ts` - `npm run gen:ai-docs` entry point
+- `src/test/ai/instructions.test.ts` - Add AI Instructions command and its file merges
+- `src/test/ai/lmtools.test.ts` - VS Code language model tools on real documents
+- `src/test/ai/mcp.test.ts` - MCP server disk host and the bundled server over stdio
+- `src/test/ai/mcpinstall.test.ts` - MCP server install and state files
+- `src/test/ai/tools.test.ts` - shared tool definitions, input validation, and handlers
+- `src/test/ai/wrap.test.ts` - marker insertion, comment syntax, and wrap preferences
+- `src/test/ai/evals/evals.test.ts` - agent eval cases replayed through the tools, and the grader
 - `src/test/commands.test.ts` - SortFileCommandHandler, SortWorkspaceCommandHandler
+- `src/test/common.test.ts` - shared helpers: `oneLine`, `dedent`, `errorMessage`, JSON helpers
 - `src/test/completion.test.ts` - KeepSortedCompletionProvider
 - `src/test/configuration.test.ts` - getConfig, handleConfigurationChange, excluded,
   scanExcludeGlob, change events
@@ -40,7 +51,9 @@ REJECTED.**
 - `src/test/hover.test.ts` - KeepSortedHoverProvider
 - `src/test/instrumentation.test.ts` - logAndGetError, relevantDiagnostics, logging setup
 - `src/test/keepsorted.test.ts` - KeepSorted class, binary interface, linting, fixing
-- `src/test/keepsortedopt.test.ts` - option metadata and directive parsing
+- `src/test/keepsortedbin.test.ts` - vscode-free binary runner and bundled binary paths
+- `src/test/keepsortedopt.test.ts` - option metadata, directive parsing, and option validation
+- `src/test/optiondiagnostics.test.ts` - directive option diagnostics (not wired into linting)
 - `src/test/scheduler.test.ts` - LintScheduler debouncing
 - `src/test/workspace.test.ts` - EditFactory, WorkspaceScanner, isInScope, toJson
 - `scripts/test/create-binaries.test.ts` - E2E test for binary creation
@@ -166,6 +179,13 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { KeepSorted } from "./keepsorted";
 ```
+
+#### Strings (REQUIRED)
+
+Write strings that span source lines as template literals, not `+` concatenation. Use `oneLine` from
+`src/common.ts` for prose that must stay on one line (messages, descriptions), and `dedent` for text
+with real line breaks. Reuse helpers from `src/common.ts`, such as `errorMessage()`, instead of
+repeating them.
 
 #### Documentation (REQUIRED - NO EXCEPTIONS)
 
@@ -322,6 +342,7 @@ describe("ComponentName", () => {
 
 ## Version History
 
+- **2026-11-13**: Added src/ai and src/common.ts, string conventions, and their test files
 - **2025-10-25**: Merged copilot instructions, streamlined with forceful language
 - **2025-10-23**: Added comprehensive testing best practices section
 - **2025-10-23**: Initial version with mandatory requirements

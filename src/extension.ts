@@ -1,5 +1,9 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { ActionProvider } from "./actions";
+import { AddAiInstructionsCommandHandler } from "./ai/instructions";
+import { LanguageModelToolsRegistrant, VscodeToolHost } from "./ai/lmtools";
+import { McpServerInstaller } from "./ai/mcpinstall";
 import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
 import { KeepSortedCompletionProvider } from "./completion";
 import {
@@ -78,6 +82,28 @@ export async function activate(context: vscode.ExtensionContext) {
   Object.values(editCommandHandlers).forEach((handler) => {
     extSubsHandler.addRegistrant(handler);
   });
+
+  // Register AI agent tools (Copilot and other vscode.lm clients)
+  const toolHost = new VscodeToolHost(
+    context.extensionPath,
+    diagnostics,
+    editFactory,
+    editCommandHandlers
+  );
+  extSubsHandler.addRegistrant(new LanguageModelToolsRegistrant(toolHost));
+
+  // Keep the MCP server for other agents current, once the user has set it up
+  const mcpInstaller = new McpServerInstaller(
+    context.extensionPath,
+    context.globalStorageUri.fsPath
+  );
+  extSubsHandler.addRegistrant(mcpInstaller);
+  extSubsHandler.addRegistrant(
+    new AddAiInstructionsCommandHandler(
+      path.join(context.extensionPath, "docs", "ai"),
+      mcpInstaller
+    )
+  );
 
   // Document listeners
   [

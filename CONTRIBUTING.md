@@ -69,7 +69,7 @@ requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
    npm run compile   # Check for TypeScript errors
    npm test          # Run all tests (must pass)
    npm run test:scripts # Also run when changing scripts
-   npm run check     # Check that docs, settings, and commands agree
+   npm run check     # Check that docs, settings, and commands agree; generated agent docs are current
    ```
 
 5. **Update documentation** if needed:
@@ -91,6 +91,10 @@ separately when testing sort-on-save.
   sort-on-save test may wait up to 90 seconds while VS Code finishes installing save participants in
   an unfocused window.
 - Use VS Code's test runner for debugging tests
+- After changing the option metadata or the language table, run `npm run gen:ai-docs` to regenerate
+  `docs/ai/options.md` and the comment syntax table; `npm run check` fails until you do
+- Agent evals live in `src/test/ai/evals/`: `npm run test:ai-evals` runs the automated layer, and
+  its README describes manual agent runs
 
 ### Building Binaries
 

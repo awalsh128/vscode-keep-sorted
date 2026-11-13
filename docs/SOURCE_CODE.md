@@ -50,10 +50,12 @@ actions to maintain sorted content.
 .husky/          — Git hooks enabled by husky on npm install; pre-commit runs npm run check,
                    commit-msg runs commitlint
 bin/             — Bundled keep-sorted binaries and checksums
-docs/            — Architecture (this file) and AI development guidelines
+docs/            — Architecture (this file) and AI development guidelines; docs/ai/ holds the
+                   user-facing agent docs that ship in the VSIX
 images/          — Extension icon (logo.png, from logo.svg) and README media
 scripts/         — Development, binary build, release, and label sync scripts (own tsconfig.json)
-src/             — Extension source and tests (own tsconfig.json)
+src/             — Extension source and tests (own tsconfig.json); src/ai/ holds the AI agent
+                   features
 test-workspace/  — Fixture workspace for tests and npm run dev
 tsconfig.json    — Build entry point referencing src/ and scripts/
 tsconfig.base.json — Compiler options shared by both projects
@@ -329,6 +331,24 @@ avoiding startup timing failures without a fixed delay.
 
 ---
 
+#### **keepsortedbin.ts** — Binary Runner
+
+- **Purpose**: Spawns the keep-sorted binary in lint or fix mode without importing `vscode`, so the
+  extension (through `KeepSorted`) and the MCP server share one runner
+- **Key Exports**: `KeepSortedBinary` (`lint()`, `fix()`, `run()`), `bundledBinaryPath()`,
+  `BUNDLED_KEEP_SORTED_VERSION` (checked against `create-binaries.ts` by `npm run check`),
+  `isLintableText()` and `MAX_SCAN_BYTES`, which the workspace scan and the MCP workspace sort
+  share. The binary's fix mode exits 0 and echoes already-sorted input.
+
+---
+
+#### **common.ts** — Shared Helpers
+
+- **Purpose**: Helpers without `vscode` imports: `isRecord()`, `errorMessage()`, `prettyJson()`,
+  `readJsonc()`, and the `oneLine`/`dedent` template tags used instead of string concatenation
+
+---
+
 #### **keepsortedopt.ts** — Option Parsing & Validation
 
 - **Purpose**: Describes and parses keep-sorted directive options for autocomplete
@@ -341,8 +361,55 @@ avoiding startup timing failures without a fixed delay.
     comma lists, YAML lists, Go inline regex flags dropped before JavaScript validation)
   - `Directive`: Splits a block's start line into well-formed and malformed option tokens
   - `isValidCompletionPosition()`: Checks that the cursor follows `start`
-- **Diagnostics**: Option warnings shown in the editor come from the keep-sorted binary;
-  `getDirectiveAndErrors()` and `validateOptionsInFile()` are not wired into linting
+- **Validation and formatting**: `validateOptions()` reports unknown keys, bad values (listing the
+  valid ones), and conflicts; `formatOptions()` writes a start line's options in a stable order.
+  `START_DIRECTIVE`, `END_DIRECTIVE`, and `BOOL_SPELLINGS` are the shared directive text.
+- **No runtime `vscode` import**: the module imports `vscode` types only, because the MCP server
+  bundles it. The editor diagnostics `getDirectiveAndErrors()` and `validateOptionsInFile()` live in
+  [optiondiagnostics.ts](../src/optiondiagnostics.ts) and are not wired into linting; option
+  warnings shown in the editor come from the keep-sorted binary.
+
+---
+
+#### **ai/** — AI Agent Features
+
+Agents get guidance, preferences, and four tools (`keepSorted_getGuide`,
+`keepSorted_getPreferences`, `keepSorted_wrapRange`, `keepSorted_run`) through two front ends that
+share one implementation:
+
+```
+tools.ts (TOOL_SPECS, runTool, ToolHost)  ── no vscode ──┬─> lmtools.ts: VscodeToolHost + vscode.lm.registerTool
+   ├─> wrap.ts: comment syntax table, markers,          │      (Copilot; editor buffers, WorkspaceEdit, sort commands)
+   │     preferences schema and resolution               └─> mcp.ts: DiskToolHost + stdio MCP server
+   └─> docs.ts: guide topics, generated docs/ai parts            (other agents; files on disk; bundled as dist/mcp.js)
+```
+
+- **tools.ts**: Tool definitions (mirrored by `contributes.languageModelTools`; a test keeps them
+  equal), input validation, handlers, and confirmation text. `ToolInputError` messages are written
+  for the model: the VS Code front end throws them, the MCP front end returns them as `isError`.
+- **wrap.ts**: `LANGUAGES` (VS Code exposes no comment configuration), `wrapLines()` (refuses
+  comment-less formats, partial overlaps with blocks, and files with unpaired markers, which sorting
+  would delete), and `keep-sorted.wrap.preferences` parsing, merging, resolution, and its JSON
+  schema (the manifest copy is checked against `wrapPreferencesSchema()`). Globs use picomatch's
+  `isMatch`, since a bundled namespace import cannot be called.
+- **docs.ts / docscli.ts**: Guide lookup, plus `docs/ai/options.md` and the comment syntax table
+  generated from code. `docscli.ts` is the `npm run gen:ai-docs` entry point, kept apart because a
+  `require.main` guard in a bundled module would run in the MCP server.
+- **mcp.ts**: Resolves files under one root (`--root`, `CLAUDE_PROJECT_DIR`, or the working
+  directory), merges the mirrored user preferences with the workspace's `.vscode/settings.json`,
+  refuses files a live VS Code window holds unsaved, and sorts the workspace through `git ls-files`
+  or a directory walk.
+- **mcpinstall.ts**: After the user opts in, copies the server, docs, and platform binary to global
+  storage when the version changes, mirrors user-level preferences, and writes this window's unsaved
+  files (`dirty-<pid>.json`).
+- **instructions.ts**: **Keep Sorted: Add AI Instructions to Workspace**. Workspace files hold only
+  path-free content (AGENTS.md section, `.claude/skills/keep-sorted/SKILL.md`); MCP registration
+  holds a machine path, so it goes to user-level configuration. Every write follows a diff and a
+  modal confirmation; the UI is injected for tests.
+- **Bundling**: one esbuild command builds `dist/extension.js` and `dist/mcp.js` with
+  `--main-fields=module,main` (jsonc-parser's UMD build has dynamic requires). The packaging test
+  checks that neither bundle requires sibling files, that `dist/mcp.js` never requires `vscode`, and
+  that the bundled server answers `initialize`.
 
 ---
 

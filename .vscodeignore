@@ -11,9 +11,11 @@ coverage/
 src/
 scripts/
 test-workspace/
-docs/
+# docs/ai ships: the agent tools and MCP server read it at runtime.
+docs/**
+!docs/ai/**
 .claude/
-.githooks/
+.husky/
 .github/
 .vscode/
 .git/

@@ -75,6 +75,10 @@
       {
         "command": "keep-sorted.fixWorkspace",
         "title": "Keep Sorted: Sort All Files with Problems"
+      },
+      {
+        "command": "keep-sorted.addAiInstructions",
+        "title": "Keep Sorted: Add AI Instructions to Workspace"
       }
     ],
     "menus": {
@@ -86,9 +90,228 @@
         {
           "command": "keep-sorted.fixWorkspace",
           "when": "config.keep-sorted.enabled"
+        },
+        {
+          "command": "keep-sorted.addAiInstructions",
+          "when": "config.keep-sorted.enabled"
         }
       ]
     },
+    "languageModelTools": [
+      {
+        "name": "keepSorted_getGuide",
+        "displayName": "Keep Sorted: Get Guide",
+        "toolReferenceName": "keepSortedGuide",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-ordered)",
+        "userDescription": "Read Keep Sorted guidance for wrapping, options, and verification.",
+        "modelDescription": "Returns guidance on keeping code sorted with keep-sorted blocks, matching the installed extension. Call it before adding keep-sorted markers or choosing options: start with 'overview', and always read 'when-not-to-wrap' before wrapping, since sorting order-dependent code (middleware, precedence lists, CSS rules, positional arguments) changes behavior. Topics: overview (workflow and common mistakes), when-not-to-wrap, choosing-options (options by content type, including functions and class members), markers-and-languages (comment syntax), preferences, verification, options (every option and its values). Not needed for sorting blocks that already exist; use keepSorted_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string",
+              "enum": [
+                "overview",
+                "when-not-to-wrap",
+                "choosing-options",
+                "markers-and-languages",
+                "preferences",
+                "verification",
+                "options"
+              ],
+              "description": "The guide to read. Start with 'overview'."
+            }
+          },
+          "required": [
+            "topic"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "keep-sorted",
+          "sorting"
+        ],
+        "when": "config.keep-sorted.enabled"
+      },
+      {
+        "name": "keepSorted_getPreferences",
+        "displayName": "Keep Sorted: Get Preferences",
+        "toolReferenceName": "keepSortedPreferences",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-ordered)",
+        "userDescription": "Read your default keep-sorted options for new blocks.",
+        "modelDescription": "Returns the user's preferred keep-sorted options for new blocks (the keep-sorted.wrap.preferences setting). Pass a file to also get the options resolved for that file, with the setting layer each came from. Call it before choosing options for a new block. keepSorted_wrapRange applies these preferences itself, so call this to plan or explain options, not before every wrap. Existing blocks keep their own options.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The file: a file URI, an absolute path, or a path relative to the workspace root. Optional."
+            }
+          },
+          "additionalProperties": false
+        },
+        "tags": [
+          "keep-sorted",
+          "sorting"
+        ],
+        "when": "config.keep-sorted.enabled"
+      },
+      {
+        "name": "keepSorted_wrapRange",
+        "displayName": "Keep Sorted: Wrap Lines",
+        "toolReferenceName": "keepSortedWrap",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-ordered)",
+        "userDescription": "Wrap lines in keep-sorted markers so they stay sorted.",
+        "modelDescription": "Inserts keep-sorted start and end markers around whole lines, using the file language's comment syntax and indentation, with the user's preferred options plus any you pass. It does not sort; call keepSorted_run afterwards and check the diff. Use it only for order-independent content: read the 'when-not-to-wrap' guide first, and for multi-line items such as functions or class members read 'choosing-options' for the options they need. Fails with an explanation for files without comments (JSON), ranges that partly overlap an existing block, files with unpaired markers, and invalid options, listing the valid values. Lines are 1-based and inclusive; read the file first for exact numbers.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string",
+              "description": "The file: a file URI, an absolute path, or a path relative to the workspace root."
+            },
+            "startLine": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "First line to wrap, 1-based. The start marker goes above it."
+            },
+            "endLine": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Last line to wrap, 1-based and inclusive. The end marker goes below it."
+            },
+            "options": {
+              "type": "object",
+              "description": "keep-sorted options for the start line, written as on the start line, e.g. {\"numeric\": \"yes\"}. They override preferences. Read the 'options' guide for values.",
+              "properties": {
+                "skip_lines": {
+                  "type": "string",
+                  "description": "Lines to ignore before sorting; a negative value skips lines at the end of the block"
+                },
+                "group": {
+                  "type": "string",
+                  "description": "Group lines together based on increasing indentation"
+                },
+                "group_prefixes": {
+                  "type": "string",
+                  "description": "Prefixes of lines that should be added to the preceding group"
+                },
+                "block": {
+                  "type": "string",
+                  "description": "Enable block mode to understand multi-line code blocks"
+                },
+                "sticky_comments": {
+                  "type": "string",
+                  "description": "Attach comments to the line immediately below them while sorting"
+                },
+                "sticky_prefixes": {
+                  "type": "string",
+                  "description": "Prefixes of lines that should behave as sticky comments"
+                },
+                "group_start_regex": {
+                  "type": "string",
+                  "description": "Regexes that match the first line of a group; other lines join the previous group"
+                },
+                "group_end_regex": {
+                  "type": "string",
+                  "description": "Regexes that match the last line of a group; non-comment lines no longer end groups"
+                },
+                "order": {
+                  "type": "string",
+                  "description": "Sort in ascending or descending order"
+                },
+                "case": {
+                  "type": "string",
+                  "description": "Case-sensitive sorting (use case=no for case-insensitive)"
+                },
+                "numeric": {
+                  "type": "string",
+                  "description": "Sort numbers by their numeric value instead of lexically"
+                },
+                "prefix_order": {
+                  "type": "string",
+                  "description": "Explicitly order lines by matching prefix; an empty item positions unmatched lines"
+                },
+                "ignore_prefixes": {
+                  "type": "string",
+                  "description": "Prefixes to ignore when sorting lines"
+                },
+                "by_regex": {
+                  "type": "string",
+                  "description": "Regexes that extract the portion of lines to sort by; YAML items may map a regex to a template"
+                },
+                "newline_separated": {
+                  "type": "string",
+                  "description": "Separate sorted groups with newlines (yes/no or number of newlines)"
+                },
+                "remove_duplicates": {
+                  "type": "string",
+                  "description": "Remove duplicate lines; keep_first_comment and merge_comments compare code only and keep or merge their comments"
+                },
+                "allow_yaml_lists": {
+                  "type": "string",
+                  "description": "Allow list-valued options to be specified using YAML syntax"
+                }
+              },
+              "additionalProperties": false
+            },
+            "usePreferences": {
+              "type": "boolean",
+              "description": "Apply the user's wrap preferences. Defaults to true."
+            }
+          },
+          "required": [
+            "uri",
+            "startLine",
+            "endLine"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "keep-sorted",
+          "sorting"
+        ],
+        "when": "config.keep-sorted.enabled"
+      },
+      {
+        "name": "keepSorted_run",
+        "displayName": "Keep Sorted: Sort",
+        "toolReferenceName": "keepSortedRun",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-ordered)",
+        "userDescription": "Sort keep-sorted blocks in a file or the workspace.",
+        "modelDescription": "Sorts keep-sorted blocks and returns the diagnostics that remain, such as unpaired markers or invalid options. Use scope 'file' with a uri after wrapping or editing a block; use 'workspace' only when the user asks to sort everything. Only lines between markers move. After it runs, compare the file with its previous state: each item should move whole, with its comments and decorators.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "enum": [
+                "file",
+                "workspace"
+              ],
+              "description": "'file' sorts one file; 'workspace' sorts every file with unsorted blocks."
+            },
+            "uri": {
+              "type": "string",
+              "description": "The file: a file URI, an absolute path, or a path relative to the workspace root. Required for scope 'file'."
+            }
+          },
+          "required": [
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        "tags": [
+          "keep-sorted",
+          "sorting"
+        ],
+        "when": "config.keep-sorted.enabled"
+      }
+    ],
     "configuration": {
       "title": "Keep Sorted",
       "properties": {
@@ -130,15 +353,595 @@
             "keep-sorted.log",
             "logs/keep-sorted.log"
           ]
+        },
+        "keep-sorted.wrap.preferences": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "options": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "skip_lines": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^(-?\\d+(,-?\\d+)*|\\[.*\\])$",
+                  "markdownDescription": "Lines to ignore before sorting; a negative value skips lines at the end of the block. `null` removes a value set by an earlier layer."
+                },
+                "group": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Group lines together based on increasing indentation. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                },
+                "group_prefixes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Prefixes of lines that should be added to the preceding group. `null` removes a value set by an earlier layer."
+                },
+                "block": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Enable block mode to understand multi-line code blocks. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                },
+                "sticky_comments": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Attach comments to the line immediately below them while sorting. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                },
+                "sticky_prefixes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Prefixes of lines that should behave as sticky comments. `null` removes a value set by an earlier layer."
+                },
+                "group_start_regex": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Regexes that match the first line of a group; other lines join the previous group. `null` removes a value set by an earlier layer."
+                },
+                "group_end_regex": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Regexes that match the last line of a group; non-comment lines no longer end groups. `null` removes a value set by an earlier layer."
+                },
+                "order": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "asc",
+                    "desc",
+                    null
+                  ],
+                  "markdownDescription": "Sort in ascending or descending order. keep-sorted default: `asc`. `null` removes a value set by an earlier layer."
+                },
+                "case": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Case-sensitive sorting (use case=no for case-insensitive). keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                },
+                "numeric": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Sort numbers by their numeric value instead of lexically. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                },
+                "prefix_order": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Explicitly order lines by matching prefix; an empty item positions unmatched lines. `null` removes a value set by an earlier layer."
+                },
+                "ignore_prefixes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Prefixes to ignore when sorting lines. `null` removes a value set by an earlier layer."
+                },
+                "by_regex": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "markdownDescription": "Regexes that extract the portion of lines to sort by; YAML items may map a regex to a template. `null` removes a value set by an earlier layer."
+                },
+                "newline_separated": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^(\\d+|yes|no|true|false)$",
+                  "markdownDescription": "Separate sorted groups with newlines (yes/no or number of newlines). keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                },
+                "remove_duplicates": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "no",
+                    "keep_first_comment",
+                    "merge_comments",
+                    null
+                  ],
+                  "markdownDescription": "Remove duplicate lines; keep_first_comment and merge_comments compare code only and keep or merge their comments. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                },
+                "allow_yaml_lists": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "yes",
+                    "true",
+                    "no",
+                    "false",
+                    null
+                  ],
+                  "markdownDescription": "Allow list-valued options to be specified using YAML syntax. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                }
+              },
+              "markdownDescription": "Options for every file."
+            },
+            "languages": {
+              "type": "object",
+              "markdownDescription": "Options by VS Code language ID, applied after `options`.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "skip_lines": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(-?\\d+(,-?\\d+)*|\\[.*\\])$",
+                    "markdownDescription": "Lines to ignore before sorting; a negative value skips lines at the end of the block. `null` removes a value set by an earlier layer."
+                  },
+                  "group": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Group lines together based on increasing indentation. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "group_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes of lines that should be added to the preceding group. `null` removes a value set by an earlier layer."
+                  },
+                  "block": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Enable block mode to understand multi-line code blocks. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "sticky_comments": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Attach comments to the line immediately below them while sorting. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "sticky_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes of lines that should behave as sticky comments. `null` removes a value set by an earlier layer."
+                  },
+                  "group_start_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that match the first line of a group; other lines join the previous group. `null` removes a value set by an earlier layer."
+                  },
+                  "group_end_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that match the last line of a group; non-comment lines no longer end groups. `null` removes a value set by an earlier layer."
+                  },
+                  "order": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "asc",
+                      "desc",
+                      null
+                    ],
+                    "markdownDescription": "Sort in ascending or descending order. keep-sorted default: `asc`. `null` removes a value set by an earlier layer."
+                  },
+                  "case": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Case-sensitive sorting (use case=no for case-insensitive). keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "numeric": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Sort numbers by their numeric value instead of lexically. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "prefix_order": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Explicitly order lines by matching prefix; an empty item positions unmatched lines. `null` removes a value set by an earlier layer."
+                  },
+                  "ignore_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes to ignore when sorting lines. `null` removes a value set by an earlier layer."
+                  },
+                  "by_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that extract the portion of lines to sort by; YAML items may map a regex to a template. `null` removes a value set by an earlier layer."
+                  },
+                  "newline_separated": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(\\d+|yes|no|true|false)$",
+                    "markdownDescription": "Separate sorted groups with newlines (yes/no or number of newlines). keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "remove_duplicates": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "no",
+                      "keep_first_comment",
+                      "merge_comments",
+                      null
+                    ],
+                    "markdownDescription": "Remove duplicate lines; keep_first_comment and merge_comments compare code only and keep or merge their comments. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "allow_yaml_lists": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Allow list-valued options to be specified using YAML syntax. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  }
+                }
+              }
+            },
+            "files": {
+              "type": "object",
+              "markdownDescription": "Options by workspace-relative glob such as `**/go.mod`, applied after `languages` in the order written.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "skip_lines": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(-?\\d+(,-?\\d+)*|\\[.*\\])$",
+                    "markdownDescription": "Lines to ignore before sorting; a negative value skips lines at the end of the block. `null` removes a value set by an earlier layer."
+                  },
+                  "group": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Group lines together based on increasing indentation. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "group_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes of lines that should be added to the preceding group. `null` removes a value set by an earlier layer."
+                  },
+                  "block": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Enable block mode to understand multi-line code blocks. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "sticky_comments": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Attach comments to the line immediately below them while sorting. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "sticky_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes of lines that should behave as sticky comments. `null` removes a value set by an earlier layer."
+                  },
+                  "group_start_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that match the first line of a group; other lines join the previous group. `null` removes a value set by an earlier layer."
+                  },
+                  "group_end_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that match the last line of a group; non-comment lines no longer end groups. `null` removes a value set by an earlier layer."
+                  },
+                  "order": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "asc",
+                      "desc",
+                      null
+                    ],
+                    "markdownDescription": "Sort in ascending or descending order. keep-sorted default: `asc`. `null` removes a value set by an earlier layer."
+                  },
+                  "case": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Case-sensitive sorting (use case=no for case-insensitive). keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "numeric": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Sort numbers by their numeric value instead of lexically. keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "prefix_order": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Explicitly order lines by matching prefix; an empty item positions unmatched lines. `null` removes a value set by an earlier layer."
+                  },
+                  "ignore_prefixes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Prefixes to ignore when sorting lines. `null` removes a value set by an earlier layer."
+                  },
+                  "by_regex": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "markdownDescription": "Regexes that extract the portion of lines to sort by; YAML items may map a regex to a template. `null` removes a value set by an earlier layer."
+                  },
+                  "newline_separated": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(\\d+|yes|no|true|false)$",
+                    "markdownDescription": "Separate sorted groups with newlines (yes/no or number of newlines). keep-sorted default: `no`. `null` removes a value set by an earlier layer."
+                  },
+                  "remove_duplicates": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "no",
+                      "keep_first_comment",
+                      "merge_comments",
+                      null
+                    ],
+                    "markdownDescription": "Remove duplicate lines; keep_first_comment and merge_comments compare code only and keep or merge their comments. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  },
+                  "allow_yaml_lists": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "yes",
+                      "true",
+                      "no",
+                      "false",
+                      null
+                    ],
+                    "markdownDescription": "Allow list-valued options to be specified using YAML syntax. keep-sorted default: `yes`. `null` removes a value set by an earlier layer."
+                  }
+                }
+              }
+            }
+          },
+          "default": {},
+          "order": 5,
+          "markdownDescription": "Default options that AI agents apply when they wrap lines in a new keep-sorted block, through the Keep Sorted language model tools or MCP server. Layers apply in order: `options`, then `languages` by language ID, then each matching `files` glob, then options the agent passes explicitly. Values are written as on a start line, such as `\"yes\"` or `\"1,-1\"`; `null` removes an earlier value. Existing blocks and sorting are not affected.",
+          "examples": [
+            {
+              "options": {
+                "case": "no"
+              },
+              "languages": {
+                "go": {
+                  "block": "yes",
+                  "newline_separated": "yes"
+                }
+              },
+              "files": {
+                "**/requirements*.txt": {
+                  "remove_duplicates": "no"
+                }
+              }
+            }
+          ]
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "bundle": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --minify --keep-names --sourcemap --outfile=dist/extension.js",
+    "bundle": "esbuild src/extension.ts src/ai/mcp.ts --bundle --platform=node --format=cjs --target=node20 --main-fields=module,main --external:vscode --minify --keep-names --sourcemap --entry-names=[name] --outdir=dist",
     "compile": "npm run clean && tsc -b --clean && tsc -b && npm run bundle",
-    "check": "tsx scripts/dev.ts check",
+    "check": "tsx scripts/dev.ts check && tsx src/ai/docscli.ts --check",
+    "gen:ai-docs": "tsx src/ai/docscli.ts",
     "lint": "eslint",
     "ops": "tsx scripts/ops.ts",
     "watch": "tsc -b -w",
@@ -146,6 +949,8 @@
     "test": "npm run compile && rimraf ./src/test/logs/ && node ./out/test/runTest.js",
     "test:runner": "npm run compile && node ./out/test/runTest.js",
     "test:scripts": "npm run compile && mocha out/scripts/test/**/*.test.js",
+    "test:ai-evals": "npm run compile && mocha out/test/ai/evals/evals.test.js",
+    "ai-evals": "node out/test/ai/evals/grade.js",
     "create-binaries": "tsx scripts/create-binaries.ts",
     "clean": "rimraf out/ dist/",
     "refreshlock": "npm i --package-lock-only",
@@ -165,6 +970,7 @@
     "@types/logform": "^1.2.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.11",
+    "@types/picomatch": "^4.0.3",
     "@types/sinon": "^17.0.4",
     "@types/sinon-chai": "^4.0.0",
     "@types/source-map-support": "^0.5.10",
@@ -195,7 +1001,10 @@
     "typescript-eslint": "^8.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "glob-regex": "^0.3.2",
+    "jsonc-parser": "^3.3.1",
+    "picomatch": "^4.0.7",
     "triple-beam": "^1.4.1",
     "winston": "^3.19.0",
     "winston-transport": "^4.9.0"

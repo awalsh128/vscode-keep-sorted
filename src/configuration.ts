@@ -1,6 +1,7 @@
 import globRegex from "glob-regex";
 import * as path from "path";
 import * as vscode from "vscode";
+import { parseWrapPreferences, WrapPreferences } from "./ai/wrap";
 import { extensionId, logger } from "./instrumentation";
 import { toJson } from "./workspace";
 
@@ -24,11 +25,19 @@ export interface KeepSortedConfiguration {
    * If specified, logs will be written to the specified location relative to workspace root.
    */
   readonly logFilepath?: string;
+
+  /**
+   * Default options for blocks that AI tools wrap (`keep-sorted.wrap.preferences`), merged across
+   * user and workspace settings by VS Code. Malformed parts are dropped; see
+   * `wrapPreferencesProblems()`.
+   */
+  readonly wrapPreferences: WrapPreferences;
 }
 
 interface Context {
   config: KeepSortedConfiguration;
   regexs: RegExp[];
+  wrapPreferencesProblems: string[];
 }
 
 /**
@@ -77,11 +86,20 @@ function loadContext(): Context {
     return config.get<T>(key, meta.defaultValue);
   }
 
+  const enabled = getValue<boolean>("enabled");
+  const autoComplete = getValue<boolean>("autoComplete");
+  const exclude = getValue<string[]>("exclude");
+  const logFilepath = getValue<string | undefined>("logFilepath");
+  const wrapPreferences = parseWrapPreferences(getValue<unknown>("wrap.preferences"));
+  if (wrapPreferences.problems.length > 0) {
+    logger.warn(`Ignoring invalid wrap preferences: ${wrapPreferences.problems.join(" ")}`);
+  }
   const configuration: KeepSortedConfiguration = {
-    enabled: getValue<boolean>("enabled"),
-    autoComplete: getValue<boolean>("autoComplete"),
-    exclude: getValue<string[]>("exclude"),
-    logFilepath: getValue<string | undefined>("logFilepath"),
+    enabled,
+    autoComplete,
+    exclude,
+    logFilepath,
+    wrapPreferences: wrapPreferences.preferences,
   };
 
   // Use console during module loading to avoid circular dependency
@@ -103,7 +121,29 @@ function loadContext(): Context {
     }
   });
 
-  return { config: configuration, regexs };
+  return { config: configuration, regexs, wrapPreferencesProblems: wrapPreferences.problems };
+}
+
+/**
+ * Gets the problems found in `keep-sorted.wrap.preferences`, so tools can report why a preference
+ * was not applied.
+ *
+ * @returns The problems, empty when the setting is valid.
+ */
+export function wrapPreferencesProblems(): readonly string[] {
+  return currentContext().wrapPreferencesProblems;
+}
+
+/**
+ * Gets the user-level `keep-sorted.wrap.preferences` alone, without workspace values. The MCP
+ * server runs outside VS Code and reads workspace settings from disk itself, so the extension
+ * mirrors only this scope for it.
+ *
+ * @returns The raw user-level value, or undefined when unset.
+ */
+export function userWrapPreferences(): unknown {
+  return vscode.workspace.getConfiguration(extensionId.name).inspect("wrap.preferences")
+    ?.globalValue;
 }
 
 /**
@@ -195,6 +235,10 @@ export function handleConfigurationChange(event: vscode.ConfigurationChangeEvent
   if (JSON.stringify(context.config.exclude) !== JSON.stringify(previous.exclude)) {
     onExcludeChangeEmitter.fire(context.config.exclude);
   }
+  // Also fires for user-scope changes the merged value hides, since the MCP mirror needs them.
+  if (event.affectsConfiguration(`${extensionId.name}.wrap.preferences`)) {
+    onWrapPreferencesChangeEmitter.fire(context.config.wrapPreferences);
+  }
   return true;
 }
 
@@ -218,3 +262,9 @@ const onExcludeChangeEmitter = new vscode.EventEmitter<string[]>();
 
 /** Event triggered when the exclusion patterns change. */
 export const onExcludeChange: vscode.Event<string[]> = onExcludeChangeEmitter.event;
+
+const onWrapPreferencesChangeEmitter = new vscode.EventEmitter<WrapPreferences>();
+
+/** Event triggered when the wrap preferences change in any scope. */
+export const onWrapPreferencesChange: vscode.Event<WrapPreferences> =
+  onWrapPreferencesChangeEmitter.event;
