@@ -12,11 +12,12 @@ import { extensionId } from "./instrumentation";
  * - `<!--` (HTML/XML)
  *
  * Avoid writing the directive itself in comments: keep-sorted treats any line containing it as a
- * block start, even in prose.
+ * block start, even in prose. The match is case-sensitive, as in keep-sorted, so
+ * `KEEP-SORTED START` is not a directive.
  *
  * Creates a new regex everytime to avoid issues with global regex state like current index.
  */
-const directiveStartRegex = () => /^\s*(?:\/\/|#|\/\*|--|;|<!--)\s*keep-sorted\s+start\b/i;
+const directiveStartRegex = () => /^\s*(?:\/\/|#|\/\*|--|;|<!--)\s*keep-sorted\s+start\b/;
 const directiveOptsRegex = () => /([\w_]+)=((?:\[[^\]]*\])|(?:[^\s]+))/g;
 
 /** Text that every keep-sorted directive contains. */
