@@ -157,60 +157,94 @@ it would have to skip an odd minor. Breaking changes ship as a release, not a pr
 
 Start the
 [Publish Extension workflow](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/publish.yml)
-by hand. It defaults to a dry run that prints the next version and release notes:
+by hand on `main`. It defaults to a dry run that prints the next version and release notes:
 
-```bash
-gh workflow run publish.yml -f dry_run=false                     # release
-gh workflow run publish.yml -f dry_run=false -f pre_release=true # pre-release
+```sh
+gh workflow run publish.yml --ref main -f dry-run=false                     # release
+gh workflow run publish.yml --ref main -f dry-run=false -f pre-release=true # pre-release
 ```
 
-After CI passes, a release run:
+After checking that CI passed on the commit, a run:
 
-1. Computes the version from the commits since the last `v*` tag. With no `fix` or `feat` commits,
-   it publishes nothing.
-2. Packages the VSIX with that version and publishes it to the Visual Studio Marketplace and Open
-   VSX ([semantic-release-vsce](https://github.com/felipecrs/semantic-release-vsce)).
-3. Commits the new `package.json` version as `chore(release): X.Y.Z [skip ci]`, tags it `vX.Y.Z`,
-   and creates a GitHub release with the notes and the VSIX. Released issues and pull requests get a
-   comment and the `released` label.
+1. Computes the version from the commits since the last `v*` tag. Without `fix` or `feat` commits it
+   publishes nothing.
+2. Tags `vX.Y.Z` and creates a GitHub release with the notes and the packaged VSIX. Released issues
+   and pull requests get a comment and the `released` label. Releases never commit: the version is
+   written into `package.json` in the CI workspace only, so the tag is the record of each release.
+3. Publishes that release's VSIX to the Visual Studio Marketplace and Open VSX with
+   `npm run ops -- publish --vsix` ([scripts/ops.ts](scripts/ops.ts)), at the version of the newest
+   `v*` tag on the commit, skipping a registry that already has it. After a partial failure, use
+   **Re-run failed jobs**: the commit already carries the tag, so the rerun publishes it to the
+   remaining registries.
 
-`pre_release` publishes on the odd minor line and marks the release as a pre-release on both
+`pre-release` publishes on the odd minor line and marks the release as a pre-release on both
 registries and on GitHub. Its issues and pull requests also get the `released` label, so a later
 release does not label them again. Registries accept only `major.minor.patch` versions, so the odd
 minor, rather than a suffix like `-beta.1`, is what separates pre-releases.
 
-Open VSX uses trusted publishing: the `awalsh128` namespace registers this repository and
-`publish.yml` at [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers), and
-`npm run ops -- openvsx-token` exchanges the job's GitHub OIDC token for a short-lived publishing
-token that semantic-release-vsce reads as `OVSX_PAT`. No Open VSX secret is stored.
+`npm run ops -- publish --dry-run` packages the VSIX and lists the registries that do not have the
+version yet, from any machine.
 
-The Marketplace does not offer trusted publishing yet, so it uses the `VS_MARKETPLACE_TOKEN` secret.
-`VS_MARKETPLACE_TOKEN` must be an Azure DevOps PAT created for **All accessible organizations** with
-the **Marketplace (Manage)** scope (a PAT for one organization fails with `TF400813`). Azure DevOps
-stops supporting such PATs on December 1, 2026.
+### Release Credentials
 
-If publishing fails after the tag is pushed, rerunning the workflow does not publish again, because
-the version is already tagged. Check out the tag and run `npm run ops -- publish` (add
-`--pre-release` for an odd minor), which publishes only to registries that do not have the version
-yet.
+The workflows store no secrets. Each job exchanges its GitHub OIDC token (`id-token: write`) for
+short-lived credentials:
+
+| Credential            | Used by                                        | Issued under                                                                                    |
+| --------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| GitHub token for tags | The `semantic-release` action in `publish.yml` | Octo STS trust policy [release.sts.yaml](.github/chainguard/release.sts.yaml)                   |
+| Registry credentials  | The publish job of `publish.yml`               | Each registry's [trusted publishers](#trusted-publishing), which name the `release` environment |
+
+GitHub rejects tag creation by `GITHUB_TOKEN` under a ruleset that restricts it, so tags go through
+the [Octo STS](https://github.com/octo-sts/app) GitHub App, which mints a token when a job's OIDC
+token matches a trust policy in `.github/chainguard/`. Setup:
+
+1. [Install the Octo STS app](https://github.com/apps/octo-sts/installations/new) on this
+   repository.
+2. Add a ruleset that restricts creating, updating, and deleting `v*` tags, with the app as a bypass
+   actor.
+3. Restrict the `release` environment to `main`. The registries trust only jobs in it.
+
+Octo STS reads trust policies from the default branch (`main`). The policy matches the owner and
+repository IDs in the OIDC subject, the branch, and the exact workflow file.
+
+The tagging job runs outside the `release` environment, so semantic-release and its plugins never
+hold an OIDC token that a registry accepts; the publish job, in the environment, publishes the
+GitHub release's VSIX. Both jobs install dependencies with `--ignore-scripts`.
+
+semantic-release and its plugins are locked in
+[.github/actions/semantic-release/package-lock.json](.github/actions/semantic-release/package-lock.json),
+apart from the root workspace. To update them, edit that directory's `package.json` and run
+`npm install --package-lock-only --ignore-scripts` there.
+
+### Trusted Publishing
+
+Every registry is reached with trusted publishing: the job's GitHub OIDC token is exchanged for
+short-lived credentials. Each registry must list this repository, `publish.yml`, and the `release`
+environment as a trusted publisher:
+
+| Registry            | Where to configure it                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VS Code Marketplace | The `awalsh128` publisher's trusted publishers; `vsce publish --oidc` exchanges the token.                                                        |
+| Open VSX            | The namespace's [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers); `ops.ts` exchanges the token for a publishing token. |
+
+Run a dry run of the workflow after changing `release.config.cjs`. A dry run checks the
+configuration but does not publish.
 
 ### Manual
 
-[scripts/ops.ts](scripts/ops.ts) handles manual publishing and the other release operations; see
+[scripts/ops.ts](scripts/ops.ts) handles the other release operations; see
 [scripts/README.md](scripts/README.md#opsts) for details.
 
 ```bash
 npm run ops -- list                            # versions on each registry
-npm run ops -- delete-versions --before 1.0.0  # dry run; add --yes to delete
 npm run ops -- deprecate --replacement publisher.other
 ```
 
-Publishing or deleting versions from a workstation needs `OVSX_PAT`, and `VSCE_PAT` or an
-interactive Azure DevOps sign-in. The publisher pages are also available for manual changes:
+The publisher pages are also available for manual changes:
 
 - https://marketplace.visualstudio.com/manage/publishers/awalsh128
 - https://open-vsx.org/
-- https://dev.azure.com/awalsh128/vscode-keep-sorted
 
 ## License
 

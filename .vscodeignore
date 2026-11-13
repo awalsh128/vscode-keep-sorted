@@ -23,6 +23,7 @@ AGENTS.md
 CLAUDE.md
 CONTRIBUTING.md
 eslint.config.mjs
+release.config.cjs
 tsconfig*.json
 *.tsbuildinfo
 *.log

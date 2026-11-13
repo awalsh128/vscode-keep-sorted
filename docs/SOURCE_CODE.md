@@ -87,22 +87,19 @@ headers.
 
 ### Release Operations
 
-[scripts/ops.ts](../scripts/ops.ts) lists, publishes, and deletes versions on Open VSX and the
-Visual Studio Marketplace, and prints deprecation requests, since neither registry has a deprecation
-API. Each registry sits behind a small `Registry` interface: Open VSX uses its REST API directly
-(with a trusted publishing token from the GitHub Actions OIDC ID token when `OVSX_PAT` is unset in
-Actions), and the Marketplace uses the public gallery query, `vsce publish` (trusted publishing
-through the GitHub Actions OIDC token when `VSCE_PAT` is unset in Actions), and
-`azure-devops-node-api` for per-version deletion. `publish` packages one VSIX and skips registries
-that already have the version, so it can finish a release that failed partway. Automated releases
-use semantic-release instead: the Publish Extension workflow installs semantic-release,
-semantic-release-vsce, and `@semantic-release/git` in the job (not in `package.json`, since
-semantic-release bundles an npm CLI that the audit flags), configured by the `release` key in
-`package.json`, with [scripts/release-version.ts](../scripts/release-version.ts) in place of the
-commit analyzer so releases stay on even minor versions and pre-releases on odd ones. Before it
-runs, `openvsx-token` (`exportOpenVsxToken()`) exports a trusted publishing token as `OVSX_PAT`,
-since semantic-release-vsce reads Open VSX credentials only from that variable. `delete-versions` is
-a dry run without `--yes` and refuses the package.json version and each registry's latest version.
+[scripts/ops.ts](../scripts/ops.ts) lists and publishes versions on Open VSX and the Visual Studio
+Marketplace, and prints deprecation requests, since neither registry has a deprecation API. Each
+registry sits behind a small `Registry` interface: Open VSX uses its REST API directly with a
+trusted publishing token exchanged for the GitHub Actions OIDC ID token, and the Marketplace uses
+the public gallery query and `vsce publish --oidc`. Publishing uses trusted publishing only, so it
+refuses to run outside a job with `id-token: write` unless it is a dry run. `publish` packages one
+VSIX, or takes a packaged one with `--vsix`, and skips registries that already have the version, so
+it can finish a release that failed partway. The Publish Extension workflow tags releases with
+semantic-release, whose tools are locked in `.github/actions/semantic-release/` (not in
+`package.json`, since semantic-release bundles an npm CLI that the audit flags), configured by
+`release.config.cjs`, with [scripts/release-version.ts](../scripts/release-version.ts) in place of
+the commit analyzer so releases stay on even minor versions and pre-releases on odd ones. A separate
+job in the `release` environment then publishes the GitHub release's VSIX with `ops.ts`.
 [scripts/test/ops.test.ts](../scripts/test/ops.test.ts) covers the operations with fake registries
 and the registry adapters with stubbed HTTP.
 
@@ -552,8 +549,6 @@ directories such as `src/`, `out/`, `node_modules/`, and `.githooks/`.
   older chokidar/braces dependency chain and requires Node.js 22+.
 - **@vscode/vsce**: Packaging and Marketplace publishing for `scripts/ops.ts`, which calls the Open
   VSX REST API directly instead of installing `ovsx`.
-- **azure-devops-node-api**: Marketplace gallery client used by `scripts/ops.ts` to delete single
-  versions; pinned to the version `vsce` already uses.
 
 ---
 

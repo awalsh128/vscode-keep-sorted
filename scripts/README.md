@@ -70,47 +70,32 @@ with Go 1.26, and commits `bin/`. Regular CI runs only the script's Go-free unit
 ### `ops.ts`
 
 Release operations for Open VSX and the Visual Studio Marketplace, for maintainers. The **Publish
-Extension** workflow releases with semantic-release instead (see
-[CONTRIBUTING.md](../CONTRIBUTING.md#publishing)); use `publish` here to publish by hand or to
-finish a release that failed partway.
+Extension** workflow tags releases with semantic-release and publishes the release's VSIX with
+`publish --vsix` (see [CONTRIBUTING.md](../CONTRIBUTING.md#publishing)).
 
 ```bash
 npm run ops -- list                          # versions on each registry
 npm run ops -- publish --dry-run             # package only; add --pre-release if needed
-npm run ops -- delete-versions --before 1.0.0  # show older versions that would be deleted
-npm run ops -- delete-versions 0.0.1 --yes   # delete specific versions
 npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
-npm run ops -- openvsx-token                 # GitHub Actions only: export an Open VSX token
 ```
 
-- `publish` packages the `package.json` version once and publishes that VSIX to each registry that
-  does not have it yet, so a rerun after a partial failure only fills the gap. It refuses a
-  pre-release on an even minor version and a release on an odd one, matching
+- `publish` packages the `package.json` version once, or takes the VSIX at `--vsix`, and publishes
+  it to each registry that does not have it yet, so a rerun after a partial failure only fills the
+  gap. It refuses a pre-release on an even minor version and a release on an odd one, matching
   [`release-version.ts`](#release-versionts).
-- `delete-versions` deletes permanently: neither registry can hide a single version, and a deleted
-  version number can never be published again. Without `--yes` it only prints the plan. It refuses
-  the `package.json` version and each registry's latest version.
+- `publish` uses trusted publishing only, so without `--dry-run` it runs only in a GitHub Actions
+  job with `id-token: write`: Open VSX exchanges the job's OIDC ID token for a short-lived
+  publishing token, and the Marketplace runs `vsce publish --oidc`. No token is read from the
+  environment.
 - `deprecate` prints the request text to submit by hand, since neither registry has a deprecation
   API: a comment on the Marketplace
   [Deprecated extensions discussion](https://github.com/microsoft/vscode-discussions/discussions/1)
   and an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new).
-- `openvsx-token` runs in GitHub Actions only. It exchanges the job's OIDC ID token for a
-  short-lived Open VSX publishing token, masks it in the log, and exports it as `OVSX_PAT` to later
-  steps through `$GITHUB_ENV`. The Publish Extension workflow uses it so semantic-release-vsce can
-  publish with trusted publishing.
-
-`publish` and `delete-versions --yes` read `VSCE_PAT` (Marketplace) and `OVSX_PAT` (Open VSX). In
-GitHub Actions, `publish` uses trusted publishing for a registry whose variable is unset: Open VSX
-exchanges the job's OIDC ID token for a short-lived publishing token, and the Marketplace runs
-`vsce publish --oidc`. Both need the job's `id-token: write` permission. Elsewhere without
-`VSCE_PAT`, both commands print a Microsoft device-code sign-in for Azure DevOps. Personal Microsoft
-accounts can only sign in through a Microsoft Entra directory they belong to: set `AZURE_TENANT_ID`
-to it, since the default `common` tenant accepts only work or school accounts.
 
 ### `release-version.ts`
 
 A semantic-release plugin that replaces `@semantic-release/commit-analyzer` in the `release`
-configuration of `package.json`. It reads the Conventional Commits since the last release and
+configuration in `release.config.cjs`. It reads the Conventional Commits since the last release and
 chooses the bump that keeps releases on even minor versions and pre-releases (`VSCE_PRE_RELEASE`) on
 odd ones; see [CONTRIBUTING.md](../CONTRIBUTING.md#publishing) for the rules. semantic-release loads
 it from `out/scripts/release-version.js`, so the Publish Extension workflow compiles first.
