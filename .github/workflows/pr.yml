@@ -16,14 +16,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
 
-      # GHSA-3g3m-2fjr-6pw4: glob 13 bundled inside the npm CLI that semantic-release depends on, in
+      # Advisories in packages bundled inside the npm CLI that semantic-release depends on, in
       # .github/actions/semantic-release. Overrides can't replace bundled dependencies, and that code
-      # never loads: release.config.cjs doesn't configure @semantic-release/npm. Remove once npm
-      # bundles glob >= 14.0.2.
+      # never loads: release.config.cjs doesn't configure @semantic-release/npm. Remove each once npm
+      # bundles a fixed version.
+      # - GHSA-3g3m-2fjr-6pw4: glob < 14.0.2
+      # - GHSA-g3hv-75wg-m249: minimatch < 11.0.1
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
-          allow-ghsas: GHSA-3g3m-2fjr-6pw4
+          allow-ghsas: GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249
 
   check-binaries-not-in-pr:
     name: Check binaries are not included in PR
