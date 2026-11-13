@@ -358,7 +358,6 @@ describe("completion", () => {
       describe("comment style compatibility", () => {
         [
           { name: "C-style", line: "// keep-sorted start" },
-          { name: "uppercase", line: "// KEEP-SORTED START" },
           { name: "Python-style", line: "# keep-sorted start" },
           { name: "HTML-style", line: "<!-- keep-sorted start -->" },
         ].forEach(({ name, line }) => {
@@ -370,6 +369,14 @@ describe("completion", () => {
             expect(items).to.be.an("array");
             expect(items!.length).to.be.greaterThan(0);
           });
+        });
+
+        it("should return undefined for an uppercase directive, which keep-sorted ignores", () => {
+          // Act
+          const result = getCompletionsAtEndOfLine("// KEEP-SORTED START ");
+
+          // Assert
+          expect(result).to.equal(undefined);
         });
       });
 
