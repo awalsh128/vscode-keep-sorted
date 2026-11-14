@@ -649,9 +649,7 @@
     "glob-regex": "^0.3.2",
     "jsonc-parser": "^3.3.1",
     "picomatch": "^4.0.7",
-    "triple-beam": "^1.4.1",
-    "winston": "^3.19.0",
-    "winston-transport": "^4.9.0"
+    "vsce-winston-logging": "^1.1.0"
   },
   "overrides": {
     "@azure/msal-node": "^7.1.1",
