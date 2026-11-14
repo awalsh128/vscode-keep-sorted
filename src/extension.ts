@@ -21,7 +21,8 @@ import { LintScheduler } from "./scheduler";
 import * as workspace from "./workspace";
 
 export async function activate(context: vscode.ExtensionContext) {
-  // Create output channel
+  // Disposes the output channel and the logger's transports on deactivation.
+  context.subscriptions.push(logger);
   logger.info(`Activating extension ${extensionId.value}-${extensionId.version}...`);
 
   // TODO(#24): Extension ID checks.

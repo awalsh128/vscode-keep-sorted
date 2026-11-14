@@ -3,8 +3,7 @@ import { afterEach, beforeEach, describe, it } from "mocha";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import * as winston from "winston";
-import { contextualizeLogger, logger, setLogLevel } from "../instrumentation";
+import { contextualizeLogger, logger } from "../instrumentation";
 
 use(sinonChai);
 
@@ -20,21 +19,6 @@ describe("instrumentation", () => {
   });
 
   const relativePath = "relative/path/to/file.ts";
-
-  describe("setLogLevel", () => {
-    it("should set the logger and transport levels", () => {
-      // Arrange
-      const transport = new winston.transports.Console({ level: "info", silent: true });
-      const testLogger = winston.createLogger({ level: "info", transports: [transport] });
-
-      // Act
-      setLogLevel(testLogger, "debug");
-
-      // Assert
-      expect(testLogger.level).to.equal("debug");
-      expect(transport.level).to.equal("debug");
-    });
-  });
 
   describe("contextualizeLogger", () => {
     let mockDocument: vscode.TextDocument;
@@ -83,85 +67,58 @@ describe("instrumentation", () => {
           expect(written()).to.have.lengthOf(1);
           expect(written()[0]).to.include({
             message: "message",
-            documentRelativePath: vscode.workspace.asRelativePath(mockDocument.uri),
+            documentPath: vscode.workspace.asRelativePath(mockDocument.uri),
             range: "[2:3]",
           });
         });
       });
     });
 
-    it("should log document path without range", () => {
-      // Act
-      const child = contextualizeLogger(mockDocument.uri);
+    describe("document and range metadata", () => {
+      let write: sinon.SinonSpy;
 
-      // Assert
-      const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
-      expect(child.defaultMeta).to.deep.equal({
-        documentRelativePath: relativePath,
-        range: "",
+      beforeEach(() => {
+        write = sandbox.spy(logger, "write");
       });
-    });
 
-    it("should log document path with range", () => {
-      // Arrange
-      const range = new vscode.Range(1, 0, 3, 0);
+      const cases: { name: string; uri: () => vscode.Uri; range?: vscode.Range; text: string }[] = [
+        { name: "without range", uri: () => mockUri, text: "" },
+        {
+          name: "with range",
+          uri: () => mockUri,
+          range: new vscode.Range(1, 0, 3, 0),
+          text: "[2:3]",
+        },
+      ];
 
-      // Act
-      const child = contextualizeLogger(mockDocument.uri, range);
+      cases.forEach(({ name, uri, range, text }) => {
+        it(`should log the document path ${name}`, () => {
+          // Arrange
+          const child = contextualizeLogger(uri(), range);
 
-      // Assert
-      const relativePath = vscode.workspace.asRelativePath(mockDocument.uri);
-      expect(child.defaultMeta).to.deep.equal({
-        documentRelativePath: relativePath,
-        range: "[2:3]",
+          // Act
+          child.info("message");
+
+          // Assert
+          expect(write.args[0][0]).to.include({
+            documentPath: vscode.workspace.asRelativePath(mockUri),
+            range: text,
+          });
+        });
       });
-    });
 
-    it("should log relative path when workspace folder available", () => {
-      // Arrange
-      sandbox
-        .stub(vscode.workspace, "asRelativePath")
-        .withArgs(mockDocument.uri)
-        .returns(relativePath);
+      it("should log relative path when workspace folder available", () => {
+        // Arrange
+        sandbox
+          .stub(vscode.workspace, "asRelativePath")
+          .withArgs(mockDocument.uri)
+          .returns(relativePath);
 
-      // Act
-      const child = contextualizeLogger(mockDocument.uri);
+        // Act
+        contextualizeLogger(mockDocument.uri).info("message");
 
-      // Assert
-      expect(child.defaultMeta).to.deep.equal({
-        documentRelativePath: relativePath,
-        range: "",
-      });
-    });
-
-    it("should accept URI directly without document", () => {
-      // Arrange
-      const uri = vscode.Uri.file("/test/direct.ts");
-
-      // Act
-      const child = contextualizeLogger(uri);
-
-      // Assert
-      expect(child.defaultMeta).to.deep.equal({
-        documentRelativePath: vscode.workspace.asRelativePath(uri),
-        range: "",
-      });
-    });
-
-    it("should handle URI with workspace folder", () => {
-      // Arrange
-      const expectedRelativePath = "folder/file.ts";
-      const workspaceFolder = "/test/workspace";
-      const uri = vscode.Uri.file(workspaceFolder + "/" + expectedRelativePath);
-      sandbox.stub(vscode.workspace, "asRelativePath").withArgs(uri).returns(expectedRelativePath);
-
-      // Act
-      const child = contextualizeLogger(uri);
-
-      // Assert
-      expect(child.defaultMeta).to.deep.equal({
-        documentRelativePath: expectedRelativePath,
-        range: "",
+        // Assert
+        expect(write.args[0][0]).to.include({ documentPath: relativePath, range: "" });
       });
     });
   });
