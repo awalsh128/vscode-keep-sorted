@@ -1,0 +1,46 @@
+# Pull requests target staging, since main only fast-forwards to it. Titles use the build type, which
+# doesn't trigger a release; retitle a pull request as fix: when a runtime dependency update should
+# ship. Grouping keeps one pull request per ecosystem and update type. The cooldown skips releases
+# younger than a week, giving a compromised release time to be caught and pulled.
+version: 2
+
+updates:
+  # Workflows and the composite actions under .github/actions, whose SHA pins this keeps current.
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    target-branch: staging
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The root workspace, and the release tools locked apart from it in the semantic-release action.
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/.github/actions/semantic-release"
+    target-branch: staging
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      npm:
+        update-types: [minor, patch]
+    ignore:
+      # Pinned to engines.vscode, the oldest VS Code the extension supports; raise them together.
+      - dependency-name: "@types/vscode"
+      # Majors follow engines.node, the oldest Node the package supports.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
