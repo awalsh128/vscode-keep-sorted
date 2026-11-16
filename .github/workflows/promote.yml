@@ -1,0 +1,72 @@
+# Promotes staging to main by fast-forwarding main to staging's latest commit. main never gets
+# commits of its own (no merge, squash or release commits), so it is always an ancestor of staging.
+# Releases are started separately, by running publish.yml on main.
+name: Promote staging to main
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # Read CI runs
+      id-token: write # For OIDC: the Octo STS token that updates main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
+        with:
+          ref: staging
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve staging commit
+        id: staging
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Require CI success on staging
+        uses: ./.github/actions/require-ci-success
+        with:
+          sha: ${{ steps.staging.outputs.sha }}
+          token: ${{ github.token }}
+
+      - name: Require a fast-forward
+        env:
+          STAGING_SHA: ${{ steps.staging.outputs.sha }}
+        shell: bash
+        run: |
+          if ! git merge-base --is-ancestor origin/main "$STAGING_SHA"; then
+            echo "::error::main has commits that are not on staging, so it can't be fast-forwarded."
+            echo "Get those commits onto staging through a pull request, then promote again."
+            exit 1
+          fi
+
+      # main's ruleset only lets the Octo STS app update it, so main is pushed with its token,
+      # issued under .github/chainguard/promote.sts.yaml to this workflow on staging only. It is
+      # minted only once the checks pass, and used only by the push.
+      - name: Create main token
+        id: octo-sts
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+        with:
+          scope: ${{ github.repository }}
+          identity: promote
+
+      # Not a force push, so the remote rejects anything but a fast-forward.
+      - name: Fast-forward main to staging
+        env:
+          STAGING_SHA: ${{ steps.staging.outputs.sha }}
+          TOKEN: ${{ steps.octo-sts.outputs.token }}
+        shell: bash
+        run: |
+          git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$STAGING_SHA:refs/heads/main"

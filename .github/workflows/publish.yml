@@ -51,7 +51,8 @@ jobs:
           fetch-depth: 0 # semantic-release reads every commit and tag since the last release
           persist-credentials: false
 
-      # CI runs on every push to main, so this checks the result rather than running CI again.
+      # CI runs on every push to staging and main, so this checks the result rather than running CI
+      # again.
       - name: Require CI success
         uses: ./.github/actions/require-ci-success
         with:

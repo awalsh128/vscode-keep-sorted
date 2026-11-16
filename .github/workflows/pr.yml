@@ -2,13 +2,51 @@ name: Pull Request Tests
 
 on:
   pull_request:
-    branches:
-      - main
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
 
 jobs:
+  check-branch:
+    name: Check branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # main is only updated by promote.yml, which fast-forwards it to staging; a merge into main
+      # would add a commit that staging doesn't have.
+      - name: Require staging as the base branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$BASE_REF" != "staging" ]; then
+            echo "::error::Pull requests target staging, not $BASE_REF; main is updated by promotion."
+            exit 1
+          fi
+
+  commitlint:
+    name: Lint pull request title
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
+        with:
+          persist-credentials: false
+
+      # commitlint needs no install scripts, and skipping them keeps title edits quick.
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          ignore-scripts: true
+
+      # Pull requests are squash-merged with the title as the commit subject, and semantic-release
+      # versions the release from it, so only the title has to be a Conventional Commit.
+      - name: Lint pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | npx commitlint --verbose
+
   dependency-review:
     name: Dependency review
     runs-on: ubuntu-24.04
