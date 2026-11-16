@@ -233,6 +233,17 @@ describe("create-binaries.ts E2E Tests", () => {
       execSync(`git -C "${cloneDir}" ${args}`, { encoding: "utf-8" }).trim();
     expect(git("describe --tags --exact-match")).to.equal(KEEP_SORTED_TAG);
 
+    // The build records the upstream release and the exact commit it built
+    const recorded = JSON.parse(
+      fs.readFileSync(path.join(binDir, "keep-sorted.version.json"), "utf-8")
+    ) as { project: string; version: string; commit: string; source: string };
+    expect(recorded).to.deep.equal({
+      project: "google/keep-sorted",
+      version: KEEP_SORTED_TAG,
+      commit: git("rev-parse HEAD"),
+      source: `https://github.com/google/keep-sorted/tree/${KEEP_SORTED_TAG}`,
+    });
+
     // Only the host binary can report its version. Go >= 1.24 reports the tag and older versions
     // the commit; either way an unmodified clone must not add "-dev".
     if (process.platform === "linux" && process.arch === "x64") {

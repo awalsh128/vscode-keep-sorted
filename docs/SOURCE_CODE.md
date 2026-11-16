@@ -80,7 +80,9 @@ consistency, run by the pre-commit hook and CI) and `setup` (fresh-clone setup);
 
 [scripts/create-binaries.ts](../scripts/create-binaries.ts) cross-compiles upstream keep-sorted
 v0.10.0 using explicit `GOOS`, `GOARCH`, and `CGO_ENABLED=0` environment values. Both the source and
-compiled JavaScript entry points resolve outputs to the repository's `bin/` directory. Each binary
+compiled JavaScript entry points resolve outputs to the repository's `bin/` directory. It also
+writes `bin/keep-sorted.version.json`, which records the upstream release, its commit and its source
+URL, so the committed binaries name the Google keep-sorted version they were built from. Each binary
 is assigned mode `0755`, including the Windows executable, before its SHA256 is written. The script
 also assigns checksums mode `0644`. The binary workflow transfers a tar archive to preserve these
 modes after artifact download without a separate chmod step. Regression tests check exact modes

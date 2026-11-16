@@ -13,6 +13,8 @@ const PROJECT_ROOT = join(
   existsSync(join(__dirname, "..", "package.json")) ? ".." : "../.."
 );
 const BIN_DIR = join(PROJECT_ROOT, "bin");
+/** Records the upstream keep-sorted release the binaries in bin/ were built from. */
+const VERSION_FILE = join(BIN_DIR, "keep-sorted.version.json");
 const BIN_BUILD_DIR = join(PROJECT_ROOT, "scripts", "bin-build");
 // Logs stay outside the clone: untracked files there make Go mark binaries as modified ("-dev").
 const BUILD_LOG_DIR = join(PROJECT_ROOT, "scripts", "bin-build-logs");
@@ -101,9 +103,31 @@ execSync(
   }
 );
 
+// The tag can move, so the commit pins exactly what was built.
+const upstreamCommit = execSync("git rev-parse HEAD", {
+  cwd: BIN_BUILD_DIR,
+  encoding: "utf-8",
+}).trim();
+
 chdir(BIN_BUILD_DIR);
 
 // Build all platforms
 for (const platform of PLATFORMS) {
   buildBinary(platform);
 }
+
+writeFileSync(
+  VERSION_FILE,
+  JSON.stringify(
+    {
+      project: "google/keep-sorted",
+      version: KEEP_SORTED_VERSION,
+      commit: upstreamCommit,
+      source: `https://github.com/google/keep-sorted/tree/${KEEP_SORTED_VERSION}`,
+    },
+    null,
+    2
+  ) + "\n"
+);
+chmodSync(VERSION_FILE, 0o644);
+console.log(`✅ Recorded google/keep-sorted ${KEEP_SORTED_VERSION} (${upstreamCommit})`);
