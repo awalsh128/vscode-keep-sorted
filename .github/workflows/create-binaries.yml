@@ -1,7 +1,8 @@
 name: Build Static Binaries
 
 # Building and committing binaries must be intentional, so this workflow only runs when started
-# manually. Regular CI covers the script's Go-free unit tests.
+# manually, on staging. It opens a pull request into staging, because staging only takes pull
+# requests. Regular CI covers the script's Go-free unit tests.
 on:
   workflow_dispatch:
 
@@ -83,13 +84,20 @@ jobs:
           retention-days: 30
 
   commit-binaries:
-    name: Commit binaries to repository
+    name: Open a pull request with the binaries
     needs: build-binaries
+    # The trust policy (.github/chainguard/binaries.sts.yaml) only matches this workflow on staging.
+    if: ${{ github.ref == 'refs/heads/staging' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # For OIDC: the Octo STS token that pushes the branch and opens the PR
 
     steps:
       - name: Checkout code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, Node 24
+        with:
+          persist-credentials: false
 
       - name: Download binaries
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
@@ -100,10 +108,31 @@ jobs:
       - name: Extract binaries with original permissions
         run: tar -xpf keep-sorted-binaries.tar
 
-      - name: Commit binaries
+      # A token from an app, not GITHUB_TOKEN, so the pull request's required checks run.
+      - name: Create pull request token
+        id: octo-sts
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+        with:
+          scope: ${{ github.repository }}
+          identity: binaries
+
+      - name: Open a pull request
+        env:
+          TOKEN: ${{ steps.octo-sts.outputs.token }}
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          BRANCH: chore/update-binaries-${{ github.run_id }}
         run: |
+          set -euo pipefail
+          git add bin/
+          if git diff --staged --quiet; then
+            echo "The binaries are already up to date."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bin/
-          git diff --staged --quiet || git commit -m "chore: update static binaries [skip ci]"
-          git push || echo "No changes to push"
+          git commit -m "chore: update static binaries"
+          git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${BRANCH}"
+          gh pr create --base staging --head "$BRANCH" \
+            --title "chore: update static binaries" \
+            --body "Binaries built by the [Build Static Binaries](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) workflow."

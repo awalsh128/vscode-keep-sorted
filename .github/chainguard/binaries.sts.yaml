@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/octo-sts/app/refs/heads/main/pkg/octosts/octosts.TrustPolicy.json
+
+# Tokens for create-binaries.yml to push a branch and open a pull request into staging. Pushes and
+# pull requests made with an app token start the required checks, unlike ones made with
+# GITHUB_TOKEN. Octo STS reads this file from the default branch (main), and only the Build Static
+# Binaries workflow running on staging matches. See CONTRIBUTING.md#release-credentials.
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: "repo:awalsh128@2087466/vscode-keep-sorted@1078628435:.*"
+claim_pattern:
+  ref: "refs/heads/staging"
+  job_workflow_ref: "awalsh128/vscode-keep-sorted/\\.github/workflows/create-binaries\\.yml@refs/heads/staging"
+
+permissions:
+  contents: write
+  pull_requests: write
