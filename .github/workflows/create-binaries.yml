@@ -123,6 +123,8 @@ jobs:
           BRANCH: chore/update-binaries-${{ github.run_id }}
         run: |
           set -euo pipefail
+          UPSTREAM_VERSION="$(jq -r .version bin/keep-sorted.version.json)"
+          UPSTREAM_COMMIT="$(jq -r .commit bin/keep-sorted.version.json)"
           git add bin/
           if git diff --staged --quiet; then
             echo "The binaries are already up to date."
@@ -130,9 +132,9 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: update static binaries"
+          git commit -m "chore: update static binaries to keep-sorted ${UPSTREAM_VERSION}"
           git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "HEAD:refs/heads/${BRANCH}"
           gh pr create --base staging --head "$BRANCH" \
-            --title "chore: update static binaries" \
-            --body "Binaries built by the [Build Static Binaries](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) workflow."
+            --title "chore: update static binaries to keep-sorted ${UPSTREAM_VERSION}" \
+            --body "Binaries built by the [Build Static Binaries](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) workflow from google/keep-sorted ${UPSTREAM_VERSION} (commit ${UPSTREAM_COMMIT}). \`bin/keep-sorted.version.json\` records it."
