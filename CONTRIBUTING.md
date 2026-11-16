@@ -51,10 +51,10 @@ requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
 
 ### Making Changes
 
-1. **Create a branch** for your feature or fix:
+1. **Create a branch** from `staging` for your feature or fix:
 
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feature/your-feature-name origin/staging
    ```
 
 2. **Write tests first** - Every new `.ts` file needs a `.test.ts` file in `src/test/` or
@@ -111,12 +111,26 @@ This downloads and builds binaries for all supported platforms.
 ## Pull Request Process
 
 1. **Ensure all tests pass** and there are no linting errors
-2. **Create a clear pull request** with:
+2. **Open the pull request into `staging`**, never `main`, with:
    - Descriptive title and summary
    - Reference any related issues
    - Explain what changes were made and why
+   - A Conventional Commit title (`feat: ...`, `fix: ...`): pull requests are squash-merged and the
+     title becomes the commit that semantic-release versions from
 3. **Wait for review** - maintainers will review and provide feedback
 4. **Address feedback** and update your PR as needed
+
+### Branches
+
+- `staging` takes pull requests only (squash merge), and CI must pass on them. Direct pushes are
+  blocked by its ruleset.
+- `main` is the official release branch and never gets commits of its own. The
+  [Promote staging to main](.github/workflows/promote.yml) workflow fast-forwards it to the latest
+  CI-passed `staging` commit, using an Octo STS token
+  ([promote.sts.yaml](.github/chainguard/promote.sts.yaml)). Never merge a pull request into `main`:
+  that adds a commit `staging` doesn't have.
+- To release, run promote on `staging`, then start the Publish Extension workflow on `main`
+  ([Publishing](#publishing)).
 
 ## Code of Conduct
 
@@ -164,7 +178,8 @@ it would have to skip an odd minor. Breaking changes ship as a release, not a pr
 
 Start the
 [Publish Extension workflow](https://github.com/awalsh128/vscode-keep-sorted/actions/workflows/publish.yml)
-by hand on `main`. It defaults to a dry run that prints the next version and release notes:
+by hand on `main`, after promoting `staging`. It defaults to a dry run that prints the next version
+and release notes:
 
 ```sh
 gh workflow run publish.yml --ref main -f dry-run=false                     # release
@@ -208,12 +223,14 @@ token matches a trust policy in `.github/chainguard/`. Setup:
 
 1. [Install the Octo STS app](https://github.com/apps/octo-sts/installations/new) on this
    repository.
-2. Add a ruleset that restricts creating, updating, and deleting `v*` tags, with the app as a bypass
-   actor.
+2. Add the app as a bypass actor to the `main` ruleset and to the ruleset that restricts creating,
+   updating, and deleting `v*` tags (see `.github/rulesets/`).
 3. Restrict the `release` environment to `main`. The registries trust only jobs in it.
 
-Octo STS reads trust policies from the default branch (`main`). The policy matches the owner and
-repository IDs in the OIDC subject, the branch, and the exact workflow file.
+Octo STS reads trust policies from the default branch (`main`), so a policy change takes effect when
+it is promoted. The policies match the owner and repository IDs in the OIDC subject, the branch, and
+the exact workflow file: `release.sts.yaml` for `publish.yml` on `main`, and `promote.sts.yaml` for
+`promote.yml` on `staging`.
 
 The tagging job runs outside the `release` environment, so semantic-release and its plugins never
 hold an OIDC token that a registry accepts; the publish job, in the environment, publishes the
