@@ -67,6 +67,11 @@ jobs:
 
   check-binaries-not-in-pr:
     name: Check binaries are not included in PR
+    # The Build Static Binaries workflow opens the one pull request allowed to change bin/. It is
+    # skipped there (a skipped required check passes); every other pull request is checked.
+    if:
+      ${{ !(startsWith(github.head_ref, 'chore/update-binaries-') &&
+      endsWith(github.event.pull_request.user.login, '[bot]')) }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
@@ -78,7 +83,7 @@ jobs:
         run: |
           if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q '^bin/'; then
             echo "❌ Error: Binaries should not be included in pull requests"
-            echo "Binaries are built and committed by the Build Static Binaries workflow"
+            echo "Binaries are built by the Build Static Binaries workflow, which opens its own PR"
             echo ""
             echo "Changed binary files:"
             git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^bin/'

@@ -108,6 +108,12 @@ npm run create-binaries
 
 This downloads and builds binaries for all supported platforms.
 
+To update the committed `bin/` files, run the Build Static Binaries workflow on `staging`. It opens
+a pull request into `staging` with the new binaries (the only pull request allowed to change
+`bin/`), using an Octo STS token from [binaries.sts.yaml](.github/chainguard/binaries.sts.yaml) so
+the required checks run on it. Octo STS reads that policy from `main`, so a change to it takes
+effect once promoted.
+
 ## Pull Request Process
 
 1. **Ensure all tests pass** and there are no linting errors
