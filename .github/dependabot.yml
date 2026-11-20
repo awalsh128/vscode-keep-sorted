@@ -44,3 +44,7 @@ updates:
       # Majors follow engines.node, the oldest Node the package supports.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # typescript-eslint's peer range caps typescript, so a newer major fails npm ci. Allow majors
+      # again once its peer range includes them.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
