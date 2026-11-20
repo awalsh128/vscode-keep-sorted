@@ -144,6 +144,32 @@ export function excluded(uri: vscode.Uri): RegExp | null {
 }
 
 /**
+ * Adds a pattern to `keep-sorted.exclude` in the workspace settings, or the user settings when no
+ * folder is open. A workspace value replaces the user one in VS Code, so a new workspace value
+ * starts from the patterns already in effect rather than dropping them.
+ *
+ * @param pattern The pattern to add; nothing changes when it is already listed.
+ *
+ * @returns The scope that was written to.
+ */
+export async function addExcludePattern(pattern: string): Promise<vscode.ConfigurationTarget> {
+  const config = vscode.workspace.getConfiguration(extensionId.name);
+  const target = vscode.workspace.workspaceFolders?.length
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+  const inspected = config.inspect<string[]>("exclude");
+  const scoped =
+    target === vscode.ConfigurationTarget.Workspace
+      ? inspected?.workspaceValue
+      : inspected?.globalValue;
+  const current = scoped ?? getConfig().exclude;
+  if (!current.includes(pattern)) {
+    await config.update("exclude", [...current, pattern], target);
+  }
+  return target;
+}
+
+/**
  * Builds a `findFiles` exclude glob from `files.exclude` and `search.exclude`. Passing an exclude
  * to `findFiles` replaces its default of `files.exclude`, and `search.exclude` is what skips
  * `node_modules` by default. Patterns with one brace group are expanded so they can join the union;

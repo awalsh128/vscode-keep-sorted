@@ -68,6 +68,7 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
         if (sortWorkspace.affectedUris().some((other) => other.toString() !== uri.toString())) {
           actions.push(sortWorkspace.asCodeAction(diagnostics));
         }
+        actions.push(this.commandHandlers.excludeFile.asCodeAction(diagnostics, document));
       }
     }
     if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {

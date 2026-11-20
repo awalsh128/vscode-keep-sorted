@@ -4,7 +4,12 @@ import * as path from "path";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
+import {
+  ExcludeFileCommandHandler,
+  SortFileCommandHandler,
+  SortWorkspaceCommandHandler,
+} from "../commands";
+import { exactFilePattern } from "../exclusion";
 import { extensionId } from "../instrumentation";
 import { KeepSorted } from "../keepsorted";
 import * as workspace from "../workspace";
@@ -519,5 +524,56 @@ describe("commands", () => {
 
     // Assert
     expect(applyEditStub.called).to.equal(true);
+  });
+
+  describe("ExcludeFileCommandHandler", () => {
+    let handler: ExcludeFileCommandHandler;
+    let sandbox: sinon.SinonSandbox;
+    let update: sinon.SinonStub;
+    let document: vscode.TextDocument;
+
+    beforeEach(async (): Promise<void> => {
+      sandbox = sinon.createSandbox();
+      handler = new ExcludeFileCommandHandler();
+      update = sandbox.stub().resolves();
+      sandbox.stub(vscode.workspace, "getConfiguration").returns({
+        inspect: () => ({ key: "exclude", workspaceValue: ["^existing$"] }),
+        update,
+      } as unknown as vscode.WorkspaceConfiguration);
+      sandbox.stub(vscode.window, "showInformationMessage").resolves(undefined);
+      document = await vscode.workspace.openTextDocument(MIXED_BLOCKS_FILE);
+    });
+
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    it("should create a quick fix that passes the file to the exclude command", (): void => {
+      // Arrange
+      const diagnostics = [new vscode.Diagnostic(new vscode.Range(0, 0, 1, 0), "Unsorted")];
+
+      // Act
+      const action = handler.asCodeAction(diagnostics, document);
+
+      // Assert
+      expect(action.title).to.equal("Exclude this file (keep-sorted)");
+      expect(action.kind).to.deep.equal(vscode.CodeActionKind.QuickFix);
+      expect(action.diagnostics).to.deep.equal(diagnostics);
+      expect(action.command?.command).to.equal("keep-sorted.excludeFile");
+      expect(action.command?.arguments).to.deep.equal([document.uri]);
+    });
+
+    it("should append an exact pattern for the file to the workspace exclude setting", async () => {
+      // Act
+      await handler.handle(document.uri);
+
+      // Assert
+      const relativePath = vscode.workspace.asRelativePath(document.uri);
+      expect(update).to.have.been.calledOnceWithExactly(
+        "exclude",
+        ["^existing$", exactFilePattern(relativePath)],
+        vscode.ConfigurationTarget.Workspace
+      );
+    });
   });
 });

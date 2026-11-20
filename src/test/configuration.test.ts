@@ -5,6 +5,7 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import {
+  addExcludePattern,
   excluded as pathExcluded,
   getConfig,
   handleConfigurationChange,
@@ -415,6 +416,65 @@ describe("configuration", () => {
         // Assert
         expect(result?.source).to.be.equal(expectedMatchingRegex?.source);
       });
+    });
+  });
+
+  describe("addExcludePattern", () => {
+    const NEW_PATTERN = "^new\\.ts$";
+    const OTHER_PATTERN = "^other\\.ts$";
+    let update: sinon.SinonStub;
+
+    const stubSettings = (inspected: object, folders: object[] | undefined): void => {
+      update = sandbox.stub().resolves();
+      sandbox.stub(vscode.workspace, "getConfiguration").returns({
+        inspect: () => inspected,
+        get: () => [],
+        update,
+      } as unknown as vscode.WorkspaceConfiguration);
+      sandbox.stub(vscode.workspace, "workspaceFolders").value(folders);
+    };
+
+    it("should append to the workspace value when a folder is open", async () => {
+      // Arrange
+      stubSettings({ workspaceValue: [OTHER_PATTERN], globalValue: ["^user$"] }, [{}]);
+
+      // Act
+      const target = await addExcludePattern(NEW_PATTERN);
+
+      // Assert
+      expect(target).to.equal(vscode.ConfigurationTarget.Workspace);
+      expect(update).to.have.been.calledOnceWithExactly(
+        "exclude",
+        [OTHER_PATTERN, NEW_PATTERN],
+        vscode.ConfigurationTarget.Workspace
+      );
+    });
+
+    it("should append to the user value when no folder is open", async () => {
+      // Arrange
+      stubSettings({ workspaceValue: [OTHER_PATTERN], globalValue: ["^user$"] }, undefined);
+
+      // Act
+      const target = await addExcludePattern(NEW_PATTERN);
+
+      // Assert
+      expect(target).to.equal(vscode.ConfigurationTarget.Global);
+      expect(update).to.have.been.calledOnceWithExactly(
+        "exclude",
+        ["^user$", NEW_PATTERN],
+        vscode.ConfigurationTarget.Global
+      );
+    });
+
+    it("should not write a pattern that is already listed", async () => {
+      // Arrange
+      stubSettings({ workspaceValue: [NEW_PATTERN] }, [{}]);
+
+      // Act
+      await addExcludePattern(NEW_PATTERN);
+
+      // Assert
+      expect(update.called).to.equal(false);
     });
   });
 
