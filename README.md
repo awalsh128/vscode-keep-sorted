@@ -333,6 +333,12 @@ Example exclusions:
 }
 ```
 
+To exclude a file you are looking at, open the lightbulb (`Ctrl+.` / `Cmd+.`) on one of its warnings
+and choose **Exclude this file (keep-sorted)**. It adds an exact-match pattern such as
+`^src/generated/api\.ts$` to `keep-sorted.exclude` in your workspace settings, or your user settings
+when no folder is open, and the file's warnings clear. This is a quick fix only: it is not a Command
+Palette command and is not part of sort on save. To undo it, remove the pattern from the setting.
+
 Exclusions are checked against workspace-relative paths, absolute paths, and file names. Patterns
 are interpreted as regex first, falling back to glob matching when the regex is invalid. Changes
 apply immediately: newly excluded files lose their warnings, and newly included files are checked.

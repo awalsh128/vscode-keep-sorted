@@ -181,6 +181,11 @@ and the registry adapters with stubbed HTTP.
   - Quick fixes use the diagnostics that intersect the requested range: a preferred file-level sort
     action, so Auto Fix applies it, plus a workspace sort action when other files also have
     diagnostics (quick fixes only, never on save)
+  - Quick fixes also include "Exclude this file", which runs `keep-sorted.excludeFile`
+    (`ExcludeFileCommandHandler`). It is declared only in code, not in `package.json`, so it stays
+    out of the Command Palette, and `configuration.addExcludePattern()` appends
+    `exclusion.exactFilePattern()` to `keep-sorted.exclude` (workspace scope, or user scope without
+    a folder); the resulting settings change clears the file's diagnostics
   - `source.fixAll.keepSorted` uses all of the document's diagnostics, so Source Action and Fix All
     offer it wherever the cursor is
 - **Integration**: Connected via VS Code's codeActionProvider extension point

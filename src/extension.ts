@@ -4,7 +4,11 @@ import { ActionProvider } from "./actions";
 import { AddAiInstructionsCommandHandler } from "./ai/instructions";
 import { LanguageModelToolsRegistrant, VscodeToolHost } from "./ai/lmtools";
 import { McpServerInstaller } from "./ai/mcpinstall";
-import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "./commands";
+import {
+  ExcludeFileCommandHandler,
+  SortFileCommandHandler,
+  SortWorkspaceCommandHandler,
+} from "./commands";
 import { KeepSortedCompletionProvider } from "./completion";
 import {
   getConfig,
@@ -34,6 +38,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const editCommandHandlers = {
     sortFile: new SortFileCommandHandler(diagnostics, editFactory),
     sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
+    excludeFile: new ExcludeFileCommandHandler(),
   };
   const lintScheduler = new LintScheduler(lint);
   context.subscriptions.push(lintScheduler);

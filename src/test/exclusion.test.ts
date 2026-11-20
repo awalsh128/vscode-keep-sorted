@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { describe, it } from "mocha";
-import { compileExcludePatterns, matchingExclude } from "../exclusion";
+import { compileExcludePatterns, exactFilePattern, matchingExclude } from "../exclusion";
 
 describe("exclusion", () => {
   describe("compileExcludePatterns", () => {
@@ -51,6 +51,45 @@ describe("exclusion", () => {
     it("should return null when nothing matches", () => {
       // Act & Assert
       expect(matchingExclude(patterns, "src/a.ts", "/w/src/a.ts")).to.equal(null);
+    });
+  });
+
+  describe("exactFilePattern", () => {
+    [
+      { name: "the file", file: "src/a.ts", other: "src/a.ts", expected: true },
+      {
+        name: "a file whose name only ends the same",
+        file: "a.ts",
+        other: "data.ts",
+        expected: false,
+      },
+      {
+        name: "a file where a dot stands for another character",
+        file: "a.ts",
+        other: "aXts",
+        expected: false,
+      },
+      {
+        name: "a file in a directory with the same name",
+        file: "src",
+        other: "src/a.ts",
+        expected: false,
+      },
+      {
+        name: "a path with regular expression characters",
+        file: "a+(b)[c].ts",
+        other: "a+(b)[c].ts",
+        expected: true,
+      },
+      { name: "a Windows path", file: "C:\\w\\a.ts", other: "C:\\w\\a.ts", expected: true },
+    ].forEach(({ name, file, other, expected }) => {
+      it(`should ${expected ? "" : "not "}match ${name}`, () => {
+        // Arrange
+        const [regex] = compileExcludePatterns([exactFilePattern(file)]);
+
+        // Act & Assert
+        expect(regex.test(other)).to.equal(expected);
+      });
     });
   });
 });

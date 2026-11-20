@@ -54,3 +54,16 @@ export function matchingExclude(
     ) ?? null
   );
 }
+
+/**
+ * Builds the `keep-sorted.exclude` pattern that matches exactly one file. The path is anchored and
+ * escaped because patterns are unanchored regular expressions, so a bare `a.ts` would also match
+ * `data.ts`.
+ *
+ * @param filePath The workspace-relative path, or the absolute path outside a workspace folder.
+ *
+ * @returns The pattern.
+ */
+export function exactFilePattern(filePath: string): string {
+  return `^${filePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
+}

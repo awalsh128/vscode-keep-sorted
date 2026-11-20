@@ -13,7 +13,11 @@ import {
   VscodeToolHost,
 } from "../../ai/lmtools";
 import { TOOL_SPECS, ToolHost, ToolInputError } from "../../ai/tools";
-import { SortFileCommandHandler, SortWorkspaceCommandHandler } from "../../commands";
+import {
+  ExcludeFileCommandHandler,
+  SortFileCommandHandler,
+  SortWorkspaceCommandHandler,
+} from "../../commands";
 import * as configuration from "../../configuration";
 import { KeepSorted } from "../../keepsorted";
 import { EditFactory } from "../../workspace";
@@ -39,6 +43,7 @@ describe("lmtools", () => {
     host = new VscodeToolHost(EXT_WORKSPACE_DIR, diagnostics, editFactory, {
       sortFile: new SortFileCommandHandler(diagnostics, editFactory),
       sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
+      excludeFile: new ExcludeFileCommandHandler(),
     });
   });
 

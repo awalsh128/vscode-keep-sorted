@@ -5,7 +5,12 @@ import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
 import { ActionProvider } from "../actions";
-import { CommandHandlers, SortFileCommandHandler, SortWorkspaceCommandHandler } from "../commands";
+import {
+  CommandHandlers,
+  ExcludeFileCommandHandler,
+  SortFileCommandHandler,
+  SortWorkspaceCommandHandler,
+} from "../commands";
 import { extensionId } from "../instrumentation";
 import { KeepSorted } from "../keepsorted";
 import { EditFactory } from "../workspace";
@@ -24,7 +29,8 @@ const TEST_WORKSPACE = path.join(__dirname, "..", "..", "test-workspace");
 const MIXED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "mixed_blocks.ts");
 const SORTED_BLOCKS_FILE = path.join(TEST_WORKSPACE, "sorted_blocks.ts");
 
-const ACTION_COUNT = 1;
+// The file sort and the exclude quick fixes.
+const ACTION_COUNT = 2;
 
 describe("actions", () => {
   describe("ActionProvider", () => {
@@ -47,6 +53,7 @@ describe("actions", () => {
       editCommandHandlers = {
         sortFile: new SortFileCommandHandler(diagnostics, editFactory),
         sortWorkspace: new SortWorkspaceCommandHandler(diagnostics, editFactory),
+        excludeFile: new ExcludeFileCommandHandler(),
       };
 
       // Open real document from test workspace
@@ -166,7 +173,7 @@ describe("actions", () => {
         });
 
         // Assert
-        expect(actions).to.have.length(ACTION_COUNT);
+        expect(actions).to.have.length(1);
         expect(actions![0].kind).to.deep.equal(
           vscode.CodeActionKind.SourceFixAll.append("keepSorted")
         );
@@ -195,6 +202,29 @@ describe("actions", () => {
         expect(actions).to.have.length(1);
         expect(actions[0].kind).to.deep.equal(ActionProvider.fixAllKind);
         expect(actions[0].diagnostics).to.deep.equal([diagnostic]);
+      });
+
+      it("should offer excluding the file as a quick fix, not on save", () => {
+        // Arrange
+        const diagnostic = new vscode.Diagnostic(new vscode.Range(5, 0, 6, 10), ANY_SHORT_MESSAGE);
+        diagnostic.source = KEEP_SORTED_SOURCE;
+        diagnostics.set(document.uri, [diagnostic]);
+
+        // Act
+        const quickFixes = provider.provideCodeActions(document, range);
+        const onSave = provider.provideCodeActions(document, range, {
+          diagnostics: [],
+          only: ActionProvider.fixAllKind,
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        const exclude = quickFixes.find((a) => a.title === "Exclude this file (keep-sorted)");
+        expect(exclude?.kind).to.equal(vscode.CodeActionKind.QuickFix);
+        expect(exclude?.isPreferred).to.not.equal(true);
+        expect(exclude?.command?.command).to.equal("keep-sorted.excludeFile");
+        expect(exclude?.command?.arguments).to.deep.equal([document.uri]);
+        expect(onSave.map((a) => a.title)).to.not.include("Exclude this file (keep-sorted)");
       });
 
       it("should flush a waiting lint before fix all", () => {

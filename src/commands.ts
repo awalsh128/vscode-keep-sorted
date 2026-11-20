@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { errorMessage } from "./common";
+import { addExcludePattern } from "./configuration";
+import { exactFilePattern } from "./exclusion";
 import { contextualizeLogger, extensionId, logAndGetError, logger } from "./instrumentation";
 import * as workspace from "./workspace";
 
@@ -51,12 +53,15 @@ export abstract class CommandHandler implements workspace.Registrant {
  *
  * - `sortFile`: Handles sorting all keep-sorted blocks in the current file.
  * - `sortWorkspace`: Handles sorting every file that has keep-sorted diagnostics.
+ * - `excludeFile`: Handles adding a file to `keep-sorted.exclude`.
  */
 export interface CommandHandlers {
   /** Handler for sorting all keep-sorted blocks in the current file. */
   readonly sortFile: SortFileCommandHandler;
   /** Handler for sorting every file that has keep-sorted diagnostics. */
   readonly sortWorkspace: SortWorkspaceCommandHandler;
+  /** Handler for excluding a file from keep-sorted. */
+  readonly excludeFile: ExcludeFileCommandHandler;
 }
 
 /**
@@ -288,5 +293,54 @@ export class SortWorkspaceCommandHandler extends CommandHandler {
           `${failedUris.length} could not be sorted.`
       );
     }
+  }
+}
+
+/**
+ * Command handler for excluding a file from keep-sorted by adding it to `keep-sorted.exclude`. It
+ * is only reachable from the quick fix, so it is not contributed to the Command Palette.
+ */
+export class ExcludeFileCommandHandler extends CommandHandler {
+  constructor(
+    command: vscode.Command = {
+      title: `${extensionId.displayName}: Exclude File`,
+      command: `${extensionId.name}.excludeFile`,
+      tooltip: "Exclude this file",
+    }
+  ) {
+    super(command);
+  }
+
+  /**
+   * Creates a quick fix that excludes the document's file.
+   *
+   * @param diagnostics Diagnostics in the document that the action addresses.
+   * @param document The document whose file is excluded.
+   *
+   * @returns A CodeAction that runs this command.
+   */
+  asCodeAction(diagnostics: vscode.Diagnostic[], document: vscode.TextDocument): vscode.CodeAction {
+    const action = new vscode.CodeAction(
+      `${this.command.tooltip} (${extensionId.name})`,
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = diagnostics;
+    action.command = { ...this.command, arguments: [document.uri] };
+    return action;
+  }
+
+  /**
+   * Adds the file to `keep-sorted.exclude`. The settings change then clears its diagnostics.
+   *
+   * @param uri The file to exclude.
+   */
+  async handle(uri: vscode.Uri): Promise<void> {
+    const pattern = exactFilePattern(vscode.workspace.asRelativePath(uri));
+    const target = await addExcludePattern(pattern);
+    const scope = target === vscode.ConfigurationTarget.Workspace ? "workspace" : "user";
+    logger.info(`Excluded ${uri.fsPath} with ${pattern} in ${scope} settings`);
+    vscode.window.showInformationMessage(
+      `${extensionId.displayName}: Excluded ${vscode.workspace.asRelativePath(uri)} in ${scope} settings.`
+    );
   }
 }
