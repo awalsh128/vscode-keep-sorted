@@ -1,41 +1,9 @@
 # GitHub Copilot Instructions
 
-Read and follow [AGENTS.md](../AGENTS.md), the shared repository instructions. Its required
-documentation review applies before completing every task: keep the README accurate to current code
-and concise, or explain why no update is needed. Use the `docs-reviewer` agent for review when
-available; otherwise perform the checklist directly.
+Follow [AGENTS.md](../AGENTS.md), the shared repository instructions, and read
+[docs/AI_GUIDELINES.md](../docs/AI_GUIDELINES.md) before changing code. AGENTS.md holds the
+documentation review, configuration synchronization, pull request, and validation policy; this file
+adds nothing to it.
 
-Apply the shared Configuration Synchronization policy whenever settings change: keep the manifest,
-runtime settings, regression tests, and README aligned. Editor-owned save actions are not extension
-configuration properties.
-
-## MANDATORY COMPLIANCE REQUIRED
-
-All AI assistants and developers working on vscode-keep-sorted MUST follow the comprehensive
-guidelines in **docs/AI_GUIDELINES.md**.
-
-**NO EXCEPTIONS. NO COMPROMISES. NO DEVIATIONS.**
-
-## Quick Reference
-
-**BEFORE ANY CHANGES:**
-
-- [ ] Every `.ts` file WILL have its corresponding `.test.ts` file
-- [ ] Update docs/SOURCE_CODE.md for code structure changes
-- [ ] Update README.md for behavior changes
-- [ ] Follow the 7 mandatory testing principles
-
-## Enforcement
-
-All changes MUST pass:
-
-```bash
-npm test        # All tests must pass
-npm run lint    # No linting errors
-npm run compile # No TypeScript errors
-npm run check   # Docs, settings, and commands agree
-```
-
-The authoritative validation list is in AGENTS.md.
-
-**📋 For complete requirements, examples, and enforcement rules, see docs/AI_GUIDELINES.md**
+Use the `docs-reviewer` agent ([.github/agents](agents)) for the documentation review when it is
+available; otherwise perform the review directly.
