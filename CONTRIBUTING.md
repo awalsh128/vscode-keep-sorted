@@ -66,6 +66,7 @@ requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md)**.
 
    ```bash
    npm run lint      # Check for linting errors
+   npm run format    # Format with Prettier; the pre-commit hook formats staged files too
    npm run compile   # Check for TypeScript errors
    npm test          # Run all tests (must pass)
    npm run test:scripts # Also run when changing scripts

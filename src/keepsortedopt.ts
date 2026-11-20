@@ -12,8 +12,8 @@ import type * as vscode from "vscode";
  * - `<!--` (HTML/XML)
  *
  * Avoid writing the directive itself in comments: keep-sorted treats any line containing it as a
- * block start, even in prose. The match is case-sensitive, as in keep-sorted, so
- * `KEEP-SORTED START` is not a directive.
+ * block start, even in prose. The match is case-sensitive, as in keep-sorted, so `KEEP-SORTED
+ * START` is not a directive.
  *
  * Creates a new regex everytime to avoid issues with global regex state like current index.
  */

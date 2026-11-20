@@ -1,0 +1,10 @@
+// Generates each tool's subagent files from .rulesync/subagents/*.md. Edit the sources, run
+// `npx -y rulesync@43.4.1 generate` and commit the output. The Agent Config workflow checks it
+// with the same version; keep the two in step. AGENTS.md says where everything else lives.
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+  "targets": ["claudecode", "codexcli", "copilot", "antigravity-cli"],
+  "features": ["subagents"],
+  // Remove generated subagents whose source was deleted.
+  "delete": true,
+}

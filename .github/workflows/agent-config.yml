@@ -1,0 +1,87 @@
+name: Agent Config
+
+# Checks that the generated subagent files match .rulesync/ and that every skill follows the
+# Agent Skills spec. Fix a failure locally with:
+#   npx -y rulesync@<RULESYNC_VERSION> generate
+on:
+  pull_request:
+    paths:
+      - .rulesync/**
+      - rulesync.jsonc
+      - .agents/**
+      - .claude/**
+      - .codex/**
+      - .github/agents/**
+      - .github/skills
+      - skills-lock.json
+      - .github/workflows/agent-config.yml
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Not covered by Dependabot; bump by hand, ideally to a release at least two weeks old.
+  RULESYNC_VERSION: 43.4.1
+  SKILLS_REF: git+https://github.com/agentskills/agentskills@83021e2be457a9b6679148719c1f6074f0ad975e#subdirectory=skills-ref
+
+# A new push to a PR supersedes its running checks; other runs are never cancelled.
+concurrency:
+  group:
+    ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  subagents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Check generated subagents are up to date
+        run: npx -y "rulesync@$RULESYNC_VERSION" generate --check
+
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Check skill symlinks
+        run: |
+          for link in .claude/skills .github/skills; do
+            if [[ "$(readlink "$link")" != "../.agents/skills" ]]; then
+              echo "::error file=$link::$link must be a symlink to ../.agents/skills"
+              exit 1
+            fi
+          done
+
+      # Skills installed with `npx skills add` are recorded in skills-lock.json; its copy must be committed.
+      - name: Check installed skills match skills-lock.json
+        run: |
+          [[ -f skills-lock.json ]] || exit 0
+          status=0
+          for name in $(jq -r '.skills | keys[]' skills-lock.json); do
+            if [[ ! -f ".agents/skills/$name/SKILL.md" ]]; then
+              echo "::error file=skills-lock.json::$name is in skills-lock.json but .agents/skills/$name/ is not committed"
+              status=1
+            fi
+          done
+          exit "$status"
+
+      - name: Validate skills
+        run: |
+          status=0
+          for skill in .agents/skills/*/; do
+            uvx --from "$SKILLS_REF" skills-ref validate "$skill" || status=1
+          done
+          exit "$status"
