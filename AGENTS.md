@@ -76,6 +76,14 @@ next version and release notes from them, and the `commit-msg` hook rejects othe
 `feat` commits ship as a pre-release before a release (see the Publishing section of
 [CONTRIBUTING.md](CONTRIBUTING.md#publishing)).
 
+## Pull Requests
+
+Open pull requests against `staging`, never `main`, and branch from `origin/staging`; see Branches
+in [CONTRIBUTING.md](CONTRIBUTING.md#branches). Before `gh pr create`, list the remote branches
+(`git ls-remote --heads origin staging main`) and pass `--base staging` explicitly rather than
+trusting a tool's "main branch" hint. Pull requests are squash-merged, so the title must be a
+Conventional Commit.
+
 ## Validation
 
 Follow the testing requirements in [docs/AI_GUIDELINES.md](docs/AI_GUIDELINES.md). Code changes
