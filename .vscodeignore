@@ -14,7 +14,12 @@ test-workspace/
 # docs/ai ships: the agent tools and MCP server read it at runtime.
 docs/**
 !docs/ai/**
+.agents/
 .claude/
+.codex/
+.gemini/
+.out-of-scope/
+.rulesync/
 .husky/
 .github/
 .vscode/
@@ -22,6 +27,11 @@ docs/**
 .env
 .gitignore
 AGENTS.md
+.editorconfig
+.lintstagedrc.json
+.prettierignore
+rulesync.jsonc
+SECURITY.md
 CLAUDE.md
 CONTRIBUTING.md
 eslint.config.mjs

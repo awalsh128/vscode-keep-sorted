@@ -1,2 +1,4 @@
-# Installed by husky through the npm prepare script.
+# Installed by husky through the npm prepare script. Formats staged files with Prettier, then checks
+# that docs, settings, and commands agree.
+npx --no -- lint-staged
 npm run --silent check

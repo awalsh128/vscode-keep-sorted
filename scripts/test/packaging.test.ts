@@ -82,7 +82,12 @@ describe("extension package", (): void => {
     "scripts/",
     "docs/SOURCE_CODE.md",
     "docs/AI_GUIDELINES.md",
+    ".agents/",
     ".claude/",
+    ".codex/",
+    ".gemini/",
+    ".out-of-scope/",
+    ".rulesync/",
     ".husky/",
   ].forEach((prefix): void => {
     it(`should exclude ${prefix}`, (): void => {

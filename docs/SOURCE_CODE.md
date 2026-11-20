@@ -114,10 +114,20 @@ and the registry adapters with stubbed HTTP.
 - [.github/copilot-instructions.md](../.github/copilot-instructions.md): Copilot entry point that
   references the shared policy and development guidelines.
 - [CLAUDE.md](../CLAUDE.md): Claude Code entry point; imports the shared policy with `@AGENTS.md`.
-- [.github/agents/docs-reviewer.agent.md](../.github/agents/docs-reviewer.agent.md) and
-  [.claude/agents/docs-reviewer.md](../.claude/agents/docs-reviewer.md): Read-only documentation
-  reviewers in each tool's native discovery layout. The main agent applies findings and validates
-  changes. No separate Claude settings file or expanded permissions are required.
+- [.rulesync/subagents](../.rulesync/subagents): The one source for every subagent role: five shared
+  read-only roles and `docs-reviewer`, which checks the README against the code. The main agent
+  applies findings and validates changes. [rulesync.jsonc](../rulesync.jsonc) configures
+  `npx -y rulesync@43.4.1 generate`, which writes the per-tool files under `.claude/agents`,
+  `.codex/agents`, `.github/agents` and `.agents/agents`; do not edit those. `.rulesync/TIERS.md`
+  maps each role's model tier to each tool's settings.
+- [.agents/skills](../.agents/skills): Skills (`delegate`, `progress-notes`), shared with Claude
+  Code and Copilot through the `.claude/skills` and `.github/skills` symlinks. `.out-of-scope/`
+  records rejected ideas, and `.gemini/settings.json` points Gemini CLI at `AGENTS.md`.
+- [.github/workflows/agent-config.yml](../.github/workflows/agent-config.yml): Checks that the
+  generated roles match `.rulesync/`, that the skill symlinks are intact, and that every skill
+  passes `skills-ref validate`.
+- None of this ships in the VSIX: `.vscodeignore` excludes it and
+  [scripts/test/packaging.test.ts](../scripts/test/packaging.test.ts) checks that.
 
 ### Core Files
 

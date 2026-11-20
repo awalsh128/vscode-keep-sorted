@@ -65,6 +65,9 @@ jobs:
       - name: Run linting
         run: npm run lint
 
+      - name: Check formatting
+        run: npm run format:check
+
       - name: Check cross-file consistency
         run: npm run check
 

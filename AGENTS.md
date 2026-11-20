@@ -25,10 +25,7 @@ user-visible behavior change; otherwise state in the completion summary why no u
   the bundled binary. Report the checks you ran and any claim left unverified.
 
 Before completing a user-facing change, run the `docs-reviewer` agent; without delegation, perform
-its review directly. Reviewers are read-only: the main agent applies corrections and runs
-validation. Policy lives here, not in tool-specific files ([CLAUDE.md](CLAUDE.md),
-[.github/copilot-instructions.md](.github/copilot-instructions.md), and the reviewers in
-[.claude/agents](.claude/agents) and [.github/agents](.github/agents) point here).
+its review directly. The main agent applies corrections and runs validation.
 
 ## Configuration Synchronization
 
@@ -93,6 +90,23 @@ require `npm run test:scripts`. A `Cannot find module` error after pulling usual
 `node_modules`: run `npm ci`. Format only the files you changed (`npx prettier --write <files>`); a
 glob reformats unrelated files. Documentation-only changes need validated examples, links, and
 configuration syntax, and a summary that claims only the tests you ran.
+
+## Subagents
+
+You are the only agent that edits files; subagents read and report. Read the `delegate` skill before
+starting one, and use `progress-notes` for work that spans sessions.
+
+## Single Source for AI Tools
+
+- Instructions: this file only. `CLAUDE.md`, `.gemini/settings.json`, and
+  `.github/copilot-instructions.md` point here and hold no rules of their own.
+- Skills: [.agents/skills](.agents/skills) only; `.claude/skills` and `.github/skills` are symlinks.
+- Roles, `docs-reviewer` included: [.rulesync/subagents](.rulesync/subagents) only. Every other role
+  directory is generated; run `npx -y rulesync@43.4.1 generate` and commit the result (the Agent
+  Config workflow checks it with the same version).
+- Third-party skills and plugins: install them for the repo, so every clone has them (see
+  [agentic config](https://github.com/awalsh128/gh-dev-powerpack/blob/main/docs/agentic-config.md)).
+- [.out-of-scope](.out-of-scope) lists rejected ideas; check it before proposing a feature.
 
 ## User-Facing Agent Docs
 

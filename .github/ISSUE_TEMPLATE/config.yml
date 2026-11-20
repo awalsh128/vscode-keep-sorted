@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/awalsh128/vscode-keep-sorted/security/advisories/new
+    about: Report vulnerabilities privately, not as a public issue.
   - name: Sorting behavior or new sorting options
     url: https://github.com/google/keep-sorted/issues
     about:

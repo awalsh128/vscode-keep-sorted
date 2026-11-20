@@ -1,6 +1,5 @@
 name: "Require CI success"
-description:
-  "Fails unless the latest completed CI workflow run for a commit concluded successfully."
+description: "Fails unless the latest run of a workflow for a commit concluded successfully."
 
 inputs:
   sha:
@@ -9,6 +8,10 @@ inputs:
   token:
     description: "Token with actions: read permission."
     required: true
+  workflow:
+    description: "Workflow file name to check."
+    required: false
+    default: "ci.yml"
 
 runs:
   using: "composite"
@@ -18,14 +21,15 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         SHA: ${{ inputs.sha }}
+        WORKFLOW: ${{ inputs.workflow }}
       run: |
         set -euo pipefail
-        # Only completed runs count: promoting main starts a CI run for the same commit, which is
-        # still in progress when the release checks CI.
-        conclusion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" \
+        # Only completed runs count: a newer run for the same commit that is still in progress (such as
+        # the push to main that promoting causes) would otherwise be read as a failure.
+        conclusion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW" --commit "$SHA" \
           --status completed --limit 1 --json conclusion --jq '.[0].conclusion // ""')"
         if [[ "$conclusion" != "success" ]]; then
-          echo "::error::CI for commit $SHA is '${conclusion:-missing}', not 'success'."
+          echo "::error::$WORKFLOW for commit $SHA is '${conclusion:-missing}', not 'success'."
           exit 1
         fi
-        echo "CI passed for commit $SHA."
+        echo "$WORKFLOW passed for commit $SHA."
