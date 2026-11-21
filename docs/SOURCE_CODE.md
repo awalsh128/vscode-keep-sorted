@@ -50,8 +50,9 @@ actions to maintain sorted content.
 .husky/          — Git hooks enabled by husky on npm install; pre-commit runs npm run check,
                    commit-msg runs commitlint
 bin/             — Bundled keep-sorted binaries and checksums
-docs/            — Architecture (this file) and AI development guidelines; docs/ai/ holds the
-                   user-facing agent docs that ship in the VSIX
+docs/            — Architecture (this file), AI development guidelines, and the user guides the
+                   README links to (advanced usage, CI, language-specific sorters); docs/ai/
+                   holds the user-facing agent docs that ship in the VSIX
 images/          — Extension icon (logo.png, from logo.svg) and README media
 scripts/         — Development, binary build, release, and label sync scripts (own tsconfig.json)
 src/             — Extension source and tests (own tsconfig.json); src/ai/ holds the AI agent
