@@ -53,7 +53,6 @@ Content outside keep-sorted blocks is left unchanged.
 - [Continuous Integration](#continuous-integration)
 - [Language Specific Solutions](#language-specific-solutions)
 - [Troubleshooting](#troubleshooting)
-- [License](#license)
 
 ## Installation
 
@@ -449,7 +448,3 @@ be a viable option (e.g. lists, class ordering).
 Report bugs or request features through
 [GitHub Issues](https://github.com/awalsh128/vscode-keep-sorted/issues). For development and
 publishing, see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-[Apache 2.0](LICENSE.md).
