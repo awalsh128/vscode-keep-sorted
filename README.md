@@ -2,7 +2,7 @@
   <img src="images/logo.png" alt="Keep Sorted logo" width="128" height="128">
 </p>
 
-<h1 align="center">VSCode Keep Sorted</h1>
+<h1 align="center">Keep Sorted</h1>
 
 <p align="center">
   Keep marked blocks sorted in any language with
