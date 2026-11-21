@@ -10,6 +10,7 @@ import {
   checkBundledVersion,
   checkCommands,
   checkConsistency,
+  checkLogo,
   checkSettings,
   checkSettingsAccess,
   DEV_PROFILE_SETTINGS,
@@ -216,6 +217,18 @@ describe("consistency checks", (): void => {
   let overrides: Record<string, string>;
   const read: ReadFile = (relativePath) =>
     overrides[relativePath] ?? readFileSync(path.join(repoRoot, relativePath), "utf-8");
+  let imageOverrides: Record<string, Buffer>;
+  const readBytes = (relativePath: string): Buffer =>
+    imageOverrides[relativePath] ?? readFileSync(path.join(repoRoot, relativePath));
+
+  /** A minimal PNG header with the given dimensions. */
+  const pngHeader = (width: number, height: number): Buffer => {
+    const header = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header);
+    header.writeUInt32BE(width, 16);
+    header.writeUInt32BE(height, 20);
+    return header;
+  };
 
   /** Overrides a repository file with an edit of its current contents. */
   const edit = (relativePath: string, change: (contents: string) => string): void => {
@@ -238,11 +251,72 @@ describe("consistency checks", (): void => {
 
   beforeEach((): void => {
     overrides = {};
+    imageOverrides = {};
   });
 
   it("should find no problems in the repository", (): void => {
     // Act & Assert
-    expect(checkConsistency(read, extensionSources(repoRoot))).to.deep.equal([]);
+    expect(checkConsistency(read, extensionSources(repoRoot), readBytes)).to.deep.equal([]);
+  });
+
+  it("should report a missing icon", (): void => {
+    // Arrange
+    editManifest((manifest): void => {
+      delete (manifest as { icon?: string }).icon;
+    });
+
+    // Act & Assert
+    expect(checkLogo(read, readBytes)).to.deep.equal(["package.json: icon is not set."]);
+  });
+
+  it("should report an icon that is not a PNG file", (): void => {
+    // Arrange
+    editManifest((manifest): void => {
+      (manifest as { icon?: string }).icon = "images/logo.svg";
+    });
+    imageOverrides["images/logo.svg"] = Buffer.from("<svg/>");
+
+    // Act & Assert
+    expect(checkLogo(read, readBytes)).to.include.members([
+      "package.json: icon images/logo.svg must be a PNG; the Marketplace rejects SVG.",
+      "images/logo.svg: not a valid PNG file.",
+    ]);
+  });
+
+  it("should report an icon file that does not exist", (): void => {
+    // Arrange
+    editManifest((manifest): void => {
+      (manifest as { icon?: string }).icon = "images/missing.png";
+    });
+
+    // Act & Assert
+    expect(checkLogo(read, readBytes)).to.include(
+      "package.json: icon images/missing.png does not exist."
+    );
+  });
+
+  it("should report an icon that is not square or is too small", (): void => {
+    // Arrange
+    imageOverrides["images/logo.png"] = pngHeader(64, 32);
+
+    // Act & Assert
+    expect(checkLogo(read, readBytes)).to.deep.equal([
+      "images/logo.png: icon must be square, but is 64x32.",
+      "images/logo.png: icon is 64x32; use at least 128x128.",
+    ]);
+  });
+
+  it("should report a README header that does not show the icon", (): void => {
+    // Arrange
+    edit("README.md", (contents) =>
+      contents.replace('src="images/logo.png" alt="Keep Sorted logo"', 'src="other.png" alt="Logo"')
+    );
+
+    // Act & Assert
+    expect(checkLogo(read, readBytes)).to.deep.equal([
+      "README.md: header does not show the icon images/logo.png.",
+      'README.md: logo alt text must be "Keep Sorted logo".',
+    ]);
   });
 
   it("should report settings read outside src/configuration.ts", (): void => {

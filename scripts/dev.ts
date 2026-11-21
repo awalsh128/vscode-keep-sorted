@@ -100,6 +100,9 @@ export async function launchDevelopment(
 /** Reads a repository file by its path relative to the repository root. */
 export type ReadFile = (relativePath: string) => string;
 
+/** Reads a repository file as bytes, for binary files such as images. */
+export type ReadBytes = (relativePath: string) => Buffer;
+
 /** Files whose `vX.Y.Z` versions must name the bundled keep-sorted version. */
 export const VERSIONED_DOCS = ["README.md", "docs/SOURCE_CODE.md", "src/keepsortedbin.ts"];
 
@@ -222,6 +225,62 @@ export function checkCommands(read: ReadFile): string[] {
   return problems;
 }
 
+/** The first eight bytes of every PNG file. */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** The Marketplace shows the icon at 128 pixels, so a smaller image looks blurry. */
+export const MIN_ICON_SIZE = 128;
+
+/**
+ * Checks that the Marketplace icon in `package.json` is a square PNG of at least 128 pixels, and
+ * that the README header shows that logo with alt text built from the display name. The Marketplace
+ * rejects SVG icons.
+ */
+export function checkLogo(read: ReadFile, readBytes: ReadBytes): string[] {
+  const manifest = JSON.parse(read("package.json"));
+  const icon: string | undefined = manifest.icon;
+  if (!icon) {
+    return ["package.json: icon is not set."];
+  }
+
+  const problems: string[] = [];
+  if (!icon.toLowerCase().endsWith(".png")) {
+    problems.push(`package.json: icon ${icon} must be a PNG; the Marketplace rejects SVG.`);
+  }
+  let bytes: Buffer | undefined;
+  try {
+    bytes = readBytes(icon);
+  } catch {
+    problems.push(`package.json: icon ${icon} does not exist.`);
+  }
+  if (bytes) {
+    // The IHDR chunk follows the signature: width and height are big-endian at bytes 16 and 20.
+    if (bytes.length < 24 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+      problems.push(`${icon}: not a valid PNG file.`);
+    } else {
+      const width = bytes.readUInt32BE(16);
+      const height = bytes.readUInt32BE(20);
+      if (width !== height) {
+        problems.push(`${icon}: icon must be square, but is ${width}x${height}.`);
+      }
+      if (Math.min(width, height) < MIN_ICON_SIZE) {
+        problems.push(
+          `${icon}: icon is ${width}x${height}; use at least ${MIN_ICON_SIZE}x${MIN_ICON_SIZE}.`
+        );
+      }
+    }
+  }
+
+  const readme = read("README.md");
+  if (!readme.includes(`<img src="${icon}"`)) {
+    problems.push(`README.md: header does not show the icon ${icon}.`);
+  }
+  if (!readme.includes(`alt="${manifest.displayName} logo"`)) {
+    problems.push(`README.md: logo alt text must be "${manifest.displayName} logo".`);
+  }
+  return problems;
+}
+
 /** The only extension module that reads settings, including editor-owned ones. */
 export const SETTINGS_MODULE = "src/configuration.ts";
 
@@ -266,11 +325,17 @@ export function extensionSources(root: string): string[] {
  *
  * @param read Reads a repository file.
  * @param sourceFiles Extension source files to check for settings access.
+ * @param readBytes Reads a repository file as bytes; the logo check runs only when it is given.
  *
  * @returns The problems found.
  */
-export function checkConsistency(read: ReadFile, sourceFiles: string[] = []): string[] {
+export function checkConsistency(
+  read: ReadFile,
+  sourceFiles: string[] = [],
+  readBytes?: ReadBytes
+): string[] {
   return [
+    ...(readBytes ? checkLogo(read, readBytes) : []),
     ...checkBundledVersion(read),
     ...checkSettings(read),
     ...checkCommands(read),
@@ -316,10 +381,11 @@ if (require.main === module) {
     existsSync(path.join(__dirname, "../package.json")) ? ".." : "../.."
   );
   const read: ReadFile = (relativePath) => readFileSync(path.join(root, relativePath), "utf-8");
+  const readBytes: ReadBytes = (relativePath) => readFileSync(path.join(root, relativePath));
   const [command = "launch"] = process.argv.slice(2);
   try {
     if (command === "check") {
-      const problems = checkConsistency(read, extensionSources(root));
+      const problems = checkConsistency(read, extensionSources(root), readBytes);
       problems.forEach((problem) => console.error(problem));
       process.exitCode = problems.length > 0 ? 1 : 0;
     } else if (command === "setup") {

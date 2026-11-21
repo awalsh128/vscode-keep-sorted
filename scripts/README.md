@@ -26,6 +26,8 @@ problem:
   `KeepSortedConfiguration` interface.
 - Commands in `package.json` are in the Command Palette menu and named in the README by ID and
   title.
+- The `package.json` icon is a square PNG of at least 128 pixels (the Marketplace rejects SVG), and
+  the README header shows it with alt text `<displayName> logo`.
 
 The [husky](https://typicode.github.io/husky/) `.husky/pre-commit` hook runs it before each commit
 (and `.husky/commit-msg` checks for Conventional Commits with commitlint), and CI runs it on pushes
