@@ -57,4 +57,12 @@ Pushes made with the default `GITHUB_TOKEN` do not start new workflow runs, and 
 cannot push to pull requests from forks; use the lint workflow to check those. For local hooks, see
 upstream's [pre-commit configuration](https://github.com/google/keep-sorted#pre-commit).
 
+## Matching the Extension Settings
+
+keep-sorted v0.10.0 has no configuration file or exclude flag; it sorts the files you pass it, and
+options come from each block's directive and `--default-options`. CI therefore does not read the
+extension's `keep-sorted.exclude`. To skip the same files, filter the list, for example
+`git ls-files -z -- ':!:**/dist/**' ':!:**/*.min.js' | xargs -0 -r keep-sorted --mode lint`. Git
+pathspecs are not the setting's regex-first matching, so check that both skip the same files.
+
 [Back to the README](../README.md)
