@@ -17,12 +17,9 @@
   <a href="https://github.com/awalsh128/vscode-keep-sorted/blob/main/LICENSE.md"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
 </p>
 
-<!-- prettier-ignore -->
-> [!TIP]
-> If you find this project useful, please consider supporting it
-> [as a sponsor and show some ❤️ for open source maintainers](https://github.com/sponsors/awalsh128).
-
-Content outside keep-sorted blocks is left unchanged.
+Keep Sorted is a VS Code extension that warns about unsorted blocks marked with
+[keep-sorted](https://github.com/google/keep-sorted) directives and sorts them in any language.
+Content outside the blocks is left unchanged.
 
 - :warning: Warnings for unsorted blocks across the workspace and as you open, edit, and save files.
 - :bulb: Quick fixes and commands to sort the current file or every file with Keep Sorted warnings.
@@ -31,14 +28,22 @@ Content outside keep-sorted blocks is left unchanged.
 - :robot: [AI agent](#ai-agents) integration through an MCP server and Copilot tools, so agents know
   when to add blocks and which options to use.
 
----
+[Watch the demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2).
 
-[Demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2)
+<!-- prettier-ignore -->
+<p align="center">
+  <a href="https://github.com/sponsors/awalsh128"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor"></a>
+</p>
+
+<p align="center">
+  If you find this project useful, please consider
+  <a href="https://github.com/sponsors/awalsh128">sponsoring it</a> and show some ❤️ for open source
+  maintainers.
+</p>
 
 ## Contents
 
-- [Installation](#installation)
-- [Basic Usage](#basic-usage)
+- [Quick Start](#quick-start)
   - [Sort on Save](#sort-on-save)
 - [Advanced Usage](#advanced-usage)
   - [Sorting Options](#sorting-options)
@@ -54,15 +59,13 @@ Content outside keep-sorted blocks is left unchanged.
 - [Language Specific Solutions](#language-specific-solutions)
 - [Troubleshooting](#troubleshooting)
 
-## Installation
+## Quick Start
 
 Install Keep Sorted from the
 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=awalsh128.keep-sorted)
 or [Open VSX Registry](https://open-vsx.org/extension/awalsh128/keep-sorted). Requires VS Code
 1.100.0 or newer. Native binaries are bundled for Windows x64, Linux x64, and macOS Intel/Apple
 Silicon; no separate keep-sorted installation is needed.
-
-## Basic Usage
 
 Place markers around only the lines that should move. Use your language's comment syntax:
 
