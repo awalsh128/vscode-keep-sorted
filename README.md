@@ -158,6 +158,10 @@ and choose **Exclude this file (keep-sorted)**. It adds an exact-match pattern s
 when no folder is open, and the file's warnings clear. This is a quick fix only: it is not a Command
 Palette command and is not part of sort on save. To undo it, remove the pattern from the setting.
 
+Some warnings cannot be fixed by sorting, such as a `keep-sorted start` with no matching `end`
+(often prose or a JSON string that mentions the directive). For those, only the exclude quick fix is
+offered, and it is the preferred one.
+
 Exclusions are checked against workspace-relative paths, absolute paths, and file names. Patterns
 are interpreted as regex first, falling back to glob matching when the regex is invalid. Changes
 apply immediately: newly excluded files lose their warnings, and newly included files are checked.

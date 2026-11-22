@@ -36,6 +36,23 @@ class KeepSortedRange {
   }
 }
 
+/** Diagnostic code of findings that sorting cannot fix, such as an unmatched start directive. */
+export const UNFIXABLE_CODE = "unfixable";
+
+/**
+ * Tells whether sorting can fix a finding. Findings about the directives themselves come with an
+ * empty replacement, which would delete the directive line and which fix mode never applies.
+ */
+function isFixable(finding: KeepSortedFinding): boolean {
+  return finding.fixes.some((fix) => fix.replacements.some((r) => r.new_content !== ""));
+}
+
+/** Tells whether a diagnostic is for a finding that sorting cannot fix. */
+export function isUnfixable(diagnostic: vscode.Diagnostic): boolean {
+  const code = diagnostic.code;
+  return (typeof code === "object" ? code.value : code) === UNFIXABLE_CODE;
+}
+
 /**
  * Interfaces with the keep-sorted binary to lint and fix documents.
  *
@@ -103,12 +120,17 @@ export class KeepSorted {
     }
     // Fix the entire file to avoid async file writes that can lead to file corruption
     contextualizeLogger(uri).warn(
-      `Multiple findings detected in document ${uri.fsPath}, ` +
+      `Findings in document ${uri.fsPath} are not a single replacement, ` +
         `falling back to full document fix to ensure consistency.`
     );
     const fixed = this.fixFileText(document);
     if (fixed === null) {
-      throw new Error("No findings to fix");
+      // Lint can report findings that sorting cannot fix, such as a `keep-sorted start` with no
+      // matching `end` (often prose that mentions the directive); the binary exits 1 for those.
+      contextualizeLogger(uri).warn(
+        `Findings in ${uri.fsPath} cannot be fixed by sorting, such as an unmatched start directive.`
+      );
+      return null;
     }
     return {
       content: fixed,
@@ -155,7 +177,7 @@ export class KeepSorted {
       );
       diagnostic.source = extensionId.name;
       diagnostic.code = {
-        value: "docs",
+        value: isFixable(finding) ? "docs" : UNFIXABLE_CODE,
         target: vscode.Uri.parse("https://github.com/google/keep-sorted/blob/main/README.md"),
       };
       return diagnostic;
