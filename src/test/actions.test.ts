@@ -12,7 +12,7 @@ import {
   SortWorkspaceCommandHandler,
 } from "../commands";
 import { extensionId } from "../instrumentation";
-import { KeepSorted } from "../keepsorted";
+import { KeepSorted, UNFIXABLE_CODE } from "../keepsorted";
 import { EditFactory } from "../workspace";
 
 use(sinonChai);
@@ -225,6 +225,27 @@ describe("actions", () => {
         expect(exclude?.command?.command).to.equal("keep-sorted.excludeFile");
         expect(exclude?.command?.arguments).to.deep.equal([document.uri]);
         expect(onSave.map((a) => a.title)).to.not.include("Exclude this file (keep-sorted)");
+      });
+
+      it("should offer only a preferred exclude fix for findings sorting cannot fix", () => {
+        // Arrange
+        const diagnostic = new vscode.Diagnostic(new vscode.Range(5, 0, 6, 10), ANY_SHORT_MESSAGE);
+        diagnostic.source = KEEP_SORTED_SOURCE;
+        diagnostic.code = UNFIXABLE_CODE;
+        diagnostics.set(document.uri, [diagnostic]);
+
+        // Act
+        const quickFixes = provider.provideCodeActions(document, range);
+        const onSave = provider.provideCodeActions(document, range, {
+          diagnostics: [],
+          only: ActionProvider.fixAllKind,
+          triggerKind: vscode.CodeActionTriggerKind.Automatic,
+        });
+
+        // Assert
+        expect(quickFixes.map((a) => a.title)).to.deep.equal(["Exclude this file (keep-sorted)"]);
+        expect(quickFixes[0].isPreferred).to.equal(true);
+        expect(onSave).to.have.length(0);
       });
 
       it("should flush a waiting lint before fix all", () => {

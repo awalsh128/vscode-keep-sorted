@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { CommandHandlers } from "./commands";
 import { contextualizeLogger, relevantDiagnostics } from "./instrumentation";
+import { isUnfixable } from "./keepsorted";
 import * as workspace from "./workspace";
 
 /**
@@ -60,22 +61,29 @@ export class ActionProvider implements vscode.CodeActionProvider, workspace.Regi
     const actions: vscode.CodeAction[] = [];
     if (this.shouldIncludeAction(context, vscode.CodeActionKind.QuickFix)) {
       const diagnostics = [...relevantDiagnostics(this.diagnostics, uri, range)];
-      if (diagnostics.length > 0) {
+      // Sorting cannot fix some findings, such as prose that mentions a start directive; offer
+      // only exclusion for those, as the preferred action when nothing in range can be sorted.
+      const fixable = diagnostics.filter((d) => !isUnfixable(d));
+      if (fixable.length > 0) {
         // Preferred so Auto Fix applies it.
-        actions.push(this.commandHandlers.sortFile.asCodeAction(diagnostics, document, true));
+        actions.push(this.commandHandlers.sortFile.asCodeAction(fixable, document, true));
         // Only offer the workspace fix when it does more than the file fix.
         const { sortWorkspace } = this.commandHandlers;
         if (sortWorkspace.affectedUris().some((other) => other.toString() !== uri.toString())) {
-          actions.push(sortWorkspace.asCodeAction(diagnostics));
+          actions.push(sortWorkspace.asCodeAction(fixable));
         }
-        actions.push(this.commandHandlers.excludeFile.asCodeAction(diagnostics, document));
+      }
+      if (diagnostics.length > 0) {
+        actions.push(
+          this.commandHandlers.excludeFile.asCodeAction(diagnostics, document, fixable.length === 0)
+        );
       }
     }
     if (this.shouldIncludeAction(context, ActionProvider.fixAllKind)) {
       // Only fix all waits for current diagnostics: quick fixes are requested as the cursor moves,
       // and flushing for them would lint on every keystroke again.
       this.flushLint(document);
-      const diagnostics = [...relevantDiagnostics(this.diagnostics, uri)];
+      const diagnostics = relevantDiagnostics(this.diagnostics, uri).filter((d) => !isUnfixable(d));
       if (diagnostics.length > 0) {
         actions.push(
           this.commandHandlers.sortFile.asCodeAction(

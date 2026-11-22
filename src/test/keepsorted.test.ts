@@ -7,7 +7,7 @@ import * as path from "path";
 import * as sinon from "sinon";
 import sinonChai from "sinon-chai";
 import * as vscode from "vscode";
-import { KeepSorted } from "../keepsorted";
+import { isUnfixable, KeepSorted } from "../keepsorted";
 import { EXT_WORKSPACE_DIR, TEST_WORKSPACE_DIR } from "./testing";
 
 use(sinonChai);
@@ -256,6 +256,41 @@ const beta = 2;
 
       // Assert
       expect(result).to.equal(null);
+    });
+
+    it("should return null for an unmatched start directive instead of throwing", function () {
+      // Arrange
+      this.timeout(5000);
+      const unmatched = `// keep-sorted start\nb\na\n`;
+
+      // Act
+      const result = keepSorted.fixDocument(mockDocument(unmatched));
+
+      // Assert
+      expect(result).to.equal(null);
+    });
+
+    it("should mark an unmatched start directive's diagnostic as unfixable", function () {
+      // Arrange
+      this.timeout(5000);
+      const doc = mockDocument(`// keep-sorted start\nb\na\n`);
+
+      // Act
+      const [diagnostic] = keepSorted.lintDocument(doc);
+
+      // Assert
+      expect(isUnfixable(diagnostic)).to.equal(true);
+    });
+
+    it("should not mark an out-of-order block's diagnostic as unfixable", function () {
+      // Arrange
+      this.timeout(5000);
+
+      // Act
+      const [diagnostic] = keepSorted.lintDocument(mockDocument(unsortedTextBlock));
+
+      // Assert
+      expect(isUnfixable(diagnostic)).to.equal(false);
     });
 
     it("should fix test-workspace/sample.ts", async function () {

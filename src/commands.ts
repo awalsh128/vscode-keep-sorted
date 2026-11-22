@@ -316,15 +316,22 @@ export class ExcludeFileCommandHandler extends CommandHandler {
    *
    * @param diagnostics Diagnostics in the document that the action addresses.
    * @param document The document whose file is excluded.
+   * @param isPreferred Whether this action should be marked as preferred, as when sorting cannot
+   *   fix any of the diagnostics.
    *
    * @returns A CodeAction that runs this command.
    */
-  asCodeAction(diagnostics: vscode.Diagnostic[], document: vscode.TextDocument): vscode.CodeAction {
+  asCodeAction(
+    diagnostics: vscode.Diagnostic[],
+    document: vscode.TextDocument,
+    isPreferred = false
+  ): vscode.CodeAction {
     const action = new vscode.CodeAction(
       `${this.command.tooltip} (${extensionId.name})`,
       vscode.CodeActionKind.QuickFix
     );
     action.diagnostics = diagnostics;
+    action.isPreferred = isPreferred;
     action.command = { ...this.command, arguments: [document.uri] };
     return action;
   }
