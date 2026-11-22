@@ -29,3 +29,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Demo recordings
+demo/out/
+media/demo/.frames/

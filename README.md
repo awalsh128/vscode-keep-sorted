@@ -28,7 +28,14 @@ Content outside the blocks is left unchanged.
 - 🤖 [AI agent](docs/AI_AGENTS.md) integration through an MCP server and Copilot tools, so agents
   know when to add blocks and which options to use.
 
-[Watch the demo](https://github.com/user-attachments/assets/87cce237-4214-4047-a5c4-b6a4162245d2).
+Place the cursor on a warning, open the quick fix, and the block sorts:
+
+<p align="center">
+  <img src="media/demo/sort-quick-fix.gif" alt="A warning on an unsorted block, then the Sort all lines quick fix reorders the entries and the warning clears" width="800">
+</p>
+
+More demos are in the
+[demo gallery](https://github.com/awalsh128/vscode-keep-sorted/blob/main/docs/demos.md).
 
 <!-- prettier-ignore -->
 <p align="center">
@@ -91,6 +98,10 @@ Sorting rechecks diagnostics for each sorted file, so resolved Keep Sorted warni
 Problems while any remaining issues stay visible.
 
 ### Sort on Save
+
+With the action enabled, an explicit save sorts the file, so a new entry lands in place:
+
+<img src="media/demo/sort-on-save.gif" alt="Typing a new entry at the end of a block, then saving sorts it between the existing entries" width="800">
 
 Add this to your VS Code user or workspace settings:
 

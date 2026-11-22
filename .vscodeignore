@@ -44,3 +44,5 @@ tsconfig*.json
 Thumbs.db
 images/logo.svg
 images/demo.webm
+demo/
+media/

@@ -13,3 +13,7 @@ test-workspace/
 .codex/agents/
 .github/agents/
 .agents/agents/
+# Demo fixtures: unsorted on purpose.
+demo/workspace/
+demo/out/
+media/
