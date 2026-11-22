@@ -11,7 +11,14 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: [".vscode-test", "out", "dist", "test-workspace/*.js", "test-workspace/*.js.map"],
+    ignores: [
+      ".vscode-test",
+      "out",
+      "dist",
+      "demo/out",
+      "test-workspace/*.js",
+      "test-workspace/*.js.map",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
