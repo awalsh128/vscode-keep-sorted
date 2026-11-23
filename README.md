@@ -34,8 +34,10 @@ Place the cursor on a warning, open the quick fix, and the block sorts:
   <img src="media/demo/sort-quick-fix.gif" alt="A warning on an unsorted block, then the Sort all lines quick fix reorders the entries and the warning clears" width="800">
 </p>
 
-More demos are in the
-[demo gallery](https://github.com/awalsh128/vscode-keep-sorted/blob/main/docs/demos.md).
+<!-- prettier-ignore -->
+> [!TIP]
+> More demos are in the
+> [demo gallery](https://github.com/awalsh128/vscode-keep-sorted/blob/main/docs/demos.md).
 
 <!-- prettier-ignore -->
 <p align="center">
