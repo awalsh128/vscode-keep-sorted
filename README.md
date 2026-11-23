@@ -41,13 +41,14 @@ Place the cursor on a warning, open the quick fix, and the block sorts:
 
 <!-- prettier-ignore -->
 <p align="center">
-  <a href="https://github.com/sponsors/awalsh128"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor"></a>
+  <a href="https://github.com/sponsors/awalsh128"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor awalsh128"></a>
 </p>
 
 <p align="center">
-  If you find this project useful, please consider
-  <a href="https://github.com/sponsors/awalsh128">sponsoring it</a> and show some ❤️ for open source
-  maintainers.
+  Free and open source, and kept up by one person.<br />
+  If it saves you time, <a href="https://github.com/sponsors/awalsh128">sponsor it monthly</a> or
+  <a href="https://github.com/sponsors/awalsh128?frequency=one-time">leave a small one-time tip</a>. Every bit
+  helps.
 </p>
 
 ## Quick Start
