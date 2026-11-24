@@ -6,6 +6,10 @@ name: Build Static Binaries
 on:
   workflow_dispatch:
 
+# The test and build jobs only read the code. commit-binaries sets its own permissions.
+permissions:
+  contents: read
+
 jobs:
   test-create-binaries:
     name: Test create-binaries script
