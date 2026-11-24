@@ -2,8 +2,8 @@
  * Semantic-release plugin that chooses each release's version bump from Conventional Commits and VS
  * Code's pre-release convention: releases use even minor versions (1.0.x, 1.2.x) and pre-releases
  * odd ones (1.1.x, 1.3.x), so the two never collide. It replaces
- * `@semantic-release/commit-analyzer` in the `release` configuration of package.json, and reads
- * `VSCE_PRE_RELEASE` the same way semantic-release-vsce does.
+ * `@semantic-release/commit-analyzer` in release.config.cjs, and reads `VSCE_PRE_RELEASE` the same
+ * way semantic-release-vsce does.
  *
  * | Last version | Run         | Commits             | Bump            |
  * | ------------ | ----------- | ------------------- | --------------- |
@@ -15,6 +15,9 @@
  *
  * A feature released directly from an even minor would need to skip an odd minor, and a breaking
  * pre-release would land on an even minor, so both are refused with guidance instead.
+ *
+ * Release.config.cjs loads it. Node.js 24 runs it without a build step by stripping its types, so
+ * it uses only erasable TypeScript syntax.
  */
 
 /** A semver bump that semantic-release applies to the last version. */
@@ -119,7 +122,7 @@ export function nextReleaseType(
   if (change === "minor") {
     throw new Error(
       `Features after ${lastVersion} would skip a minor version; publish them as a pre-release ` +
-        "first (pre-release), then release."
+        "first (pre_release), then release."
     );
   }
   return change;

@@ -9,11 +9,11 @@ module.exports = {
   branches: ["main"],
   tagFormat: "v${version}",
   plugins: [
-    // Replaces @semantic-release/commit-analyzer; compiled to out/ by `tsc -b`.
-    "./out/scripts/release-version.js",
+    // Replaces @semantic-release/commit-analyzer. Node.js 24 loads it without a build step.
+    "./scripts/vscode-release/release-version.mts",
     ["@semantic-release/release-notes-generator", { preset: "conventionalcommits" }],
     // Packages the VSIX for the GitHub release only. The plugin reads registry credentials from
-    // tokens, so the workflow publishes with `npm run ops -- publish` (trusted publishing).
+    // tokens, so the workflow publishes with vsce and ovsx (trusted publishing).
     ["semantic-release-vsce", { packageVsix: true, publish: false }],
     [
       "@semantic-release/github",
