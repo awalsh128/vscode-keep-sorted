@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   subagents:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,7 +48,7 @@ jobs:
         run: npx -y "rulesync@$RULESYNC_VERSION" generate --check
 
   skills:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
