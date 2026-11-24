@@ -169,8 +169,8 @@ husky `commit-msg` hook, enabled by `npm install`, checks them with commitlint.
 Versions follow VS Code's
 [pre-release convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions):
 releases use even minor versions (1.0.x, 1.2.x) and pre-releases odd ones (1.1.x, 1.3.x).
-[scripts/release-version.ts](scripts/release-version.ts) turns the commits into a bump that keeps
-that split:
+[scripts/vscode-release/release-version.mts](scripts/vscode-release/release-version.mts) turns the
+commits into a bump that keeps that split:
 
 | Last version | Run         | Commits             | Next version    |
 | ------------ | ----------- | ------------------- | --------------- |
@@ -201,18 +201,18 @@ After checking that CI passed on the commit, a run:
    and pull requests get a comment and the `released` label. Releases never commit: the version is
    written into `package.json` in the CI workspace only, so the tag is the record of each release.
 3. Publishes that release's VSIX to the Visual Studio Marketplace and Open VSX with
-   `npm run ops -- publish --vsix` ([scripts/ops.ts](scripts/ops.ts)), at the version of the newest
-   `v*` tag on the commit, skipping a registry that already has it. After a partial failure, use
-   **Re-run failed jobs**: the commit already carries the tag, so the rerun publishes it to the
-   remaining registries.
+   `vsce publish --oidc` and `ovsx publish --trusted-publishing` (the `publish` job in
+   [publish.yml](.github/workflows/publish.yml)), both with `--skip-duplicate` so a registry that
+   already has the version is skipped, and one registry failing does not stop the other. After a
+   partial failure, use **Re-run failed jobs**: the commit already carries the tag, so the rerun
+   publishes it to the remaining registries.
 
 `pre-release` publishes on the odd minor line and marks the release as a pre-release on both
 registries and on GitHub. Its issues and pull requests also get the `released` label, so a later
 release does not label them again. Registries accept only `major.minor.patch` versions, so the odd
 minor, rather than a suffix like `-beta.1`, is what separates pre-releases.
 
-`npm run ops -- publish --dry-run` packages the VSIX and lists the registries that do not have the
-version yet, from any machine.
+Start the workflow with `dry-run` on to check the next version and release notes without publishing.
 
 ### Release Credentials
 
@@ -254,23 +254,15 @@ Every registry is reached with trusted publishing: the job's GitHub OIDC token i
 short-lived credentials. Each registry must list this repository, `publish.yml`, and the `release`
 environment as a trusted publisher:
 
-| Registry            | Where to configure it                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| VS Code Marketplace | The `awalsh128` publisher's trusted publishers; `vsce publish --oidc` exchanges the token.                                                        |
-| Open VSX            | The namespace's [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers); `ops.ts` exchanges the token for a publishing token. |
+| Registry            | Where to configure it                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VS Code Marketplace | The `awalsh128` publisher's trusted publishers; `vsce publish --oidc` exchanges the token.                                                            |
+| Open VSX            | The namespace's [trusted publishers](https://open-vsx.org/user-settings/trusted-publishers); `ovsx publish --trusted-publishing` exchanges the token. |
 
 Run a dry run of the workflow after changing `release.config.cjs`. A dry run checks the
 configuration but does not publish.
 
 ### Manual
-
-[scripts/ops.ts](scripts/ops.ts) handles the other release operations; see
-[scripts/README.md](scripts/README.md#opsts) for details.
-
-```bash
-npm run ops -- list                            # versions on each registry
-npm run ops -- deprecate --replacement publisher.other
-```
 
 The publisher pages are also available for manual changes:
 

@@ -70,58 +70,17 @@ Rebuilding the bundled binaries is always intentional: the **Build Static Binari
 only when started manually (`gh workflow run create-binaries.yml`), then tests the script, builds
 with Go 1.26, and commits `bin/`. Regular CI runs only the script's Go-free unit tests.
 
-### `ops.ts`
+### `vscode-release/release-version.mts`
 
-Release operations for Open VSX and the Visual Studio Marketplace, for maintainers. The **Publish
-Extension** workflow tags releases with semantic-release and publishes the release's VSIX with
-`publish --vsix` (see [CONTRIBUTING.md](../CONTRIBUTING.md#publishing)).
+A semantic-release plugin shipped from gh-dev-powerpack's `vscode-extension` set (with its tests
+there), not edited here. `release.config.cjs` loads it in place of
+`@semantic-release/commit-analyzer`; it keeps releases on even minor versions and pre-releases
+(`VSCE_PRE_RELEASE`) on odd ones, as [CONTRIBUTING.md](../CONTRIBUTING.md#publishing) describes.
+Node.js 24 runs it without a build step, so `scripts/tsconfig.json` excludes it.
 
-```bash
-npm run ops -- list                          # versions on each registry
-npm run ops -- publish --dry-run             # package only; add --pre-release if needed
-npm run ops -- deprecate --replacement publisher.other --reason "Renamed"
-```
-
-- `publish` packages the `package.json` version once, or takes the VSIX at `--vsix`, and publishes
-  it to each registry that does not have it yet, so a rerun after a partial failure only fills the
-  gap. It refuses a pre-release on an even minor version and a release on an odd one, matching
-  [`release-version.ts`](#release-versionts).
-- `publish` uses trusted publishing only, so without `--dry-run` it runs only in a GitHub Actions
-  job with `id-token: write`: Open VSX exchanges the job's OIDC ID token for a short-lived
-  publishing token, and the Marketplace runs `vsce publish --oidc`. No token is read from the
-  environment.
-- `deprecate` prints the request text to submit by hand, since neither registry has a deprecation
-  API: a comment on the Marketplace
-  [Deprecated extensions discussion](https://github.com/microsoft/vscode-discussions/discussions/1)
-  and an issue on [EclipseFdn/open-vsx.org](https://github.com/EclipseFdn/open-vsx.org/issues/new).
-
-### `release-version.ts`
-
-A semantic-release plugin that replaces `@semantic-release/commit-analyzer` in the `release`
-configuration in `release.config.cjs`. It reads the Conventional Commits since the last release and
-chooses the bump that keeps releases on even minor versions and pre-releases (`VSCE_PRE_RELEASE`) on
-odd ones; see [CONTRIBUTING.md](../CONTRIBUTING.md#publishing) for the rules. semantic-release loads
-it from `out/scripts/release-version.js`, so the Publish Extension workflow compiles first.
-
-### `sync-labels.ts`
-
-Synchronizes GitHub repository labels from a YAML configuration file.
-
-**What it does:**
-
-- Reads label configuration from `.github/labels.yaml`
-- Creates missing labels and updates colors and descriptions; never deletes labels
-- Runs from the **Sync Labels** workflow when `.github/labels.yaml` changes on `main`
-
-**Usage:**
-
-```bash
-# Set required environment variables:
-export GITHUB_TOKEN=your_github_token
-export GITHUB_REPOSITORY=owner/repo
-
-npx tsx scripts/sync-labels.ts
-```
+Labels sync from `.github/labels.yaml` with `crazy-max/ghaction-github-labeler` in the **Sync
+Labels** workflow, and registry publishing uses `vsce` and `ovsx` in the **Publish Extension**
+workflow, so neither has a script here.
 
 ## Testing
 
@@ -129,11 +88,6 @@ Scripts have corresponding test files in the `test/` subdirectory:
 
 - `test/create-binaries.test.ts`
 - `test/dev.test.ts`
-- `test/ops.test.ts`
-- `test/packaging.test.ts`
-- `test/release-version.test.ts`
-- `test/sync-labels.test.ts`
-- `test/ops.test.ts`
 - `test/packaging.test.ts` (checks the esbuild bundle and `vsce ls` file list; not tied to one
   script)
 

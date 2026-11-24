@@ -8,5 +8,5 @@
     "tsBuildInfoFile": "../out/.tsbuildinfo.scripts"
   },
   "include": ["**/*"],
-  "exclude": ["bin-build"]
+  "exclude": ["bin-build", "vscode-release"]
 }
