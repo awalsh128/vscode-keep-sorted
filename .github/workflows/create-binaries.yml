@@ -9,7 +9,7 @@ on:
 jobs:
   test-create-binaries:
     name: Test create-binaries script
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -37,7 +37,7 @@ jobs:
   build-binaries:
     needs: test-create-binaries
     name: Build all platform binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -88,7 +88,7 @@ jobs:
     needs: build-binaries
     # The trust policy (.github/chainguard/binaries.sts.yaml) only matches this workflow on staging.
     if: ${{ github.ref == 'refs/heads/staging' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # For OIDC: the Octo STS token that pushes the branch and opens the PR
